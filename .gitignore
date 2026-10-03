@@ -1,0 +1,11 @@
+node_modules/
+.next/
+out/
+cache/
+broadcast/*/31337/
+.env
+.env.*
+!.env.example
+*.log
+.DS_Store
+generated/
