@@ -1,0 +1,122 @@
+@import "tailwindcss";
+
+/*
+  Copas visual language: security printing. Bonds are collateral, so the one
+  ornament we allow is the guilloche "materai" seal (Indonesian revenue stamp
+  that makes a promise binding). Everything else is quiet ink-on-navy.
+*/
+:root {
+  color-scheme: dark;
+  --bg: #0b1120;
+  --surface: #111a2c;
+  --surface-2: #172238;
+  --line: #22304b;
+  --line-strong: #33446a;
+  --ink: #e9edf4;
+  --ink-2: #a9b4c8;
+  --ink-3: #8390a8;
+  --gold: #d9b45c;
+  --gold-2: #f0d48f;
+  --gold-ink: #1b1404;
+  --up: #3fc792;
+  --down: #f26d6d;
+  --warn: #eaa53c;
+  /* chart categorical slots (dataviz reference, dark steps; validated vs --surface) */
+  --c1: #3987e5;
+  --c2: #d95926;
+  --c3: #199e70;
+  --c-other: #6b7690;
+  --grid: #1d2840;
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-ink-3: var(--ink-3);
+  --color-gold: var(--gold);
+  --color-gold-2: var(--gold-2);
+  --color-gold-ink: var(--gold-ink);
+  --color-up: var(--up);
+  --color-down: var(--down);
+  --color-warn: var(--warn);
+  --font-sans: var(--font-plex), system-ui, sans-serif;
+  --font-cond: var(--font-plex-cond), var(--font-plex), sans-serif;
+}
+
+html,
+body {
+  background: var(--bg);
+  color: var(--ink);
+}
+body {
+  font-family: var(--font-sans);
+  font-feature-settings: "ss02";
+  -webkit-font-smoothing: antialiased;
+}
+.num {
+  font-variant-numeric: tabular-nums;
+}
+:focus-visible {
+  outline: 2px solid var(--gold-2);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+::selection {
+  background: var(--gold);
+  color: var(--gold-ink);
+}
+
+/* Guilloche: two offset rings of fine lines, the way banknotes resist copying. */
+.guilloche {
+  background-image:
+    repeating-radial-gradient(circle at 30% 40%, transparent 0 5px, rgb(217 180 92 / 0.13) 5px 6px),
+    repeating-radial-gradient(circle at 72% 64%, transparent 0 7px, rgb(217 180 92 / 0.09) 7px 8px);
+}
+/* Perforated stamp edge */
+.perforated {
+  --hole: 5px;
+  -webkit-mask:
+    radial-gradient(circle var(--hole) at var(--hole) var(--hole), #0000 98%, #000) calc(var(--hole) * -1) calc(var(--hole) * -1) / calc(var(--hole) * 3) calc(var(--hole) * 3) round;
+  mask:
+    radial-gradient(circle var(--hole) at var(--hole) var(--hole), #0000 98%, #000) calc(var(--hole) * -1) calc(var(--hole) * -1) / calc(var(--hole) * 3) calc(var(--hole) * 3) round;
+}
+
+table.data {
+  width: 100%;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+table.data th {
+  font-weight: 500;
+  font-size: 12px;
+  color: var(--ink-3);
+  text-align: left;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--line);
+  white-space: nowrap;
+}
+table.data td {
+  padding: 9px 12px;
+  border-bottom: 1px solid var(--grid);
+  font-size: 13.5px;
+  white-space: nowrap;
+}
+table.data th.r,
+table.data td.r {
+  text-align: right;
+}
+table.data tbody tr:hover {
+  background: var(--surface-2);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation: none !important;
+    transition: none !important;
+  }
+}

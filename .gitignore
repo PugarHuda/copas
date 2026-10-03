@@ -9,3 +9,6 @@ broadcast/*/31337/
 *.log
 .DS_Store
 generated/
+contracts/broadcast/*/*/dry-run/
+contracts/foundry-pp/
+contracts/cache/

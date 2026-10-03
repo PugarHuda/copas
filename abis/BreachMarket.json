@@ -1,0 +1,341 @@
+[
+ {
+  "type": "constructor",
+  "inputs": [
+   {
+    "name": "r",
+    "type": "address",
+    "internalType": "contract CopasRegistry"
+   }
+  ],
+  "stateMutability": "nonpayable"
+ },
+ {
+  "type": "function",
+  "name": "ausd",
+  "inputs": [],
+  "outputs": [
+   {
+    "name": "",
+    "type": "address",
+    "internalType": "contract IERC20Min"
+   }
+  ],
+  "stateMutability": "view"
+ },
+ {
+  "type": "function",
+  "name": "mint",
+  "inputs": [
+   {
+    "name": "lb",
+    "type": "address",
+    "internalType": "contract LeaderBook"
+   },
+   {
+    "name": "e",
+    "type": "uint256",
+    "internalType": "uint256"
+   },
+   {
+    "name": "amount",
+    "type": "uint256",
+    "internalType": "uint256"
+   },
+   {
+    "name": "to",
+    "type": "address",
+    "internalType": "address"
+   }
+  ],
+  "outputs": [],
+  "stateMutability": "nonpayable"
+ },
+ {
+  "type": "function",
+  "name": "redeem",
+  "inputs": [
+   {
+    "name": "lb",
+    "type": "address",
+    "internalType": "contract LeaderBook"
+   },
+   {
+    "name": "e",
+    "type": "uint256",
+    "internalType": "uint256"
+   },
+   {
+    "name": "amount",
+    "type": "uint256",
+    "internalType": "uint256"
+   }
+  ],
+  "outputs": [],
+  "stateMutability": "nonpayable"
+ },
+ {
+  "type": "function",
+  "name": "redeemPair",
+  "inputs": [
+   {
+    "name": "lb",
+    "type": "address",
+    "internalType": "contract LeaderBook"
+   },
+   {
+    "name": "e",
+    "type": "uint256",
+    "internalType": "uint256"
+   },
+   {
+    "name": "amount",
+    "type": "uint256",
+    "internalType": "uint256"
+   }
+  ],
+  "outputs": [],
+  "stateMutability": "nonpayable"
+ },
+ {
+  "type": "function",
+  "name": "registry",
+  "inputs": [],
+  "outputs": [
+   {
+    "name": "",
+    "type": "address",
+    "internalType": "contract CopasRegistry"
+   }
+  ],
+  "stateMutability": "view"
+ },
+ {
+  "type": "function",
+  "name": "series",
+  "inputs": [
+   {
+    "name": "lb",
+    "type": "address",
+    "internalType": "address"
+   },
+   {
+    "name": "e",
+    "type": "uint256",
+    "internalType": "uint256"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "",
+    "type": "tuple",
+    "internalType": "struct BreachMarket.Series",
+    "components": [
+     {
+      "name": "up",
+      "type": "address",
+      "internalType": "contract BreachToken"
+     },
+     {
+      "name": "down",
+      "type": "address",
+      "internalType": "contract BreachToken"
+     },
+     {
+      "name": "settled",
+      "type": "bool",
+      "internalType": "bool"
+     },
+     {
+      "name": "breach",
+      "type": "bool",
+      "internalType": "bool"
+     }
+    ]
+   }
+  ],
+  "stateMutability": "view"
+ },
+ {
+  "type": "function",
+  "name": "settle",
+  "inputs": [
+   {
+    "name": "lb",
+    "type": "address",
+    "internalType": "contract LeaderBook"
+   },
+   {
+    "name": "e",
+    "type": "uint256",
+    "internalType": "uint256"
+   }
+  ],
+  "outputs": [],
+  "stateMutability": "nonpayable"
+ },
+ {
+  "type": "event",
+  "name": "Minted",
+  "inputs": [
+   {
+    "name": "leaderBook",
+    "type": "address",
+    "indexed": true,
+    "internalType": "address"
+   },
+   {
+    "name": "epoch",
+    "type": "uint256",
+    "indexed": true,
+    "internalType": "uint256"
+   },
+   {
+    "name": "to",
+    "type": "address",
+    "indexed": false,
+    "internalType": "address"
+   },
+   {
+    "name": "amount",
+    "type": "uint256",
+    "indexed": false,
+    "internalType": "uint256"
+   }
+  ],
+  "anonymous": false
+ },
+ {
+  "type": "event",
+  "name": "PairRedeemed",
+  "inputs": [
+   {
+    "name": "leaderBook",
+    "type": "address",
+    "indexed": true,
+    "internalType": "address"
+   },
+   {
+    "name": "epoch",
+    "type": "uint256",
+    "indexed": true,
+    "internalType": "uint256"
+   },
+   {
+    "name": "to",
+    "type": "address",
+    "indexed": false,
+    "internalType": "address"
+   },
+   {
+    "name": "amount",
+    "type": "uint256",
+    "indexed": false,
+    "internalType": "uint256"
+   }
+  ],
+  "anonymous": false
+ },
+ {
+  "type": "event",
+  "name": "Redeemed",
+  "inputs": [
+   {
+    "name": "leaderBook",
+    "type": "address",
+    "indexed": true,
+    "internalType": "address"
+   },
+   {
+    "name": "epoch",
+    "type": "uint256",
+    "indexed": true,
+    "internalType": "uint256"
+   },
+   {
+    "name": "to",
+    "type": "address",
+    "indexed": false,
+    "internalType": "address"
+   },
+   {
+    "name": "amount",
+    "type": "uint256",
+    "indexed": false,
+    "internalType": "uint256"
+   }
+  ],
+  "anonymous": false
+ },
+ {
+  "type": "event",
+  "name": "SeriesCreated",
+  "inputs": [
+   {
+    "name": "leaderBook",
+    "type": "address",
+    "indexed": true,
+    "internalType": "address"
+   },
+   {
+    "name": "epoch",
+    "type": "uint256",
+    "indexed": true,
+    "internalType": "uint256"
+   },
+   {
+    "name": "up",
+    "type": "address",
+    "indexed": false,
+    "internalType": "address"
+   },
+   {
+    "name": "down",
+    "type": "address",
+    "indexed": false,
+    "internalType": "address"
+   }
+  ],
+  "anonymous": false
+ },
+ {
+  "type": "event",
+  "name": "Settled",
+  "inputs": [
+   {
+    "name": "leaderBook",
+    "type": "address",
+    "indexed": true,
+    "internalType": "address"
+   },
+   {
+    "name": "epoch",
+    "type": "uint256",
+    "indexed": true,
+    "internalType": "uint256"
+   },
+   {
+    "name": "breach",
+    "type": "bool",
+    "indexed": false,
+    "internalType": "bool"
+   }
+  ],
+  "anonymous": false
+ },
+ {
+  "type": "error",
+  "name": "BadParams",
+  "inputs": []
+ },
+ {
+  "type": "error",
+  "name": "EpochRunning",
+  "inputs": []
+ },
+ {
+  "type": "error",
+  "name": "NotLeader",
+  "inputs": []
+ }
+]
