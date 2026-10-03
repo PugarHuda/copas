@@ -30,6 +30,7 @@ contract CopasRegistry {
     uint256 public kEquity = 3; // follower AUM <= kEquity * leader equity
     uint256 public protocolFeeBps = 1_000; // protocol share of performance fees
     uint256 public uwFeeShareBps = 3_000; // underwriter share of released leader fees
+    uint256 public referralShareBps = 3_000; // referrer share of the protocol's cut of performance fees
     uint256 public claimWindowEpochs = 2;
     uint256 public unbondDelayEpochs = 1;
     uint64 public minEpochLen = 1 hours;
@@ -88,6 +89,12 @@ contract CopasRegistry {
         protocolFeeBps = _protocolFeeBps;
         uwFeeShareBps = _uwFeeShareBps;
         minEpochLen = _minEpochLen;
+        emit ParamsUpdated();
+    }
+
+    function setReferralShare(uint256 bps) external onlyAdmin {
+        if (bps > 10_000) revert CopasErrors.BadParams();
+        referralShareBps = bps;
         emit ParamsUpdated();
     }
 

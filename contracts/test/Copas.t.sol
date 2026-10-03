@@ -278,6 +278,33 @@ contract CopasTest is CopasBase {
         assertEq(lb.feeClaimable(), esc);
     }
 
+    function test_referrerEarnsShareOfProtocolFee() public {
+        LeaderBook lb = _leader(1_000e6, 100e6);
+        address ref = makeAddr("ref");
+        vm.startPrank(bob);
+        FollowerVault v = FollowerVault(reg.createVault());
+        ausd.approve(address(v), type(uint256).max);
+        v.deposit(500e6);
+        v.setReferrer(ref);
+        v.follow(lb, _params(1_000e6));
+        vm.stopPrank();
+        _roll(lb);
+        v.touch();
+        _leaderLong(lb, 1_000);
+        v.sync(BTC);
+        perpl.setMark(BTC, BTC_MARK * 105 / 100);
+        vm.prank(alice);
+        lb.trade(BTC, 2, 1_000, BTC_MARK * 104 / 100, 100);
+        v.sync(BTC);
+        _roll(lb);
+        v.touch();
+        assertGt(ausd.balanceOf(ref), 0, "referrer unpaid");
+        assertGt(ausd.balanceOf(reserve), 0, "reserve unpaid");
+        vm.prank(bob);
+        vm.expectRevert(CopasErrors.BadParams.selector);
+        v.setReferrer(carol);
+    }
+
     function test_unbondOnlyAfterDelay() public {
         LeaderBook lb = _leader(1_000e6, 100e6);
         vm.prank(alice);

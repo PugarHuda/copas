@@ -29,6 +29,7 @@ contract FollowerVault {
     mapping(uint256 => int256) public netFlow; // deposits - withdrawals during epoch e
     mapping(uint256 => uint256) public endEquity; // equity when the vault moved past epoch e
     uint256 public highWaterMark; // for performance fees
+    address public referrer; // earns part of the protocol's fee cut
 
     event Deposited(address indexed from, uint256 amount);
     event Withdrawn(uint256 amount);
@@ -39,6 +40,8 @@ contract FollowerVault {
     event StopLoss(uint256 indexed epoch, uint256 equity, uint256 start);
     event FeePaid(uint256 indexed epoch, uint256 toLeader, uint256 toProtocol);
     event ClaimedSlash(uint256 indexed epoch, uint256 loss, uint256 amount);
+    event ReferrerSet(address indexed referrer);
+    event ReferralPaid(address indexed referrer, uint256 amount);
 
     modifier onlyOwner() {
         if (msg.sender != owner) revert CopasErrors.NotOwner();
@@ -107,6 +110,13 @@ contract FollowerVault {
         }
         highWaterMark = highWaterMark > amount ? highWaterMark - amount : 0;
         emit Withdrawn(amount);
+    }
+
+    /// @notice One-time referral tag (H4). Cannot be changed once set.
+    function setReferrer(address r) external onlyOwner {
+        if (referrer != address(0) || r == address(0) || r == owner) revert CopasErrors.BadParams();
+        referrer = r;
+        emit ReferrerSet(r);
     }
 
     // ================================================================ follow
@@ -251,7 +261,12 @@ contract FollowerVault {
             uint256 fee = (eq - highWaterMark) * feeBps / 10_000;
             try exchange.withdrawCollateral(fee) {
                 uint256 toProtocol = fee * registry.protocolFeeBps() / 10_000;
-                if (toProtocol > 0) ausd.transfer(registry.reserve(), toProtocol);
+                uint256 toRef = referrer == address(0) ? 0 : toProtocol * registry.referralShareBps() / 10_000;
+                if (toRef > 0) {
+                    ausd.transfer(referrer, toRef);
+                    emit ReferralPaid(referrer, toRef);
+                }
+                if (toProtocol > toRef) ausd.transfer(registry.reserve(), toProtocol - toRef);
                 ausd.approve(address(leader), fee - toProtocol);
                 leader.depositFee(fee - toProtocol);
                 eq -= fee;

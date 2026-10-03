@@ -351,6 +351,19 @@
  },
  {
   "type": "function",
+  "name": "referrer",
+  "inputs": [],
+  "outputs": [
+   {
+    "name": "",
+    "type": "address",
+    "internalType": "address"
+   }
+  ],
+  "stateMutability": "view"
+ },
+ {
+  "type": "function",
   "name": "registry",
   "inputs": [],
   "outputs": [
@@ -361,6 +374,19 @@
    }
   ],
   "stateMutability": "view"
+ },
+ {
+  "type": "function",
+  "name": "setReferrer",
+  "inputs": [
+   {
+    "name": "r",
+    "type": "address",
+    "internalType": "address"
+   }
+  ],
+  "outputs": [],
+  "stateMutability": "nonpayable"
  },
  {
   "type": "function",
@@ -598,6 +624,38 @@
       "internalType": "uint256"
      }
     ]
+   }
+  ],
+  "anonymous": false
+ },
+ {
+  "type": "event",
+  "name": "ReferralPaid",
+  "inputs": [
+   {
+    "name": "referrer",
+    "type": "address",
+    "indexed": true,
+    "internalType": "address"
+   },
+   {
+    "name": "amount",
+    "type": "uint256",
+    "indexed": false,
+    "internalType": "uint256"
+   }
+  ],
+  "anonymous": false
+ },
+ {
+  "type": "event",
+  "name": "ReferrerSet",
+  "inputs": [
+   {
+    "name": "referrer",
+    "type": "address",
+    "indexed": true,
+    "internalType": "address"
    }
   ],
   "anonymous": false
