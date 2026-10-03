@@ -1,0 +1,92 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.28;
+
+import {IERC20Min} from "./interfaces/IPerplExchange.sol";
+import {CopasErrors} from "./CopasTypes.sol";
+
+interface ILeaderEpoch {
+    function epoch() external view returns (uint256);
+    function registry() external view returns (address);
+}
+
+interface IRegistryDelay {
+    function unbondDelayEpochs() external view returns (uint256);
+}
+
+/// @notice Third parties back a leader's bond. They earn a share of the leader's released fees and
+/// are slashed after the leader's own bond (leader = first loss).
+contract UnderwriterPool {
+    IERC20Min public immutable ausd;
+    address public immutable leaderBook;
+
+    uint256 public totalShares;
+    mapping(address => uint256) public sharesOf;
+    mapping(address => uint256) public pendingShares;
+    mapping(address => uint256) public unlockEpoch;
+
+    event Deposited(address indexed who, uint256 amount, uint256 shares);
+    event WithdrawRequested(address indexed who, uint256 shares, uint256 unlockEpoch);
+    event Withdrawn(address indexed who, uint256 amount, uint256 shares);
+    event Slashed(uint256 amount);
+    event FeeReceived(uint256 amount);
+
+    constructor(IERC20Min _ausd, address _leaderBook) {
+        ausd = _ausd;
+        leaderBook = _leaderBook;
+    }
+
+    function assets() public view returns (uint256) {
+        return ausd.balanceOf(address(this));
+    }
+
+    function valueOf(address who) external view returns (uint256) {
+        return totalShares == 0 ? 0 : sharesOf[who] * assets() / totalShares;
+    }
+
+    function deposit(uint256 amount) external returns (uint256 shares) {
+        uint256 a = assets();
+        shares = totalShares == 0 || a == 0 ? amount : amount * totalShares / a;
+        if (shares == 0) revert CopasErrors.BadParams();
+        ausd.transferFrom(msg.sender, address(this), amount);
+        totalShares += shares;
+        sharesOf[msg.sender] += shares;
+        emit Deposited(msg.sender, amount, shares);
+    }
+
+    /// @notice Shares stay exposed to slashing until unlocked.
+    function requestWithdraw(uint256 shares) external {
+        if (shares == 0 || shares > sharesOf[msg.sender]) revert CopasErrors.BadParams();
+        uint256 delay = IRegistryDelay(ILeaderEpoch(leaderBook).registry()).unbondDelayEpochs();
+        pendingShares[msg.sender] = shares;
+        unlockEpoch[msg.sender] = ILeaderEpoch(leaderBook).epoch() + 1 + delay;
+        emit WithdrawRequested(msg.sender, shares, unlockEpoch[msg.sender]);
+    }
+
+    function withdraw() external returns (uint256 amount) {
+        uint256 shares = pendingShares[msg.sender];
+        if (shares == 0) revert CopasErrors.NothingToClaim();
+        if (ILeaderEpoch(leaderBook).epoch() < unlockEpoch[msg.sender]) revert CopasErrors.TooEarly();
+        if (shares > sharesOf[msg.sender]) shares = sharesOf[msg.sender];
+        amount = shares * assets() / totalShares;
+        pendingShares[msg.sender] = 0;
+        sharesOf[msg.sender] -= shares;
+        totalShares -= shares;
+        ausd.transfer(msg.sender, amount);
+        emit Withdrawn(msg.sender, amount, shares);
+    }
+
+    /// @notice Called by the leader book on breach. Takes up to `amount`.
+    function slash(uint256 amount) external returns (uint256 taken) {
+        if (msg.sender != leaderBook) revert CopasErrors.NotLeader();
+        uint256 a = assets();
+        taken = amount < a ? amount : a;
+        if (taken > 0) ausd.transfer(leaderBook, taken);
+        emit Slashed(taken);
+    }
+
+    /// @notice Leader book pushes fee share in (already transferred). Raises share value.
+    function notifyFee(uint256 amount) external {
+        if (msg.sender != leaderBook) revert CopasErrors.NotLeader();
+        emit FeeReceived(amount);
+    }
+}

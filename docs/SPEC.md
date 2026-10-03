@@ -109,7 +109,7 @@ equity(acct) = acct.balanceCNS + Σ_{p ∈ markets} (pos_p.depositCNS + pos_p.pn
 - Setelah breach: status `Breached`, `sync` reduce-only, follower baru diblokir sampai leader re-bond di epoch berikutnya.
 
 ### 3.5 Batas AUM (anti front-run)
-`Σ notional follower ≤ min(kEquity × equityLeader, kBond × bond)`. Default `kEquity = 3`, `kBond = 20`.
+`Σ cap follower ≤ min(kEquity × equityLeader, bond × 10_000 / bondRatioBps)`. Default `kEquity = 3`. Sisi bond adalah kebalikan persis dari `minBond` (§3.6), jadi menerima follower tidak pernah membuat leader jatuh ke `Unbonded`.
 
 ### 3.6 Bond dinamis (A3)
 `minBond = max(minBondAbs, aumFollower × bondRatioBps / 10_000)`. Default `minBondAbs = 25 AUSD` (mainnet demo), `bondRatioBps = 1000` (10%). Jika `bond < minBond` → `Unbonded`.
