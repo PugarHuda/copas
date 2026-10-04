@@ -1,0 +1,134 @@
+# yaml-language-server: $schema=./node_modules/envio/evm.schema.json
+name: copas-indexer
+description: Perpl Exchange analytics + Copas copy-trading (Monad)
+# Entities are per chain: mainnet and testnet rows never mix.
+disable_default_cross_chain: true
+# Every handler reads the tx hash (block timestamp is always present).
+field_selection:
+  transaction_fields: [hash]
+
+contracts:
+  - name: PerplExchange
+    abi_file_path: ./abis/PerplExchange.json
+    # Perpl renamed events across upgrades (V2 appends fields => different topic0).
+    # Both V1 (history) and V2 (current) are indexed. No param is indexed; identity is accountId.
+    events:
+      # accounts & collateral
+      - event: AccountCreated
+      - event: CollateralDeposit
+      - event: CollateralWithdrawal
+      - event: IncreasePositionCollateral
+      - event: PositionCollateralDecreased
+      # fills (V2 since rc_v1.1.7.4, block 95,662,781)
+      - event: MakerOrderFilled
+      - event: MakerOrderFilledV2
+      - event: TakerOrderFilled
+      - event: TakerOrderFilledV2
+      # position lifecycle (Opened/Increased V2 since rc_v1.1.7.3)
+      - event: PositionOpened
+      - event: PositionOpenedV2
+      - event: PositionIncreased
+      - event: PositionIncreasedV2
+      - event: PositionDecreased
+      - event: PositionClosed
+      - event: PositionInverted
+      - event: PositionUnwound
+      - event: PositionUnwoundV2
+      - event: PositionUnwoundWithoutPayment
+      - event: PositionUnwoundWithoutPaymentV2
+      # liquidation / ADL
+      - event: PositionLiquidated
+      - event: PositionDeleveraged
+      - event: PositionDeleveragedV2
+      # funding & market metadata
+      - event: FundingEventCompleted
+      - event: ContractAdded
+      - event: ContractAddedV2
+
+  # --- Copas -----------------------------------------------------------------
+  # ABIs: copied from ../abis (run `pnpm abis` after contracts change).
+  - name: CopasRegistry
+    abi_file_path: ./abis/CopasRegistry.json
+    events:
+      - event: LeaderCreated # registers LeaderBook + UnderwriterPool
+      - event: VaultCreated # registers FollowerVault
+  - name: LeaderBook # dynamic (no address)
+    abi_file_path: ./abis/LeaderBook.json
+    events:
+      - event: BondPosted
+      - event: UnbondRequested
+      - event: Unbonded
+      - event: MandateDeclared
+      - event: Deposited
+      - event: Withdrawn
+      - event: Checkpoint
+      - event: Breached
+      - event: EpochRolled
+      - event: FollowerRegistered
+      - event: FollowerUnregistered
+      - event: Claimed
+      - event: FeeDeposited
+      - event: FeesReleased
+  - name: FollowerVault # dynamic
+    abi_file_path: ./abis/FollowerVault.json
+    events:
+      - event: Deposited
+      - event: Withdrawn
+      - event: Followed
+      - event: Unfollowed
+      - event: Synced
+      - event: StopLoss
+      - event: ClaimedSlash
+  - name: UnderwriterPool # dynamic, one per leader
+    abi_file_path: ./abis/UnderwriterPool.json
+    events:
+      - event: Deposited
+      - event: WithdrawRequested
+      - event: Withdrawn
+  - name: BreachMarket
+    abi_file_path: ./abis/BreachMarket.json
+    events:
+      - event: SeriesCreated
+      - event: Minted
+      - event: PairRedeemed
+      - event: Redeemed
+      - event: Settled
+  - name: AgentLeaderRegistry
+    abi_file_path: ./abis/AgentLeaderRegistry.json
+    events:
+      - event: AgentLinked
+      - event: AgentUnlinked
+
+chains:
+  - id: 143 # Monad mainnet
+    # 2026-02-10 00:00 UTC, two days before Perpl's first trading day (DefiLlama start 2026-02-12).
+    # Must precede ContractAdded events so market decimals are captured (a fallback table exists too).
+    start_block: 54350505
+    contracts:
+      - name: PerplExchange
+        address: 0x34B6552d57a35a1D042CcAe1951BD1C370112a6F # proxy
+      # Copas: no contracts/deployments/143.json yet -> env placeholders (zero address = nothing indexed).
+      - name: CopasRegistry
+        address: "${ENVIO_COPAS_REGISTRY_143:-0x0000000000000000000000000000000000000000}"
+      - name: BreachMarket
+        address: "${ENVIO_COPAS_BREACH_MARKET_143:-0x0000000000000000000000000000000000000000}"
+      - name: AgentLeaderRegistry
+        address: "${ENVIO_COPAS_AGENT_REGISTRY_143:-0x0000000000000000000000000000000000000000}"
+      - name: LeaderBook
+      - name: FollowerVault
+      - name: UnderwriterPool
+  - id: 10143 # Monad testnet
+    start_block: 0 # HyperSync skips to the first event
+    contracts:
+      - name: PerplExchange
+        address: 0x1964C32f0bE608E7D29302AFF5E61268E72080cc
+      # Copas: no contracts/deployments/10143.json yet -> env placeholders (zero address = nothing indexed).
+      - name: CopasRegistry
+        address: "${ENVIO_COPAS_REGISTRY_10143:-0x0000000000000000000000000000000000000000}"
+      - name: BreachMarket
+        address: "${ENVIO_COPAS_BREACH_MARKET_10143:-0x0000000000000000000000000000000000000000}"
+      - name: AgentLeaderRegistry
+        address: "${ENVIO_COPAS_AGENT_REGISTRY_10143:-0x0000000000000000000000000000000000000000}"
+      - name: LeaderBook
+      - name: FollowerVault
+      - name: UnderwriterPool

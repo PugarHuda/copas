@@ -1,0 +1,500 @@
+# Copas indexer schema (Envio HyperIndex v3).
+#
+# Units: every *CNS / money field is AUSD with 6 decimals (raw BigInt, 1_000_000 = 1 AUSD).
+#        notional fields are price * lot normalised to CNS (6 decimals) using the market decimals.
+#        *PNS = raw Perpl price units, *LNS = raw Perpl lot units (see Market.priceDecimals/lotDecimals).
+# Days:  `day` = unix day number (timestamp / 86400), `date` = unix seconds at 00:00 UTC.
+
+enum Side {
+  BUY
+  SELL
+}
+
+enum PositionSide {
+  LONG
+  SHORT
+}
+
+enum FillRole {
+  MAKER
+  TAKER
+}
+
+enum CloseReason {
+  CLOSED
+  LIQUIDATED
+  DELEVERAGED
+  INVERTED
+  UNWOUND
+}
+
+enum FlowKind {
+  DEPOSIT
+  WITHDRAWAL
+  POSITION_MARGIN_ADD
+  POSITION_MARGIN_REMOVE
+}
+
+# ---------------------------------------------------------------------------
+# Perpl Exchange
+# ---------------------------------------------------------------------------
+
+type Protocol {
+  id: ID! # "perpl"
+  accounts: Int!
+  traders: Int! # accounts with at least one fill
+  fills: Int!
+  trades: Int!
+  volumeCNS: BigInt!
+  feesCNS: BigInt!
+  builderFeesCNS: BigInt!
+  insFeesCNS: BigInt!
+  protFeesCNS: BigInt!
+  depositsCNS: BigInt!
+  withdrawalsCNS: BigInt!
+  netFlowCNS: BigInt! # deposits - withdrawals (TVL proxy, excludes trader PnL)
+  liquidations: Int!
+  liquidatedNotionalCNS: BigInt!
+  realizedPnlCNS: BigInt!
+  openInterestCNS: BigInt! # sum over markets at last price
+  lastUpdatedAt: Int!
+}
+
+type Market {
+  id: ID! # perpId
+  perpId: Int!
+  symbol: String!
+  name: String!
+  priceDecimals: Int!
+  lotDecimals: Int!
+  lastPricePNS: BigInt!
+  longOpenInterestLNS: BigInt!
+  shortOpenInterestLNS: BigInt!
+  openInterestCNS: BigInt! # (long + short) / 2 * lastPrice
+  volumeCNS: BigInt!
+  feesCNS: BigInt!
+  trades: Int!
+  liquidations: Int!
+  lastFundingRatePct100k: BigInt
+  cumulativeFundingSumPNS: BigInt
+  lastUpdatedAt: Int!
+  daily: [MarketDaily!]! @derivedFrom(field: "market")
+  fundingEvents: [FundingEvent!]! @derivedFrom(field: "market")
+}
+
+type Account {
+  id: ID! # Perpl accountId
+  accountId: BigInt!
+  address: String @index
+  balanceCNS: BigInt! # last seen free balance
+  depositsCNS: BigInt!
+  withdrawalsCNS: BigInt!
+  fills: Int!
+  makerFills: Int!
+  takerFills: Int!
+  volumeCNS: BigInt!
+  makerVolumeCNS: BigInt!
+  takerVolumeCNS: BigInt!
+  feesCNS: BigInt!
+  realizedPnlCNS: BigInt! # price pnl + funding, before fees
+  fundingPnlCNS: BigInt!
+  netPnlCNS: BigInt! @index # realizedPnl - fees (the realized equity curve)
+  peakNetPnlCNS: BigInt!
+  maxDrawdownCNS: BigInt! # max(peak - netPnl) on the realized curve
+  closedTrades: Int!
+  wins: Int!
+  losses: Int!
+  grossProfitCNS: BigInt! # sum of winning closed-trade net pnl (profit factor numerator)
+  grossLossCNS: BigInt! # sum of |losing closed-trade net pnl|
+  currentStreak: Int! # >0 consecutive wins, <0 consecutive losses
+  bestStreak: Int!
+  worstStreak: Int!
+  totalHoldSeconds: BigInt!
+  liquidations: Int!
+  openPositions: Int!
+  firstSeenAt: Int!
+  lastSeenAt: Int!
+  firstSeenBlock: Int!
+  positions: [Position!]! @derivedFrom(field: "account")
+  fillList: [Fill!]! @derivedFrom(field: "account")
+  closedTradeList: [ClosedTrade!]! @derivedFrom(field: "account")
+  daily: [AccountDaily!]! @derivedFrom(field: "account")
+  flows: [CollateralFlow!]! @derivedFrom(field: "account")
+}
+
+# Current state per account x market. lotLNS = 0 when flat.
+type Position @index(fields: ["market", "isOpen"]) {
+  id: ID! # accountId-perpId
+  account: Account!
+  market: Market!
+  isOpen: Boolean!
+  side: PositionSide
+  lotLNS: BigInt!
+  maxLotLNS: BigInt! # peak size during the current/last trade
+  entryPricePNS: BigInt!
+  depositCNS: BigInt! # position margin
+  leverageHdths: BigInt!
+  realizedPnlCNS: BigInt! # within the current trade
+  fundingCNS: BigInt!
+  feesCNS: BigInt!
+  openedAt: Int!
+  openedBlock: Int!
+  openTx: String!
+  updatedAt: Int!
+  tradeSeq: Int! # number of trades opened on this account x market
+  lastClosedTrade: ClosedTrade
+}
+
+# One round trip: open -> (increase/decrease)* -> close/liquidation/inversion.
+type ClosedTrade {
+  id: ID! # accountId-perpId-seq
+  account: Account!
+  market: Market!
+  side: PositionSide!
+  reason: CloseReason!
+  entryPricePNS: BigInt!
+  exitPricePNS: BigInt!
+  maxLotLNS: BigInt!
+  maxNotionalCNS: BigInt!
+  leverageHdths: BigInt!
+  pnlCNS: BigInt! # price pnl + funding
+  fundingCNS: BigInt!
+  feesCNS: BigInt!
+  netPnlCNS: BigInt!
+  isWin: Boolean!
+  openedAt: Int! @index
+  closedAt: Int! @index
+  holdSeconds: Int!
+  openTx: String!
+  closeTx: String!
+  closeBlock: Int!
+}
+
+# One matched trade (one per MakerOrderFilled). Taker comes from the same tx.
+type Trade {
+  id: ID! # block-logIndex
+  market: Market!
+  maker: Account!
+  taker: Account
+  takerSide: Side
+  pricePNS: BigInt!
+  lotLNS: BigInt!
+  notionalCNS: BigInt!
+  makerFeeCNS: BigInt!
+  builderId: BigInt!
+  timestamp: Int! @index
+  block: Int!
+  txHash: String! @index
+}
+
+# One side of a fill (maker or taker), with what it did to the position.
+type Fill {
+  id: ID! # block-logIndex
+  account: Account!
+  market: Market
+  role: FillRole!
+  side: Side
+  pricePNS: BigInt!
+  lotLNS: BigInt!
+  notionalCNS: BigInt!
+  feeCNS: BigInt!
+  builderId: BigInt!
+  builderFeeCNS: BigInt!
+  realizedPnlCNS: BigInt! # pnl + funding realized by this fill
+  amountCNS: BigInt! # signed balance change reported by Perpl
+  balanceCNS: BigInt!
+  timestamp: Int! @index
+  block: Int!
+  txHash: String! @index
+  version: Int! # 1 = pre rc_v1.1.7.4 event, 2 = V2 event
+}
+
+type Liquidation {
+  id: ID! # block-logIndex
+  account: Account!
+  market: Market!
+  kind: CloseReason! # LIQUIDATED or DELEVERAGED
+  side: PositionSide!
+  markPricePNS: BigInt!
+  liqPricePNS: BigInt!
+  liqLotLNS: BigInt!
+  posLotLNS: BigInt!
+  notionalCNS: BigInt!
+  pnlCNS: BigInt!
+  fundingCNS: BigInt!
+  onOrderBook: Boolean!
+  timestamp: Int! @index
+  block: Int!
+  txHash: String!
+}
+
+type CollateralFlow {
+  id: ID! # block-logIndex
+  account: Account!
+  kind: FlowKind!
+  perpId: Int
+  amountCNS: BigInt!
+  balanceCNS: BigInt!
+  timestamp: Int! @index
+  block: Int!
+  txHash: String!
+}
+
+type FundingEvent {
+  id: ID! # block-logIndex
+  market: Market!
+  fundingEventBlock: BigInt!
+  specifiedRatePct100k: BigInt!
+  actualRatePct100k: BigInt!
+  fundingPricePNS: BigInt!
+  fundingPaymentPNS: BigInt!
+  fundingSumPNS: BigInt!
+  timestamp: Int! @index
+  block: Int!
+}
+
+type ProtocolDaily {
+  id: ID! # day
+  day: Int!
+  date: Int! @index
+  volumeCNS: BigInt!
+  longVolumeCNS: BigInt! # taker buys
+  shortVolumeCNS: BigInt! # taker sells
+  feesCNS: BigInt!
+  builderFeesCNS: BigInt!
+  trades: Int!
+  uniqueTraders: Int!
+  newAccounts: Int!
+  depositsCNS: BigInt!
+  withdrawalsCNS: BigInt!
+  netFlowCNS: BigInt!
+  liquidations: Int!
+  liquidatedNotionalCNS: BigInt!
+  realizedPnlCNS: BigInt!
+  openInterestCNS: BigInt! # snapshot at last event of the day
+}
+
+type MarketDaily {
+  id: ID! # perpId-day
+  market: Market!
+  day: Int!
+  date: Int! @index
+  volumeCNS: BigInt!
+  longVolumeCNS: BigInt!
+  shortVolumeCNS: BigInt!
+  feesCNS: BigInt!
+  trades: Int!
+  uniqueTraders: Int!
+  liquidations: Int!
+  liquidatedNotionalCNS: BigInt!
+  openPricePNS: BigInt!
+  highPricePNS: BigInt!
+  lowPricePNS: BigInt!
+  closePricePNS: BigInt!
+  longOpenInterestLNS: BigInt! # snapshot at last event of the day
+  shortOpenInterestLNS: BigInt!
+  openInterestCNS: BigInt!
+  fundingEvents: Int!
+  sumFundingRatePct100k: BigInt!
+}
+
+# Per account per day: realized curve for equity charts / backtests.
+type AccountDaily {
+  id: ID! # accountId-day
+  account: Account!
+  day: Int!
+  date: Int! @index
+  volumeCNS: BigInt!
+  fills: Int!
+  feesCNS: BigInt!
+  realizedPnlCNS: BigInt!
+  netPnlCNS: BigInt!
+  cumNetPnlCNS: BigInt! # account.netPnl at end of day
+}
+
+# Marker used to count unique traders per market-day.
+type MarketDayTrader {
+  id: ID! # perpId-day-accountId
+}
+
+# Rolling single-row scratchpad: Perpl events carry no tx-level link between a
+# fill and the position event emitted just before it, so we remember the last one.
+type TxCursor {
+  id: ID! # "last"
+  txHash: String!
+  accountId: String!
+  perpId: String!
+  side: Side
+  realizedPnlCNS: BigInt!
+  pendingClosedTrade: String # ClosedTrade id waiting for its closing-fill fee
+  tradeIds: [String!]! # Trades of the current taker order, completed by TakerOrderFilled
+}
+
+# ---------------------------------------------------------------------------
+# Copas (CopasRegistry -> dynamic LeaderBook / UnderwriterPool / FollowerVault)
+# Addresses are stored lowercase.
+# ---------------------------------------------------------------------------
+
+enum LeaderStatus {
+  Active
+  Unbonded
+  Breached
+}
+
+type Leader {
+  id: ID! # LeaderBook address
+  owner: String! @index
+  underwriterPool: String! @index
+  perplAccount: Account # linked when the LeaderBook opens its Perpl account
+  status: LeaderStatus!
+  bondCNS: BigInt!
+  unbondUnlockEpoch: Int
+  unitPrice: BigInt!
+  equityCNS: BigInt!
+  peakEquityCNS: BigInt!
+  maxDrawdownBps: Int!
+  mandateMaxDdBps: Int
+  mandateMaxLeverageHdths: Int
+  mandateFeeBps: Int
+  mandateEpochLen: BigInt
+  mandateMaxNotionalCNS: BigInt
+  mandateMarketsMask: BigInt
+  mandateEffectiveEpoch: Int
+  currentEpoch: Int!
+  followers: Int!
+  aumCNS: BigInt!
+  totalSlashedCNS: BigInt!
+  agentId: BigInt # ERC-8004 agent leader (AgentLeaderRegistry)
+  agentWallet: String
+  createdAt: Int!
+  epochs: [Epoch!]! @derivedFrom(field: "leader")
+  checkpoints: [Checkpoint!]! @derivedFrom(field: "leader")
+  breaches: [Breach!]! @derivedFrom(field: "leader")
+  followerList: [Follower!]! @derivedFrom(field: "leader")
+}
+
+type Epoch {
+  id: ID! # leader-epoch
+  leader: Leader!
+  epoch: Int!
+  start: Int!
+  end: Int!
+  startUnitPrice: BigInt!
+  status: LeaderStatus!
+  breached: Boolean!
+  feesToLeaderCNS: BigInt!
+  feesToUnderwritersCNS: BigInt!
+}
+
+type Checkpoint {
+  id: ID! # block-logIndex
+  leader: Leader!
+  epoch: Int!
+  equityCNS: BigInt!
+  unitPrice: BigInt!
+  peakCNS: BigInt!
+  ddBps: Int!
+  leverageHdths: Int!
+  timestamp: Int! @index
+  block: Int!
+}
+
+type Breach {
+  id: ID! # leader-epoch
+  leader: Leader!
+  epoch: Int!
+  reason: Int! # 1 Drawdown, 2 Leverage, 3 Notional, 4 Market
+  potCNS: BigInt!
+  capTotalCNS: BigInt!
+  claimedCNS: BigInt!
+  timestamp: Int!
+  txHash: String!
+  claims: [Claim!]! @derivedFrom(field: "breach")
+}
+
+type Vault {
+  id: ID! # FollowerVault address
+  owner: String! @index
+  perplAccount: Account
+  currentLeader: Leader
+  depositsCNS: BigInt!
+  withdrawalsCNS: BigInt!
+  feesPaidCNS: BigInt!
+  slashReceivedCNS: BigInt!
+  paused: Boolean!
+  createdAt: Int!
+  follows: [Follower!]! @derivedFrom(field: "vault")
+  copyFills: [CopyFill!]! @derivedFrom(field: "vault")
+  claims: [Claim!]! @derivedFrom(field: "vault")
+}
+
+# A vault following a leader (Followed on the vault + FollowerRegistered on the LeaderBook).
+type Follower {
+  id: ID! # vault-leader
+  vault: Vault!
+  leader: Leader!
+  active: Boolean!
+  ratioBps: Int!
+  maxLeverageHdths: Int!
+  maxChaseBps: Int!
+  priceBandBps: Int!
+  stopLossBps: Int!
+  maxNotionalCNS: BigInt!
+  capCNS: BigInt!
+  fromEpoch: Int
+  untilEpoch: Int
+  feesPaidCNS: BigInt!
+  followedAt: Int!
+}
+
+# Execution proof per copy (C7). Join with Fill on txHash (follower fill) and with the
+# leader's Fill list (Leader.perplAccount) for leader price, slippage and block lag.
+type CopyFill {
+  id: ID! # block-logIndex of Synced
+  vault: Vault!
+  leader: Leader
+  market: Market!
+  leaderLotLNS: BigInt! # signed
+  fromLotLNS: BigInt! # signed
+  targetLotLNS: BigInt! # signed
+  markPricePNS: BigInt!
+  timestamp: Int! @index
+  block: Int!
+  txHash: String! @index
+}
+
+type Claim {
+  id: ID! # block-logIndex
+  breach: Breach!
+  vault: Vault!
+  to: String!
+  amountCNS: BigInt!
+  timestamp: Int!
+  txHash: String!
+}
+
+type UnderwriterPosition {
+  id: ID! # pool-who
+  pool: String! @index
+  leader: Leader
+  who: String! @index
+  shares: BigInt!
+  depositedCNS: BigInt!
+  withdrawnCNS: BigInt!
+  pendingShares: BigInt!
+  unlockEpoch: Int
+}
+
+# BreachMarket UP/DOWN series per leader epoch.
+type BreachSeries {
+  id: ID! # leader-epoch
+  leader: String! @index
+  epoch: Int!
+  up: String!
+  down: String!
+  mintedCNS: BigInt!
+  redeemedCNS: BigInt!
+  settled: Boolean!
+  breach: Boolean
+  createdAt: Int!
+}

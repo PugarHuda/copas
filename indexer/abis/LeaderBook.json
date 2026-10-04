@@ -1,0 +1,1546 @@
+[
+ {
+  "type": "constructor",
+  "inputs": [
+   {
+    "name": "_registry",
+    "type": "address",
+    "internalType": "contract CopasRegistry"
+   },
+   {
+    "name": "_owner",
+    "type": "address",
+    "internalType": "address"
+   },
+   {
+    "name": "m",
+    "type": "tuple",
+    "internalType": "struct Mandate",
+    "components": [
+     {
+      "name": "maxDDbps",
+      "type": "uint32",
+      "internalType": "uint32"
+     },
+     {
+      "name": "maxLeverageHdths",
+      "type": "uint32",
+      "internalType": "uint32"
+     },
+     {
+      "name": "feeBps",
+      "type": "uint32",
+      "internalType": "uint32"
+     },
+     {
+      "name": "epochLen",
+      "type": "uint64",
+      "internalType": "uint64"
+     },
+     {
+      "name": "maxNotionalCNS",
+      "type": "uint128",
+      "internalType": "uint128"
+     },
+     {
+      "name": "marketsMask",
+      "type": "uint256",
+      "internalType": "uint256"
+     }
+    ]
+   }
+  ],
+  "stateMutability": "nonpayable"
+ },
+ {
+  "type": "function",
+  "name": "accountId",
+  "inputs": [],
+  "outputs": [
+   {
+    "name": "",
+    "type": "uint256",
+    "internalType": "uint256"
+   }
+  ],
+  "stateMutability": "view"
+ },
+ {
+  "type": "function",
+  "name": "ausd",
+  "inputs": [],
+  "outputs": [
+   {
+    "name": "",
+    "type": "address",
+    "internalType": "contract IERC20Min"
+   }
+  ],
+  "stateMutability": "view"
+ },
+ {
+  "type": "function",
+  "name": "bond",
+  "inputs": [],
+  "outputs": [
+   {
+    "name": "",
+    "type": "uint256",
+    "internalType": "uint256"
+   }
+  ],
+  "stateMutability": "view"
+ },
+ {
+  "type": "function",
+  "name": "breachOf",
+  "inputs": [
+   {
+    "name": "e",
+    "type": "uint256",
+    "internalType": "uint256"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "",
+    "type": "tuple",
+    "internalType": "struct LeaderBook.Breach",
+    "components": [
+     {
+      "name": "reason",
+      "type": "uint8",
+      "internalType": "enum BreachReason"
+     },
+     {
+      "name": "atBlock",
+      "type": "uint64",
+      "internalType": "uint64"
+     },
+     {
+      "name": "pot",
+      "type": "uint256",
+      "internalType": "uint256"
+     },
+     {
+      "name": "capTotal",
+      "type": "uint256",
+      "internalType": "uint256"
+     },
+     {
+      "name": "claimed",
+      "type": "uint256",
+      "internalType": "uint256"
+     },
+     {
+      "name": "swept",
+      "type": "bool",
+      "internalType": "bool"
+     }
+    ]
+   }
+  ],
+  "stateMutability": "view"
+ },
+ {
+  "type": "function",
+  "name": "breached",
+  "inputs": [
+   {
+    "name": "e",
+    "type": "uint256",
+    "internalType": "uint256"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "",
+    "type": "bool",
+    "internalType": "bool"
+   }
+  ],
+  "stateMutability": "view"
+ },
+ {
+  "type": "function",
+  "name": "capOf",
+  "inputs": [
+   {
+    "name": "",
+    "type": "address",
+    "internalType": "address"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "",
+    "type": "uint256",
+    "internalType": "uint256"
+   }
+  ],
+  "stateMutability": "view"
+ },
+ {
+  "type": "function",
+  "name": "capTotalNext",
+  "inputs": [],
+  "outputs": [
+   {
+    "name": "",
+    "type": "uint256",
+    "internalType": "uint256"
+   }
+  ],
+  "stateMutability": "view"
+ },
+ {
+  "type": "function",
+  "name": "capacity",
+  "inputs": [],
+  "outputs": [
+   {
+    "name": "",
+    "type": "uint256",
+    "internalType": "uint256"
+   }
+  ],
+  "stateMutability": "view"
+ },
+ {
+  "type": "function",
+  "name": "checkpoint",
+  "inputs": [],
+  "outputs": [],
+  "stateMutability": "nonpayable"
+ },
+ {
+  "type": "function",
+  "name": "claimFees",
+  "inputs": [],
+  "outputs": [
+   {
+    "name": "amount",
+    "type": "uint256",
+    "internalType": "uint256"
+   }
+  ],
+  "stateMutability": "nonpayable"
+ },
+ {
+  "type": "function",
+  "name": "claimFor",
+  "inputs": [
+   {
+    "name": "e",
+    "type": "uint256",
+    "internalType": "uint256"
+   },
+   {
+    "name": "loss",
+    "type": "uint256",
+    "internalType": "uint256"
+   },
+   {
+    "name": "to",
+    "type": "address",
+    "internalType": "address"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "amount",
+    "type": "uint256",
+    "internalType": "uint256"
+   }
+  ],
+  "stateMutability": "nonpayable"
+ },
+ {
+  "type": "function",
+  "name": "claimed",
+  "inputs": [
+   {
+    "name": "",
+    "type": "uint256",
+    "internalType": "uint256"
+   },
+   {
+    "name": "",
+    "type": "address",
+    "internalType": "address"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "",
+    "type": "bool",
+    "internalType": "bool"
+   }
+  ],
+  "stateMutability": "view"
+ },
+ {
+  "type": "function",
+  "name": "declare",
+  "inputs": [
+   {
+    "name": "m",
+    "type": "tuple",
+    "internalType": "struct Mandate",
+    "components": [
+     {
+      "name": "maxDDbps",
+      "type": "uint32",
+      "internalType": "uint32"
+     },
+     {
+      "name": "maxLeverageHdths",
+      "type": "uint32",
+      "internalType": "uint32"
+     },
+     {
+      "name": "feeBps",
+      "type": "uint32",
+      "internalType": "uint32"
+     },
+     {
+      "name": "epochLen",
+      "type": "uint64",
+      "internalType": "uint64"
+     },
+     {
+      "name": "maxNotionalCNS",
+      "type": "uint128",
+      "internalType": "uint128"
+     },
+     {
+      "name": "marketsMask",
+      "type": "uint256",
+      "internalType": "uint256"
+     }
+    ]
+   }
+  ],
+  "outputs": [],
+  "stateMutability": "nonpayable"
+ },
+ {
+  "type": "function",
+  "name": "deposit",
+  "inputs": [
+   {
+    "name": "amount",
+    "type": "uint256",
+    "internalType": "uint256"
+   }
+  ],
+  "outputs": [],
+  "stateMutability": "nonpayable"
+ },
+ {
+  "type": "function",
+  "name": "depositFee",
+  "inputs": [
+   {
+    "name": "amount",
+    "type": "uint256",
+    "internalType": "uint256"
+   }
+  ],
+  "outputs": [],
+  "stateMutability": "nonpayable"
+ },
+ {
+  "type": "function",
+  "name": "eligible",
+  "inputs": [
+   {
+    "name": "vault",
+    "type": "address",
+    "internalType": "address"
+   },
+   {
+    "name": "e",
+    "type": "uint256",
+    "internalType": "uint256"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "",
+    "type": "bool",
+    "internalType": "bool"
+   }
+  ],
+  "stateMutability": "view"
+ },
+ {
+  "type": "function",
+  "name": "epoch",
+  "inputs": [],
+  "outputs": [
+   {
+    "name": "",
+    "type": "uint256",
+    "internalType": "uint256"
+   }
+  ],
+  "stateMutability": "view"
+ },
+ {
+  "type": "function",
+  "name": "epochCapTotal",
+  "inputs": [
+   {
+    "name": "",
+    "type": "uint256",
+    "internalType": "uint256"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "",
+    "type": "uint256",
+    "internalType": "uint256"
+   }
+  ],
+  "stateMutability": "view"
+ },
+ {
+  "type": "function",
+  "name": "epochEnd",
+  "inputs": [],
+  "outputs": [
+   {
+    "name": "",
+    "type": "uint64",
+    "internalType": "uint64"
+   }
+  ],
+  "stateMutability": "view"
+ },
+ {
+  "type": "function",
+  "name": "epochStart",
+  "inputs": [],
+  "outputs": [
+   {
+    "name": "",
+    "type": "uint64",
+    "internalType": "uint64"
+   }
+  ],
+  "stateMutability": "view"
+ },
+ {
+  "type": "function",
+  "name": "equity",
+  "inputs": [],
+  "outputs": [
+   {
+    "name": "eq",
+    "type": "uint256",
+    "internalType": "uint256"
+   },
+   {
+    "name": "valid",
+    "type": "bool",
+    "internalType": "bool"
+   }
+  ],
+  "stateMutability": "view"
+ },
+ {
+  "type": "function",
+  "name": "exchange",
+  "inputs": [],
+  "outputs": [
+   {
+    "name": "",
+    "type": "address",
+    "internalType": "contract IPerplExchange"
+   }
+  ],
+  "stateMutability": "view"
+ },
+ {
+  "type": "function",
+  "name": "feeClaimable",
+  "inputs": [],
+  "outputs": [
+   {
+    "name": "",
+    "type": "uint256",
+    "internalType": "uint256"
+   }
+  ],
+  "stateMutability": "view"
+ },
+ {
+  "type": "function",
+  "name": "feeEscrow",
+  "inputs": [],
+  "outputs": [
+   {
+    "name": "",
+    "type": "uint256",
+    "internalType": "uint256"
+   }
+  ],
+  "stateMutability": "view"
+ },
+ {
+  "type": "function",
+  "name": "fromEpoch",
+  "inputs": [
+   {
+    "name": "",
+    "type": "address",
+    "internalType": "address"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "",
+    "type": "uint256",
+    "internalType": "uint256"
+   }
+  ],
+  "stateMutability": "view"
+ },
+ {
+  "type": "function",
+  "name": "hasPendingMandate",
+  "inputs": [],
+  "outputs": [
+   {
+    "name": "",
+    "type": "bool",
+    "internalType": "bool"
+   }
+  ],
+  "stateMutability": "view"
+ },
+ {
+  "type": "function",
+  "name": "isMarketAllowed",
+  "inputs": [
+   {
+    "name": "perpId",
+    "type": "uint256",
+    "internalType": "uint256"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "ok",
+    "type": "bool",
+    "internalType": "bool"
+   },
+   {
+    "name": "m",
+    "type": "tuple",
+    "internalType": "struct PerplLib.Market",
+    "components": [
+     {
+      "name": "perpId",
+      "type": "uint32",
+      "internalType": "uint32"
+     },
+     {
+      "name": "priceDecimals",
+      "type": "uint8",
+      "internalType": "uint8"
+     },
+     {
+      "name": "lotDecimals",
+      "type": "uint8",
+      "internalType": "uint8"
+     }
+    ]
+   }
+  ],
+  "stateMutability": "view"
+ },
+ {
+  "type": "function",
+  "name": "lastUnitPrice",
+  "inputs": [],
+  "outputs": [
+   {
+    "name": "",
+    "type": "uint256",
+    "internalType": "uint256"
+   }
+  ],
+  "stateMutability": "view"
+ },
+ {
+  "type": "function",
+  "name": "mandate",
+  "inputs": [],
+  "outputs": [
+   {
+    "name": "",
+    "type": "tuple",
+    "internalType": "struct Mandate",
+    "components": [
+     {
+      "name": "maxDDbps",
+      "type": "uint32",
+      "internalType": "uint32"
+     },
+     {
+      "name": "maxLeverageHdths",
+      "type": "uint32",
+      "internalType": "uint32"
+     },
+     {
+      "name": "feeBps",
+      "type": "uint32",
+      "internalType": "uint32"
+     },
+     {
+      "name": "epochLen",
+      "type": "uint64",
+      "internalType": "uint64"
+     },
+     {
+      "name": "maxNotionalCNS",
+      "type": "uint128",
+      "internalType": "uint128"
+     },
+     {
+      "name": "marketsMask",
+      "type": "uint256",
+      "internalType": "uint256"
+     }
+    ]
+   }
+  ],
+  "stateMutability": "view"
+ },
+ {
+  "type": "function",
+  "name": "minBond",
+  "inputs": [],
+  "outputs": [
+   {
+    "name": "",
+    "type": "uint256",
+    "internalType": "uint256"
+   }
+  ],
+  "stateMutability": "view"
+ },
+ {
+  "type": "function",
+  "name": "operator",
+  "inputs": [],
+  "outputs": [
+   {
+    "name": "",
+    "type": "address",
+    "internalType": "address"
+   }
+  ],
+  "stateMutability": "view"
+ },
+ {
+  "type": "function",
+  "name": "owner",
+  "inputs": [],
+  "outputs": [
+   {
+    "name": "",
+    "type": "address",
+    "internalType": "address"
+   }
+  ],
+  "stateMutability": "view"
+ },
+ {
+  "type": "function",
+  "name": "peakUnitPrice",
+  "inputs": [],
+  "outputs": [
+   {
+    "name": "",
+    "type": "uint256",
+    "internalType": "uint256"
+   }
+  ],
+  "stateMutability": "view"
+ },
+ {
+  "type": "function",
+  "name": "pendingMandate",
+  "inputs": [],
+  "outputs": [
+   {
+    "name": "",
+    "type": "tuple",
+    "internalType": "struct Mandate",
+    "components": [
+     {
+      "name": "maxDDbps",
+      "type": "uint32",
+      "internalType": "uint32"
+     },
+     {
+      "name": "maxLeverageHdths",
+      "type": "uint32",
+      "internalType": "uint32"
+     },
+     {
+      "name": "feeBps",
+      "type": "uint32",
+      "internalType": "uint32"
+     },
+     {
+      "name": "epochLen",
+      "type": "uint64",
+      "internalType": "uint64"
+     },
+     {
+      "name": "maxNotionalCNS",
+      "type": "uint128",
+      "internalType": "uint128"
+     },
+     {
+      "name": "marketsMask",
+      "type": "uint256",
+      "internalType": "uint256"
+     }
+    ]
+   }
+  ],
+  "stateMutability": "view"
+ },
+ {
+  "type": "function",
+  "name": "pendingWithdrawUnits",
+  "inputs": [],
+  "outputs": [
+   {
+    "name": "",
+    "type": "uint256",
+    "internalType": "uint256"
+   }
+  ],
+  "stateMutability": "view"
+ },
+ {
+  "type": "function",
+  "name": "pool",
+  "inputs": [],
+  "outputs": [
+   {
+    "name": "",
+    "type": "address",
+    "internalType": "contract UnderwriterPool"
+   }
+  ],
+  "stateMutability": "view"
+ },
+ {
+  "type": "function",
+  "name": "postBond",
+  "inputs": [
+   {
+    "name": "amount",
+    "type": "uint256",
+    "internalType": "uint256"
+   }
+  ],
+  "outputs": [],
+  "stateMutability": "nonpayable"
+ },
+ {
+  "type": "function",
+  "name": "protection",
+  "inputs": [],
+  "outputs": [
+   {
+    "name": "",
+    "type": "uint256",
+    "internalType": "uint256"
+   }
+  ],
+  "stateMutability": "view"
+ },
+ {
+  "type": "function",
+  "name": "registerFollower",
+  "inputs": [
+   {
+    "name": "cap",
+    "type": "uint256",
+    "internalType": "uint256"
+   }
+  ],
+  "outputs": [],
+  "stateMutability": "nonpayable"
+ },
+ {
+  "type": "function",
+  "name": "registry",
+  "inputs": [],
+  "outputs": [
+   {
+    "name": "",
+    "type": "address",
+    "internalType": "contract CopasRegistry"
+   }
+  ],
+  "stateMutability": "view"
+ },
+ {
+  "type": "function",
+  "name": "requestUnbond",
+  "inputs": [
+   {
+    "name": "amount",
+    "type": "uint256",
+    "internalType": "uint256"
+   }
+  ],
+  "outputs": [],
+  "stateMutability": "nonpayable"
+ },
+ {
+  "type": "function",
+  "name": "requestWithdraw",
+  "inputs": [
+   {
+    "name": "unitsAmount",
+    "type": "uint256",
+    "internalType": "uint256"
+   }
+  ],
+  "outputs": [],
+  "stateMutability": "nonpayable"
+ },
+ {
+  "type": "function",
+  "name": "rollEpoch",
+  "inputs": [],
+  "outputs": [],
+  "stateMutability": "nonpayable"
+ },
+ {
+  "type": "function",
+  "name": "setOperator",
+  "inputs": [
+   {
+    "name": "op",
+    "type": "address",
+    "internalType": "address"
+   }
+  ],
+  "outputs": [],
+  "stateMutability": "nonpayable"
+ },
+ {
+  "type": "function",
+  "name": "setPool",
+  "inputs": [
+   {
+    "name": "p",
+    "type": "address",
+    "internalType": "contract UnderwriterPool"
+   }
+  ],
+  "outputs": [],
+  "stateMutability": "nonpayable"
+ },
+ {
+  "type": "function",
+  "name": "start",
+  "inputs": [],
+  "outputs": [],
+  "stateMutability": "nonpayable"
+ },
+ {
+  "type": "function",
+  "name": "status",
+  "inputs": [],
+  "outputs": [
+   {
+    "name": "",
+    "type": "uint8",
+    "internalType": "enum LeaderStatus"
+   }
+  ],
+  "stateMutability": "view"
+ },
+ {
+  "type": "function",
+  "name": "sweep",
+  "inputs": [
+   {
+    "name": "e",
+    "type": "uint256",
+    "internalType": "uint256"
+   }
+  ],
+  "outputs": [],
+  "stateMutability": "nonpayable"
+ },
+ {
+  "type": "function",
+  "name": "trade",
+  "inputs": [
+   {
+    "name": "perpId",
+    "type": "uint256",
+    "internalType": "uint256"
+   },
+   {
+    "name": "orderType",
+    "type": "uint8",
+    "internalType": "uint8"
+   },
+   {
+    "name": "lot",
+    "type": "uint256",
+    "internalType": "uint256"
+   },
+   {
+    "name": "price",
+    "type": "uint256",
+    "internalType": "uint256"
+   },
+   {
+    "name": "leverageHdths",
+    "type": "uint256",
+    "internalType": "uint256"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "orderId",
+    "type": "uint256",
+    "internalType": "uint256"
+   }
+  ],
+  "stateMutability": "nonpayable"
+ },
+ {
+  "type": "function",
+  "name": "unbondAmount",
+  "inputs": [],
+  "outputs": [
+   {
+    "name": "",
+    "type": "uint256",
+    "internalType": "uint256"
+   }
+  ],
+  "stateMutability": "view"
+ },
+ {
+  "type": "function",
+  "name": "unbondEpoch",
+  "inputs": [],
+  "outputs": [
+   {
+    "name": "",
+    "type": "uint256",
+    "internalType": "uint256"
+   }
+  ],
+  "stateMutability": "view"
+ },
+ {
+  "type": "function",
+  "name": "unitPrice",
+  "inputs": [],
+  "outputs": [
+   {
+    "name": "u",
+    "type": "uint256",
+    "internalType": "uint256"
+   },
+   {
+    "name": "valid",
+    "type": "bool",
+    "internalType": "bool"
+   }
+  ],
+  "stateMutability": "view"
+ },
+ {
+  "type": "function",
+  "name": "units",
+  "inputs": [],
+  "outputs": [
+   {
+    "name": "",
+    "type": "uint256",
+    "internalType": "uint256"
+   }
+  ],
+  "stateMutability": "view"
+ },
+ {
+  "type": "function",
+  "name": "unregisterFollower",
+  "inputs": [],
+  "outputs": [],
+  "stateMutability": "nonpayable"
+ },
+ {
+  "type": "function",
+  "name": "untilEpoch",
+  "inputs": [
+   {
+    "name": "",
+    "type": "address",
+    "internalType": "address"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "",
+    "type": "uint256",
+    "internalType": "uint256"
+   }
+  ],
+  "stateMutability": "view"
+ },
+ {
+  "type": "event",
+  "name": "BondPosted",
+  "inputs": [
+   {
+    "name": "amount",
+    "type": "uint256",
+    "indexed": false,
+    "internalType": "uint256"
+   },
+   {
+    "name": "bond",
+    "type": "uint256",
+    "indexed": false,
+    "internalType": "uint256"
+   }
+  ],
+  "anonymous": false
+ },
+ {
+  "type": "event",
+  "name": "Breached",
+  "inputs": [
+   {
+    "name": "epoch",
+    "type": "uint256",
+    "indexed": true,
+    "internalType": "uint256"
+   },
+   {
+    "name": "reason",
+    "type": "uint8",
+    "indexed": false,
+    "internalType": "enum BreachReason"
+   },
+   {
+    "name": "pot",
+    "type": "uint256",
+    "indexed": false,
+    "internalType": "uint256"
+   },
+   {
+    "name": "capTotal",
+    "type": "uint256",
+    "indexed": false,
+    "internalType": "uint256"
+   }
+  ],
+  "anonymous": false
+ },
+ {
+  "type": "event",
+  "name": "Checkpoint",
+  "inputs": [
+   {
+    "name": "epoch",
+    "type": "uint256",
+    "indexed": true,
+    "internalType": "uint256"
+   },
+   {
+    "name": "equity",
+    "type": "uint256",
+    "indexed": false,
+    "internalType": "uint256"
+   },
+   {
+    "name": "unitPrice",
+    "type": "uint256",
+    "indexed": false,
+    "internalType": "uint256"
+   },
+   {
+    "name": "peak",
+    "type": "uint256",
+    "indexed": false,
+    "internalType": "uint256"
+   },
+   {
+    "name": "ddBps",
+    "type": "uint256",
+    "indexed": false,
+    "internalType": "uint256"
+   },
+   {
+    "name": "leverageHdths",
+    "type": "uint256",
+    "indexed": false,
+    "internalType": "uint256"
+   }
+  ],
+  "anonymous": false
+ },
+ {
+  "type": "event",
+  "name": "Claimed",
+  "inputs": [
+   {
+    "name": "epoch",
+    "type": "uint256",
+    "indexed": true,
+    "internalType": "uint256"
+   },
+   {
+    "name": "vault",
+    "type": "address",
+    "indexed": true,
+    "internalType": "address"
+   },
+   {
+    "name": "to",
+    "type": "address",
+    "indexed": false,
+    "internalType": "address"
+   },
+   {
+    "name": "amount",
+    "type": "uint256",
+    "indexed": false,
+    "internalType": "uint256"
+   }
+  ],
+  "anonymous": false
+ },
+ {
+  "type": "event",
+  "name": "Deposited",
+  "inputs": [
+   {
+    "name": "amount",
+    "type": "uint256",
+    "indexed": false,
+    "internalType": "uint256"
+   },
+   {
+    "name": "unitsMinted",
+    "type": "uint256",
+    "indexed": false,
+    "internalType": "uint256"
+   },
+   {
+    "name": "unitPrice",
+    "type": "uint256",
+    "indexed": false,
+    "internalType": "uint256"
+   }
+  ],
+  "anonymous": false
+ },
+ {
+  "type": "event",
+  "name": "EpochRolled",
+  "inputs": [
+   {
+    "name": "epoch",
+    "type": "uint256",
+    "indexed": true,
+    "internalType": "uint256"
+   },
+   {
+    "name": "start",
+    "type": "uint64",
+    "indexed": false,
+    "internalType": "uint64"
+   },
+   {
+    "name": "end",
+    "type": "uint64",
+    "indexed": false,
+    "internalType": "uint64"
+   },
+   {
+    "name": "unitPrice",
+    "type": "uint256",
+    "indexed": false,
+    "internalType": "uint256"
+   },
+   {
+    "name": "status",
+    "type": "uint8",
+    "indexed": false,
+    "internalType": "enum LeaderStatus"
+   }
+  ],
+  "anonymous": false
+ },
+ {
+  "type": "event",
+  "name": "FeeDeposited",
+  "inputs": [
+   {
+    "name": "vault",
+    "type": "address",
+    "indexed": true,
+    "internalType": "address"
+   },
+   {
+    "name": "amount",
+    "type": "uint256",
+    "indexed": false,
+    "internalType": "uint256"
+   }
+  ],
+  "anonymous": false
+ },
+ {
+  "type": "event",
+  "name": "FeesReleased",
+  "inputs": [
+   {
+    "name": "epoch",
+    "type": "uint256",
+    "indexed": true,
+    "internalType": "uint256"
+   },
+   {
+    "name": "toLeader",
+    "type": "uint256",
+    "indexed": false,
+    "internalType": "uint256"
+   },
+   {
+    "name": "toUnderwriters",
+    "type": "uint256",
+    "indexed": false,
+    "internalType": "uint256"
+   }
+  ],
+  "anonymous": false
+ },
+ {
+  "type": "event",
+  "name": "FollowerRegistered",
+  "inputs": [
+   {
+    "name": "vault",
+    "type": "address",
+    "indexed": true,
+    "internalType": "address"
+   },
+   {
+    "name": "cap",
+    "type": "uint256",
+    "indexed": false,
+    "internalType": "uint256"
+   },
+   {
+    "name": "fromEpoch",
+    "type": "uint256",
+    "indexed": false,
+    "internalType": "uint256"
+   }
+  ],
+  "anonymous": false
+ },
+ {
+  "type": "event",
+  "name": "FollowerUnregistered",
+  "inputs": [
+   {
+    "name": "vault",
+    "type": "address",
+    "indexed": true,
+    "internalType": "address"
+   },
+   {
+    "name": "untilEpoch",
+    "type": "uint256",
+    "indexed": false,
+    "internalType": "uint256"
+   }
+  ],
+  "anonymous": false
+ },
+ {
+  "type": "event",
+  "name": "MandateDeclared",
+  "inputs": [
+   {
+    "name": "m",
+    "type": "tuple",
+    "indexed": false,
+    "internalType": "struct Mandate",
+    "components": [
+     {
+      "name": "maxDDbps",
+      "type": "uint32",
+      "internalType": "uint32"
+     },
+     {
+      "name": "maxLeverageHdths",
+      "type": "uint32",
+      "internalType": "uint32"
+     },
+     {
+      "name": "feeBps",
+      "type": "uint32",
+      "internalType": "uint32"
+     },
+     {
+      "name": "epochLen",
+      "type": "uint64",
+      "internalType": "uint64"
+     },
+     {
+      "name": "maxNotionalCNS",
+      "type": "uint128",
+      "internalType": "uint128"
+     },
+     {
+      "name": "marketsMask",
+      "type": "uint256",
+      "internalType": "uint256"
+     }
+    ]
+   },
+   {
+    "name": "effectiveEpoch",
+    "type": "uint256",
+    "indexed": false,
+    "internalType": "uint256"
+   }
+  ],
+  "anonymous": false
+ },
+ {
+  "type": "event",
+  "name": "OperatorSet",
+  "inputs": [
+   {
+    "name": "operator",
+    "type": "address",
+    "indexed": false,
+    "internalType": "address"
+   }
+  ],
+  "anonymous": false
+ },
+ {
+  "type": "event",
+  "name": "Swept",
+  "inputs": [
+   {
+    "name": "epoch",
+    "type": "uint256",
+    "indexed": true,
+    "internalType": "uint256"
+   },
+   {
+    "name": "amount",
+    "type": "uint256",
+    "indexed": false,
+    "internalType": "uint256"
+   }
+  ],
+  "anonymous": false
+ },
+ {
+  "type": "event",
+  "name": "Traded",
+  "inputs": [
+   {
+    "name": "perpId",
+    "type": "uint256",
+    "indexed": false,
+    "internalType": "uint256"
+   },
+   {
+    "name": "orderType",
+    "type": "uint8",
+    "indexed": false,
+    "internalType": "uint8"
+   },
+   {
+    "name": "lot",
+    "type": "uint256",
+    "indexed": false,
+    "internalType": "uint256"
+   },
+   {
+    "name": "price",
+    "type": "uint256",
+    "indexed": false,
+    "internalType": "uint256"
+   },
+   {
+    "name": "orderId",
+    "type": "uint256",
+    "indexed": false,
+    "internalType": "uint256"
+   }
+  ],
+  "anonymous": false
+ },
+ {
+  "type": "event",
+  "name": "UnbondRequested",
+  "inputs": [
+   {
+    "name": "amount",
+    "type": "uint256",
+    "indexed": false,
+    "internalType": "uint256"
+   },
+   {
+    "name": "unlockEpoch",
+    "type": "uint256",
+    "indexed": false,
+    "internalType": "uint256"
+   }
+  ],
+  "anonymous": false
+ },
+ {
+  "type": "event",
+  "name": "Unbonded",
+  "inputs": [
+   {
+    "name": "amount",
+    "type": "uint256",
+    "indexed": false,
+    "internalType": "uint256"
+   }
+  ],
+  "anonymous": false
+ },
+ {
+  "type": "event",
+  "name": "WithdrawRequested",
+  "inputs": [
+   {
+    "name": "units",
+    "type": "uint256",
+    "indexed": false,
+    "internalType": "uint256"
+   }
+  ],
+  "anonymous": false
+ },
+ {
+  "type": "event",
+  "name": "Withdrawn",
+  "inputs": [
+   {
+    "name": "amount",
+    "type": "uint256",
+    "indexed": false,
+    "internalType": "uint256"
+   },
+   {
+    "name": "unitsBurned",
+    "type": "uint256",
+    "indexed": false,
+    "internalType": "uint256"
+   }
+  ],
+  "anonymous": false
+ },
+ {
+  "type": "error",
+  "name": "AlreadyClaimed",
+  "inputs": []
+ },
+ {
+  "type": "error",
+  "name": "BadParams",
+  "inputs": []
+ },
+ {
+  "type": "error",
+  "name": "CapacityExceeded",
+  "inputs": []
+ },
+ {
+  "type": "error",
+  "name": "EpochRunning",
+  "inputs": []
+ },
+ {
+  "type": "error",
+  "name": "InvalidMark",
+  "inputs": []
+ },
+ {
+  "type": "error",
+  "name": "MandateViolation",
+  "inputs": [
+   {
+    "name": "reason",
+    "type": "uint8",
+    "internalType": "enum BreachReason"
+   }
+  ]
+ },
+ {
+  "type": "error",
+  "name": "MarketNotAllowed",
+  "inputs": []
+ },
+ {
+  "type": "error",
+  "name": "NotActive",
+  "inputs": []
+ },
+ {
+  "type": "error",
+  "name": "NotOperator",
+  "inputs": []
+ },
+ {
+  "type": "error",
+  "name": "NotOwner",
+  "inputs": []
+ },
+ {
+  "type": "error",
+  "name": "NotRegistry",
+  "inputs": []
+ },
+ {
+  "type": "error",
+  "name": "NotVault",
+  "inputs": []
+ },
+ {
+  "type": "error",
+  "name": "NothingToClaim",
+  "inputs": []
+ },
+ {
+  "type": "error",
+  "name": "TooEarly",
+  "inputs": []
+ }
+]

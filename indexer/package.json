@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "abis": "cp ../abis/PerplExchange.json ../abis/CopasRegistry.json ../abis/LeaderBook.json ../abis/FollowerVault.json ../abis/UnderwriterPool.json ../abis/BreachMarket.json ../abis/AgentLeaderRegistry.json abis/",
     "codegen": "envio codegen",
     "dev": "envio dev",
     "start": "envio start",
