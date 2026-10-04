@@ -1,0 +1,811 @@
+[
+ {
+  "type": "constructor",
+  "inputs": [
+   {
+    "name": "_registry",
+    "type": "address",
+    "internalType": "contract CopasRegistry"
+   },
+   {
+    "name": "_owner",
+    "type": "address",
+    "internalType": "address"
+   }
+  ],
+  "stateMutability": "nonpayable"
+ },
+ {
+  "type": "function",
+  "name": "accountId",
+  "inputs": [],
+  "outputs": [
+   {
+    "name": "",
+    "type": "uint256",
+    "internalType": "uint256"
+   }
+  ],
+  "stateMutability": "view"
+ },
+ {
+  "type": "function",
+  "name": "ausd",
+  "inputs": [],
+  "outputs": [
+   {
+    "name": "",
+    "type": "address",
+    "internalType": "contract IERC20Min"
+   }
+  ],
+  "stateMutability": "view"
+ },
+ {
+  "type": "function",
+  "name": "claim",
+  "inputs": [
+   {
+    "name": "lb",
+    "type": "address",
+    "internalType": "contract LeaderBook"
+   },
+   {
+    "name": "e",
+    "type": "uint256",
+    "internalType": "uint256"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "amount",
+    "type": "uint256",
+    "internalType": "uint256"
+   }
+  ],
+  "stateMutability": "nonpayable"
+ },
+ {
+  "type": "function",
+  "name": "deposit",
+  "inputs": [
+   {
+    "name": "amount",
+    "type": "uint256",
+    "internalType": "uint256"
+   }
+  ],
+  "outputs": [],
+  "stateMutability": "nonpayable"
+ },
+ {
+  "type": "function",
+  "name": "endEquity",
+  "inputs": [
+   {
+    "name": "",
+    "type": "uint256",
+    "internalType": "uint256"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "",
+    "type": "uint256",
+    "internalType": "uint256"
+   }
+  ],
+  "stateMutability": "view"
+ },
+ {
+  "type": "function",
+  "name": "epochSeen",
+  "inputs": [],
+  "outputs": [
+   {
+    "name": "",
+    "type": "uint256",
+    "internalType": "uint256"
+   }
+  ],
+  "stateMutability": "view"
+ },
+ {
+  "type": "function",
+  "name": "equity",
+  "inputs": [],
+  "outputs": [
+   {
+    "name": "eq",
+    "type": "uint256",
+    "internalType": "uint256"
+   },
+   {
+    "name": "valid",
+    "type": "bool",
+    "internalType": "bool"
+   }
+  ],
+  "stateMutability": "view"
+ },
+ {
+  "type": "function",
+  "name": "exchange",
+  "inputs": [],
+  "outputs": [
+   {
+    "name": "",
+    "type": "address",
+    "internalType": "contract IPerplExchange"
+   }
+  ],
+  "stateMutability": "view"
+ },
+ {
+  "type": "function",
+  "name": "follow",
+  "inputs": [
+   {
+    "name": "lb",
+    "type": "address",
+    "internalType": "contract LeaderBook"
+   },
+   {
+    "name": "p",
+    "type": "tuple",
+    "internalType": "struct FollowParams",
+    "components": [
+     {
+      "name": "ratioBps",
+      "type": "uint32",
+      "internalType": "uint32"
+     },
+     {
+      "name": "maxLeverageHdths",
+      "type": "uint32",
+      "internalType": "uint32"
+     },
+     {
+      "name": "maxChaseBps",
+      "type": "uint32",
+      "internalType": "uint32"
+     },
+     {
+      "name": "priceBandBps",
+      "type": "uint32",
+      "internalType": "uint32"
+     },
+     {
+      "name": "stopLossBps",
+      "type": "uint32",
+      "internalType": "uint32"
+     },
+     {
+      "name": "maxNotionalCNS",
+      "type": "uint128",
+      "internalType": "uint128"
+     },
+     {
+      "name": "marketsMask",
+      "type": "uint256",
+      "internalType": "uint256"
+     }
+    ]
+   }
+  ],
+  "outputs": [],
+  "stateMutability": "nonpayable"
+ },
+ {
+  "type": "function",
+  "name": "following",
+  "inputs": [],
+  "outputs": [
+   {
+    "name": "",
+    "type": "bool",
+    "internalType": "bool"
+   }
+  ],
+  "stateMutability": "view"
+ },
+ {
+  "type": "function",
+  "name": "highWaterMark",
+  "inputs": [],
+  "outputs": [
+   {
+    "name": "",
+    "type": "uint256",
+    "internalType": "uint256"
+   }
+  ],
+  "stateMutability": "view"
+ },
+ {
+  "type": "function",
+  "name": "leader",
+  "inputs": [],
+  "outputs": [
+   {
+    "name": "",
+    "type": "address",
+    "internalType": "contract LeaderBook"
+   }
+  ],
+  "stateMutability": "view"
+ },
+ {
+  "type": "function",
+  "name": "lossIn",
+  "inputs": [
+   {
+    "name": "e",
+    "type": "uint256",
+    "internalType": "uint256"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "",
+    "type": "uint256",
+    "internalType": "uint256"
+   }
+  ],
+  "stateMutability": "view"
+ },
+ {
+  "type": "function",
+  "name": "netFlow",
+  "inputs": [
+   {
+    "name": "",
+    "type": "uint256",
+    "internalType": "uint256"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "",
+    "type": "int256",
+    "internalType": "int256"
+   }
+  ],
+  "stateMutability": "view"
+ },
+ {
+  "type": "function",
+  "name": "owner",
+  "inputs": [],
+  "outputs": [
+   {
+    "name": "",
+    "type": "address",
+    "internalType": "address"
+   }
+  ],
+  "stateMutability": "view"
+ },
+ {
+  "type": "function",
+  "name": "params",
+  "inputs": [],
+  "outputs": [
+   {
+    "name": "",
+    "type": "tuple",
+    "internalType": "struct FollowParams",
+    "components": [
+     {
+      "name": "ratioBps",
+      "type": "uint32",
+      "internalType": "uint32"
+     },
+     {
+      "name": "maxLeverageHdths",
+      "type": "uint32",
+      "internalType": "uint32"
+     },
+     {
+      "name": "maxChaseBps",
+      "type": "uint32",
+      "internalType": "uint32"
+     },
+     {
+      "name": "priceBandBps",
+      "type": "uint32",
+      "internalType": "uint32"
+     },
+     {
+      "name": "stopLossBps",
+      "type": "uint32",
+      "internalType": "uint32"
+     },
+     {
+      "name": "maxNotionalCNS",
+      "type": "uint128",
+      "internalType": "uint128"
+     },
+     {
+      "name": "marketsMask",
+      "type": "uint256",
+      "internalType": "uint256"
+     }
+    ]
+   }
+  ],
+  "stateMutability": "view"
+ },
+ {
+  "type": "function",
+  "name": "paused",
+  "inputs": [],
+  "outputs": [
+   {
+    "name": "",
+    "type": "bool",
+    "internalType": "bool"
+   }
+  ],
+  "stateMutability": "view"
+ },
+ {
+  "type": "function",
+  "name": "referrer",
+  "inputs": [],
+  "outputs": [
+   {
+    "name": "",
+    "type": "address",
+    "internalType": "address"
+   }
+  ],
+  "stateMutability": "view"
+ },
+ {
+  "type": "function",
+  "name": "registry",
+  "inputs": [],
+  "outputs": [
+   {
+    "name": "",
+    "type": "address",
+    "internalType": "contract CopasRegistry"
+   }
+  ],
+  "stateMutability": "view"
+ },
+ {
+  "type": "function",
+  "name": "setReferrer",
+  "inputs": [
+   {
+    "name": "r",
+    "type": "address",
+    "internalType": "address"
+   }
+  ],
+  "outputs": [],
+  "stateMutability": "nonpayable"
+ },
+ {
+  "type": "function",
+  "name": "startEquity",
+  "inputs": [
+   {
+    "name": "",
+    "type": "uint256",
+    "internalType": "uint256"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "",
+    "type": "uint256",
+    "internalType": "uint256"
+   }
+  ],
+  "stateMutability": "view"
+ },
+ {
+  "type": "function",
+  "name": "sync",
+  "inputs": [
+   {
+    "name": "perpId",
+    "type": "uint256",
+    "internalType": "uint256"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "target",
+    "type": "int256",
+    "internalType": "int256"
+   }
+  ],
+  "stateMutability": "nonpayable"
+ },
+ {
+  "type": "function",
+  "name": "tighten",
+  "inputs": [
+   {
+    "name": "p",
+    "type": "tuple",
+    "internalType": "struct FollowParams",
+    "components": [
+     {
+      "name": "ratioBps",
+      "type": "uint32",
+      "internalType": "uint32"
+     },
+     {
+      "name": "maxLeverageHdths",
+      "type": "uint32",
+      "internalType": "uint32"
+     },
+     {
+      "name": "maxChaseBps",
+      "type": "uint32",
+      "internalType": "uint32"
+     },
+     {
+      "name": "priceBandBps",
+      "type": "uint32",
+      "internalType": "uint32"
+     },
+     {
+      "name": "stopLossBps",
+      "type": "uint32",
+      "internalType": "uint32"
+     },
+     {
+      "name": "maxNotionalCNS",
+      "type": "uint128",
+      "internalType": "uint128"
+     },
+     {
+      "name": "marketsMask",
+      "type": "uint256",
+      "internalType": "uint256"
+     }
+    ]
+   }
+  ],
+  "outputs": [],
+  "stateMutability": "nonpayable"
+ },
+ {
+  "type": "function",
+  "name": "touch",
+  "inputs": [],
+  "outputs": [],
+  "stateMutability": "nonpayable"
+ },
+ {
+  "type": "function",
+  "name": "unfollow",
+  "inputs": [],
+  "outputs": [],
+  "stateMutability": "nonpayable"
+ },
+ {
+  "type": "function",
+  "name": "withdraw",
+  "inputs": [
+   {
+    "name": "amount",
+    "type": "uint256",
+    "internalType": "uint256"
+   }
+  ],
+  "outputs": [],
+  "stateMutability": "nonpayable"
+ },
+ {
+  "type": "event",
+  "name": "ClaimedSlash",
+  "inputs": [
+   {
+    "name": "epoch",
+    "type": "uint256",
+    "indexed": true,
+    "internalType": "uint256"
+   },
+   {
+    "name": "loss",
+    "type": "uint256",
+    "indexed": false,
+    "internalType": "uint256"
+   },
+   {
+    "name": "amount",
+    "type": "uint256",
+    "indexed": false,
+    "internalType": "uint256"
+   }
+  ],
+  "anonymous": false
+ },
+ {
+  "type": "event",
+  "name": "Deposited",
+  "inputs": [
+   {
+    "name": "from",
+    "type": "address",
+    "indexed": true,
+    "internalType": "address"
+   },
+   {
+    "name": "amount",
+    "type": "uint256",
+    "indexed": false,
+    "internalType": "uint256"
+   }
+  ],
+  "anonymous": false
+ },
+ {
+  "type": "event",
+  "name": "FeePaid",
+  "inputs": [
+   {
+    "name": "epoch",
+    "type": "uint256",
+    "indexed": true,
+    "internalType": "uint256"
+   },
+   {
+    "name": "toLeader",
+    "type": "uint256",
+    "indexed": false,
+    "internalType": "uint256"
+   },
+   {
+    "name": "toProtocol",
+    "type": "uint256",
+    "indexed": false,
+    "internalType": "uint256"
+   }
+  ],
+  "anonymous": false
+ },
+ {
+  "type": "event",
+  "name": "Followed",
+  "inputs": [
+   {
+    "name": "leader",
+    "type": "address",
+    "indexed": true,
+    "internalType": "address"
+   },
+   {
+    "name": "p",
+    "type": "tuple",
+    "indexed": false,
+    "internalType": "struct FollowParams",
+    "components": [
+     {
+      "name": "ratioBps",
+      "type": "uint32",
+      "internalType": "uint32"
+     },
+     {
+      "name": "maxLeverageHdths",
+      "type": "uint32",
+      "internalType": "uint32"
+     },
+     {
+      "name": "maxChaseBps",
+      "type": "uint32",
+      "internalType": "uint32"
+     },
+     {
+      "name": "priceBandBps",
+      "type": "uint32",
+      "internalType": "uint32"
+     },
+     {
+      "name": "stopLossBps",
+      "type": "uint32",
+      "internalType": "uint32"
+     },
+     {
+      "name": "maxNotionalCNS",
+      "type": "uint128",
+      "internalType": "uint128"
+     },
+     {
+      "name": "marketsMask",
+      "type": "uint256",
+      "internalType": "uint256"
+     }
+    ]
+   }
+  ],
+  "anonymous": false
+ },
+ {
+  "type": "event",
+  "name": "ReferralPaid",
+  "inputs": [
+   {
+    "name": "referrer",
+    "type": "address",
+    "indexed": true,
+    "internalType": "address"
+   },
+   {
+    "name": "amount",
+    "type": "uint256",
+    "indexed": false,
+    "internalType": "uint256"
+   }
+  ],
+  "anonymous": false
+ },
+ {
+  "type": "event",
+  "name": "ReferrerSet",
+  "inputs": [
+   {
+    "name": "referrer",
+    "type": "address",
+    "indexed": true,
+    "internalType": "address"
+   }
+  ],
+  "anonymous": false
+ },
+ {
+  "type": "event",
+  "name": "SkippedChase",
+  "inputs": [
+   {
+    "name": "perpId",
+    "type": "uint256",
+    "indexed": true,
+    "internalType": "uint256"
+   },
+   {
+    "name": "mark",
+    "type": "uint256",
+    "indexed": false,
+    "internalType": "uint256"
+   },
+   {
+    "name": "leaderEntry",
+    "type": "uint256",
+    "indexed": false,
+    "internalType": "uint256"
+   }
+  ],
+  "anonymous": false
+ },
+ {
+  "type": "event",
+  "name": "StopLoss",
+  "inputs": [
+   {
+    "name": "epoch",
+    "type": "uint256",
+    "indexed": true,
+    "internalType": "uint256"
+   },
+   {
+    "name": "equity",
+    "type": "uint256",
+    "indexed": false,
+    "internalType": "uint256"
+   },
+   {
+    "name": "start",
+    "type": "uint256",
+    "indexed": false,
+    "internalType": "uint256"
+   }
+  ],
+  "anonymous": false
+ },
+ {
+  "type": "event",
+  "name": "Synced",
+  "inputs": [
+   {
+    "name": "perpId",
+    "type": "uint256",
+    "indexed": true,
+    "internalType": "uint256"
+   },
+   {
+    "name": "leaderLot",
+    "type": "int256",
+    "indexed": false,
+    "internalType": "int256"
+   },
+   {
+    "name": "fromLot",
+    "type": "int256",
+    "indexed": false,
+    "internalType": "int256"
+   },
+   {
+    "name": "targetLot",
+    "type": "int256",
+    "indexed": false,
+    "internalType": "int256"
+   },
+   {
+    "name": "mark",
+    "type": "uint256",
+    "indexed": false,
+    "internalType": "uint256"
+   }
+  ],
+  "anonymous": false
+ },
+ {
+  "type": "event",
+  "name": "Unfollowed",
+  "inputs": [
+   {
+    "name": "leader",
+    "type": "address",
+    "indexed": true,
+    "internalType": "address"
+   }
+  ],
+  "anonymous": false
+ },
+ {
+  "type": "event",
+  "name": "Withdrawn",
+  "inputs": [
+   {
+    "name": "amount",
+    "type": "uint256",
+    "indexed": false,
+    "internalType": "uint256"
+   }
+  ],
+  "anonymous": false
+ },
+ {
+  "type": "error",
+  "name": "BadParams",
+  "inputs": []
+ },
+ {
+  "type": "error",
+  "name": "DepositCap",
+  "inputs": []
+ },
+ {
+  "type": "error",
+  "name": "InvalidMark",
+  "inputs": []
+ },
+ {
+  "type": "error",
+  "name": "MarketNotAllowed",
+  "inputs": []
+ },
+ {
+  "type": "error",
+  "name": "NotLeader",
+  "inputs": []
+ },
+ {
+  "type": "error",
+  "name": "NotOwner",
+  "inputs": []
+ },
+ {
+  "type": "error",
+  "name": "NothingToClaim",
+  "inputs": []
+ }
+]
