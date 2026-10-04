@@ -1,0 +1,203 @@
+{
+  "version": "1.0",
+  "name": "copas-keeper-10143",
+  "chain_type": "ethereum",
+  "rules": [
+    {
+      "name": "Keeper calls on Copas contracts: sync/checkpoint/rollEpoch/touch/settle, no value",
+      "method": "eth_sendTransaction",
+      "action": "ALLOW",
+      "conditions": [
+        {
+          "field_source": "ethereum_transaction",
+          "field": "chain_id",
+          "operator": "eq",
+          "value": "10143"
+        },
+        {
+          "field_source": "ethereum_transaction",
+          "field": "value",
+          "operator": "eq",
+          "value": "0x0"
+        },
+        {
+          "field_source": "ethereum_calldata",
+          "field": "function_name",
+          "operator": "in",
+          "value": [
+            "sync",
+            "checkpoint",
+            "rollEpoch",
+            "touch",
+            "settle"
+          ],
+          "abi": [
+            {
+              "type": "function",
+              "name": "sync",
+              "stateMutability": "nonpayable",
+              "inputs": [
+                {
+                  "name": "perpId",
+                  "type": "uint256"
+                }
+              ],
+              "outputs": [
+                {
+                  "name": "target",
+                  "type": "int256"
+                }
+              ]
+            },
+            {
+              "type": "function",
+              "name": "checkpoint",
+              "stateMutability": "nonpayable",
+              "inputs": [],
+              "outputs": []
+            },
+            {
+              "type": "function",
+              "name": "rollEpoch",
+              "stateMutability": "nonpayable",
+              "inputs": [],
+              "outputs": []
+            },
+            {
+              "type": "function",
+              "name": "touch",
+              "stateMutability": "nonpayable",
+              "inputs": [],
+              "outputs": []
+            },
+            {
+              "type": "function",
+              "name": "settle",
+              "stateMutability": "nonpayable",
+              "inputs": [
+                {
+                  "name": "lb",
+                  "type": "address"
+                },
+                {
+                  "name": "e",
+                  "type": "uint256"
+                }
+              ],
+              "outputs": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "ERC-8004 reputation feedback only",
+      "method": "eth_sendTransaction",
+      "action": "ALLOW",
+      "conditions": [
+        {
+          "field_source": "ethereum_transaction",
+          "field": "chain_id",
+          "operator": "eq",
+          "value": "10143"
+        },
+        {
+          "field_source": "ethereum_transaction",
+          "field": "to",
+          "operator": "eq",
+          "value": "0x8004B663056A597Dffe9eCcC1965A193B7388713"
+        },
+        {
+          "field_source": "ethereum_transaction",
+          "field": "value",
+          "operator": "eq",
+          "value": "0x0"
+        },
+        {
+          "field_source": "ethereum_calldata",
+          "field": "function_name",
+          "operator": "eq",
+          "value": "giveFeedback",
+          "abi": [
+            {
+              "type": "function",
+              "name": "giveFeedback",
+              "stateMutability": "nonpayable",
+              "inputs": [
+                {
+                  "name": "agentId",
+                  "type": "uint256"
+                },
+                {
+                  "name": "value",
+                  "type": "int128"
+                },
+                {
+                  "name": "valueDecimals",
+                  "type": "uint8"
+                },
+                {
+                  "name": "tag1",
+                  "type": "string"
+                },
+                {
+                  "name": "tag2",
+                  "type": "string"
+                },
+                {
+                  "name": "endpoint",
+                  "type": "string"
+                },
+                {
+                  "name": "feedbackURI",
+                  "type": "string"
+                },
+                {
+                  "name": "feedbackHash",
+                  "type": "bytes32"
+                }
+              ],
+              "outputs": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Never touch AUSD or Perpl Exchange directly",
+      "method": "eth_sendTransaction",
+      "action": "DENY",
+      "conditions": [
+        {
+          "field_source": "ethereum_transaction",
+          "field": "to",
+          "operator": "in",
+          "value": [
+            "0xa9012a055bd4e0edff8ce09f960291c09d5322dc",
+            "0x1964C32f0bE608E7D29302AFF5E61268E72080cc",
+            "0xa9012a055bd4e0edff8ce09f960291c09d5322dc",
+            "0x1964c32f0be608e7d29302aff5e61268e72080cc"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "No EIP-7702 re-delegation",
+      "method": "eth_sign7702Authorization",
+      "action": "DENY",
+      "conditions": []
+    },
+    {
+      "name": "No raw message signing",
+      "method": "personal_sign",
+      "action": "DENY",
+      "conditions": []
+    },
+    {
+      "name": "No typed-data signing",
+      "method": "eth_signTypedData_v4",
+      "action": "DENY",
+      "conditions": []
+    }
+  ]
+}
