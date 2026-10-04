@@ -1,0 +1,27 @@
+{
+  "schedule": "0 */5 * * * *",
+  "chainName": "monad-mainnet",
+  "isTestnet": false,
+  "registry": "0x0000000000000000000000000000000000000000",
+  "consumer": "0x0000000000000000000000000000000000000000",
+  "exchange": "0x34B6552d57a35a1D042CcAe1951BD1C370112a6F",
+  "multicall": "0xcA11bde05977b3631167028862bE2a173976CA11",
+  "maxLeaders": 16,
+  "callsPerRead": 16,
+  "gasLimit": "3000000",
+  "maxDivergenceBps": 100,
+  "priceUrl": "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,solana,monad&vs_currencies=usd",
+  "markets": [
+    { "symbol": "BTC", "perpId": 1, "priceDecimals": 1, "priceId": "bitcoin" },
+    { "symbol": "MON", "perpId": 10, "priceDecimals": 6, "priceId": "monad" },
+    { "symbol": "ETH", "perpId": 20, "priceDecimals": 2, "priceId": "ethereum" },
+    { "symbol": "SOL", "perpId": 31, "priceDecimals": 3, "priceId": "solana" }
+  ],
+  "llm": {
+    "url": "https://api.moonshot.ai/v1/chat/completions",
+    "model": "kimi-k3",
+    "reasoningEffort": "high",
+    "timeout": "150s",
+    "secretId": "KIMI_API_KEY"
+  }
+}

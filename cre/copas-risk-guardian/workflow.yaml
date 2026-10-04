@@ -1,0 +1,16 @@
+# copas-risk-guardian workflow settings (per target; see ../project.yaml for RPCs)
+mainnet-settings:
+  user-workflow:
+    workflow-name: "copas-risk-guardian"
+  workflow-artifacts:
+    workflow-path: "./main.ts"
+    config-path: "./config.mainnet.json"
+    secrets-path: "../secrets.yaml"
+
+testnet-settings:
+  user-workflow:
+    workflow-name: "copas-risk-guardian-testnet"
+  workflow-artifacts:
+    workflow-path: "./main.ts"
+    config-path: "./config.testnet.json"
+    secrets-path: "../secrets.yaml"

@@ -1,0 +1,15 @@
+# CRE project settings. Chain names come from smartcontractkit/chain-selectors:
+#   monad-mainnet = 8481857512324358265, monad-testnet = 2183018362218727504
+# Simulation (`cre workflow simulate --broadcast`) writes through the MockKeystoneForwarder:
+#   mainnet 0x9eF6468C5f37b976E57d52054c693269479A784d · testnet 0xB9F79d863261869B234c481D1f9A7af84AeAd192
+# Production DON writes come from the KeystoneForwarder:
+#   mainnet 0x76c9cf548b4179F8901cda1f8623568b58215E62 · testnet 0xF8344CFd5c43616a4366C34E3EEE75af79a74482
+mainnet-settings:
+  rpcs:
+    - chain-name: monad-mainnet
+      url: https://rpc.monad.xyz
+
+testnet-settings:
+  rpcs:
+    - chain-name: monad-testnet
+      url: https://testnet-rpc.monad.xyz

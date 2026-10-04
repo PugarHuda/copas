@@ -1,0 +1,13 @@
+[profile.default]
+src = "src"
+out = "out"
+# ponytail: reuse forge-std from copas/contracts instead of vendoring a second copy
+libs = ["../../contracts/lib"]
+remappings = ["forge-std/=../../contracts/lib/forge-std/src/"]
+solc = "0.8.28"
+evm_version = "prague"
+optimizer = true
+
+[rpc_endpoints]
+monad = "${MONAD_RPC_URL}"
+monad_testnet = "${MONAD_TESTNET_RPC_URL}"
