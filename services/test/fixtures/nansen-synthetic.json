@@ -1,0 +1,27 @@
+{
+  "_note": "SYNTHETIC: shaped exactly like the 200 responses in https://api.nansen.ai/openapi.json (no key at record time). Replace with real Monad responses via pnpm fixtures once NANSEN_API_KEY/X402_PRIVATE_KEY is set.",
+  "smart-money/netflow": {
+    "data": [
+      { "token_address": "0x0555e30da8f98308edb960aa94c0db47230d2b9c", "token_symbol": "WBTC", "net_flow_1h_usd": 1200, "net_flow_24h_usd": 25000, "net_flow_7d_usd": 180000, "net_flow_30d_usd": 410000, "chain": "monad", "token_sectors": [], "trader_count": 14, "token_age_days": 300, "market_cap_usd": null },
+      { "token_address": "0xee8c0e9f1bffb4eb878d8f15f368a02a35481242", "token_symbol": "WETH", "net_flow_1h_usd": -300, "net_flow_24h_usd": -8000, "net_flow_7d_usd": -52000, "net_flow_30d_usd": 12000, "chain": "monad", "token_sectors": [], "trader_count": 9, "token_age_days": 300, "market_cap_usd": null },
+      { "token_address": "0x3bd359c1119da7da1d913d1c4d2b7c461115433a", "token_symbol": "WMON", "net_flow_1h_usd": 50, "net_flow_24h_usd": 9000, "net_flow_7d_usd": 61000, "net_flow_30d_usd": 95000, "chain": "monad", "token_sectors": [], "trader_count": 31, "token_age_days": 300, "market_cap_usd": null }
+    ],
+    "pagination": { "page": 1, "per_page": 100, "is_last_page": true }
+  },
+  "smart-money/dex-trades": {
+    "data": [
+      { "chain": "monad", "block_timestamp": "2026-10-02T10:00:00", "transaction_hash": "0x01", "trader_address": "0xedcd7471aa1410353789c9f7c04be5192e3b409b", "trader_address_label": "Smart Trader", "token_bought_address": "0x0555e30da8f98308edb960aa94c0db47230d2b9c", "token_sold_address": "0x754704bc059f8c67012fed69bc8a327a5aafb603", "token_bought_amount": 0.01, "token_sold_amount": 860, "token_bought_symbol": "WBTC", "token_sold_symbol": "USDC", "token_bought_age_days": 300, "token_sold_age_days": 300, "token_bought_market_cap": null, "token_sold_market_cap": null, "token_bought_fdv": null, "token_sold_fdv": null, "trade_value_usd": 860 },
+      { "chain": "monad", "block_timestamp": "2026-10-02T11:00:00", "transaction_hash": "0x02", "trader_address": "0x1111111111111111111111111111111111111111", "trader_address_label": "Fund", "token_bought_address": "0x3bd359c1119da7da1d913d1c4d2b7c461115433a", "token_sold_address": "0x754704bc059f8c67012fed69bc8a327a5aafb603", "token_bought_amount": 5000, "token_sold_amount": 150, "token_bought_symbol": "WMON", "token_sold_symbol": "USDC", "token_bought_age_days": 300, "token_sold_age_days": 300, "token_bought_market_cap": null, "token_sold_market_cap": null, "token_bought_fdv": null, "token_sold_fdv": null, "trade_value_usd": 150 }
+    ],
+    "pagination": { "page": 1, "per_page": 100, "is_last_page": true }
+  },
+  "profiler/address/pnl-summary": {
+    "pagination": { "page": 1, "per_page": 10, "is_last_page": true },
+    "top5_tokens": [],
+    "traded_token_count": 4,
+    "traded_times": 37,
+    "realized_pnl_usd": 1200.5,
+    "realized_pnl_percent": 8.1,
+    "win_rate": 0.55
+  }
+}

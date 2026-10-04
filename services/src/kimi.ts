@@ -1,0 +1,165 @@
+/**
+ * D1/D3 Kimi K3 risk analyst. Explains precomputed features; never decides or executes anything.
+ * Every call carries X-Msh-Request-Nonce, so Kimi returns a Request Signature that anyone can check at
+ * POST https://api.moonshot.ai/v1/signatures/verify. Hashes of input/output are appended to data/kimi-log.jsonl.
+ */
+import { createHash, randomUUID } from "node:crypto";
+import { appendFileSync, mkdirSync } from "node:fs";
+import { dirname } from "node:path";
+import type { Features } from "./features.js";
+import { type Fetch, canonicalJson, env, requireEnv, round } from "./util.js";
+
+export const kimiBase = () => env("KIMI_BASE_URL") ?? "https://api.moonshot.ai/v1";
+export const KIMI_MODEL = "kimi-k3";
+export const KIMI_PRICE = { input: 3, cachedInput: 0.3, output: 15 }; // USD per 1M tokens (platform.kimi.ai/docs/pricing/chat-k3)
+
+export interface Bilingual {
+  en: string;
+  id: string;
+}
+export interface Analysis {
+  riskLevel: "low" | "medium" | "high";
+  styleSummary: Bilingual;
+  tilt: Bilingual & { detected: boolean };
+  drift: Bilingual & { detected: boolean };
+  weeklySummary: Bilingual;
+  devilsAdvocate: (Bilingual & { key: string; metric: string; value: number })[];
+}
+export interface KimiSignature {
+  nonce: string;
+  timestamp: number;
+  model: string;
+  signature: string;
+}
+export interface AnalysisResult {
+  analysis: Analysis;
+  features: Features;
+  signature: KimiSignature | null;
+  signatureValid: boolean | null;
+  nonce: string;
+  verifyUrl: string;
+  usage: { promptTokens: number; cachedTokens: number; completionTokens: number };
+  costUsd: number;
+  inputHash: string;
+  outputHash: string;
+  model: string;
+}
+
+const SYSTEM = `You are the risk analyst of Copas, a bonded copy-trading app on Monad (Perpl perps).
+You EXPLAIN precomputed, deterministic features of a leader to a retail follower. Rules:
+- Use only numbers that appear in the input. Never invent data, prices or forecasts.
+- Never tell the user to buy, sell or follow; execution is done by deterministic contracts, not by you.
+- "tilt.detected" and "drift.detected" MUST equal the input flags; you only explain them.
+- devilsAdvocate: pick exactly 3 items from input.reasonsNotToFollow (strongest first), keep their "key", explain each with its numbers.
+- Every text field is bilingual: "en" (English) and "id" (Bahasa Indonesia, natural, not literal). Max 2 sentences each.
+Reply with ONE JSON object:
+{"riskLevel":"low|medium|high","styleSummary":{"en":"","id":""},"tilt":{"detected":bool,"en":"","id":""},"drift":{"detected":bool,"en":"","id":""},"weeklySummary":{"en":"","id":""},"devilsAdvocate":[{"key":"","en":"","id":""}]}`;
+
+export const sha256 = (s: string) => "0x" + createHash("sha256").update(s).digest("hex");
+
+export function kimiCost(usage: { prompt_tokens?: number; completion_tokens?: number; prompt_tokens_details?: { cached_tokens?: number }; cached_tokens?: number }) {
+  const prompt = usage.prompt_tokens ?? 0;
+  const cached = usage.prompt_tokens_details?.cached_tokens ?? usage.cached_tokens ?? 0;
+  const out = usage.completion_tokens ?? 0;
+  const costUsd = ((prompt - cached) * KIMI_PRICE.input + cached * KIMI_PRICE.cachedInput + out * KIMI_PRICE.output) / 1e6;
+  return { usage: { promptTokens: prompt, cachedTokens: cached, completionTokens: out }, costUsd: round(costUsd, 6) };
+}
+
+/** Keeps the LLM inside the deterministic facts: flags are overwritten, reasons must come from the candidates. */
+export function guardAnalysis(raw: any, f: Features): Analysis {
+  const bi = (x: any): Bilingual => ({ en: String(x?.en ?? ""), id: String(x?.id ?? "") });
+  const cands = new Map(f.reasonsNotToFollow.map((r) => [r.key, r]));
+  const picked = (Array.isArray(raw?.devilsAdvocate) ? raw.devilsAdvocate : []).filter((d: any) => cands.has(d?.key));
+  const seen = new Set<string>();
+  const da = picked
+    .filter((d: any) => !seen.has(d.key) && seen.add(d.key))
+    .slice(0, 3)
+    .map((d: any) => ({ key: d.key, metric: cands.get(d.key)!.metric, value: cands.get(d.key)!.value, ...bi(d) }));
+  // fill up from the deterministic ranking if the model returned fewer than 3 valid keys
+  for (const r of f.reasonsNotToFollow) {
+    if (da.length >= 3) break;
+    if (seen.has(r.key)) continue;
+    seen.add(r.key);
+    da.push({ key: r.key, metric: r.metric, value: r.value, en: r.detail, id: r.detail });
+  }
+  const level = ["low", "medium", "high"].includes(raw?.riskLevel) ? raw.riskLevel : "medium";
+  return {
+    riskLevel: level,
+    styleSummary: bi(raw?.styleSummary),
+    tilt: { detected: f.tilt.detected, ...bi(raw?.tilt) },
+    drift: { detected: f.drift.detected, ...bi(raw?.drift) },
+    weeklySummary: bi(raw?.weeklySummary),
+    devilsAdvocate: da,
+  };
+}
+
+export async function verifyKimiSignature(sig: KimiSignature, f: Fetch = fetch): Promise<boolean> {
+  const key = requireEnv("KIMI_API_KEY");
+  const r = await f(`${kimiBase()}/signatures/verify`, {
+    method: "POST",
+    headers: { authorization: `Bearer ${key}`, "content-type": "application/json" },
+    body: JSON.stringify(sig),
+  });
+  if (!r.ok) return false;
+  return !!((await r.json()) as { valid?: boolean }).valid;
+}
+
+export async function analyzeLeader(
+  address: string,
+  features: Features,
+  opts: { fetch?: Fetch; logPath?: string; now?: number } = {},
+): Promise<AnalysisResult> {
+  const key = requireEnv("KIMI_API_KEY");
+  const f = opts.fetch ?? fetch;
+  const nonce = randomUUID();
+  const input = canonicalJson({ leader: address, features });
+  const res = await f(`${kimiBase()}/chat/completions`, {
+    method: "POST",
+    headers: { authorization: `Bearer ${key}`, "content-type": "application/json", "X-Msh-Request-Nonce": nonce },
+    // no temperature/top_p: K3 locks them and rejects other values
+    body: JSON.stringify({
+      model: KIMI_MODEL,
+      reasoning_effort: "high",
+      response_format: { type: "json_object" },
+      messages: [
+        { role: "system", content: SYSTEM },
+        { role: "user", content: input },
+      ],
+    }),
+  });
+  if (!res.ok) throw new Error(`kimi ${res.status}: ${(await res.text()).slice(0, 300)}`);
+  const ts = res.headers.get("msh-request-timestamp");
+  const sg = res.headers.get("msh-request-signature");
+  const signature = ts && sg ? { nonce, timestamp: Number(ts), model: KIMI_MODEL, signature: sg } : null;
+  const body = (await res.json()) as any;
+  const content = String(body.choices?.[0]?.message?.content ?? "{}");
+  let raw: unknown = {};
+  try {
+    raw = JSON.parse(content.slice(content.indexOf("{"), content.lastIndexOf("}") + 1));
+  } catch {
+    raw = {};
+  }
+  const analysis = guardAnalysis(raw, features);
+  const { usage, costUsd } = kimiCost(body.usage ?? {});
+  const signatureValid = signature ? await verifyKimiSignature(signature, f).catch(() => null) : null;
+  const out: AnalysisResult = {
+    analysis,
+    features,
+    signature,
+    signatureValid,
+    nonce,
+    verifyUrl: `${kimiBase()}/signatures/verify`,
+    usage,
+    costUsd,
+    inputHash: sha256(input),
+    outputHash: sha256(canonicalJson(analysis)),
+    model: KIMI_MODEL,
+  };
+  const logPath = opts.logPath ?? env("KIMI_LOG_PATH") ?? "data/kimi-log.jsonl";
+  mkdirSync(dirname(logPath), { recursive: true });
+  appendFileSync(
+    logPath,
+    JSON.stringify({ at: opts.now ?? Math.floor(Date.now() / 1000), leader: address, model: KIMI_MODEL, nonce, signature, signatureValid, inputHash: out.inputHash, outputHash: out.outputHash, usage, costUsd }) + "\n",
+  );
+  return out;
+}

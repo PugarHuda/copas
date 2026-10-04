@@ -1,0 +1,17 @@
+{
+  "_note": "SYNTHETIC, trimmed to the fields read by simulate() (Tenderly simulate API response shape).",
+  "transaction": {
+    "status": true,
+    "gas_used": 412345,
+    "error_message": "",
+    "transaction_info": {
+      "asset_changes": [
+        { "type": "Transfer", "from": "0x1111111111111111111111111111111111111111", "to": "0x2222222222222222222222222222222222222222", "raw_amount": "100000000", "amount": "100", "token_info": { "contract_address": "0x00000000efe302beaa2b3e6e1b18d08d69a9012a", "symbol": "AUSD", "decimals": 6 } }
+      ],
+      "logs": [
+        { "name": "Deposited", "inputs": [{ "soltype": { "name": "from" }, "value": "0x1111111111111111111111111111111111111111" }, { "soltype": { "name": "amount" }, "value": "100000000" }], "raw": { "address": "0x2222222222222222222222222222222222222222", "topics": [] } }
+      ]
+    }
+  },
+  "simulation": { "id": "sim-fixture" }
+}

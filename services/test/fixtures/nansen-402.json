@@ -1,0 +1,312 @@
+{
+ "status": 402,
+ "paymentRequired": "eyJ4NDAyVmVyc2lvbiI6MiwiZXJyb3IiOiJQYXltZW50IHJlcXVpcmVkIiwicmVzb3VyY2UiOnsidXJsIjoiaHR0cHM6Ly9hcGkubmFuc2VuLmFpL2FwaS92MS9zbWFydC1tb25leS9uZXRmbG93IiwiZGVzY3JpcHRpb24iOiJHZXQgU21hcnQgTW9uZXkgTmV0ZmxvdyBEYXRhIiwibWltZVR5cGUiOiIifSwiYWNjZXB0cyI6W3sic2NoZW1lIjoiZXhhY3QiLCJuZXR3b3JrIjoiZWlwMTU1Ojg0NTMiLCJhc3NldCI6IjB4ODMzNTg5ZkNENmVEYjZFMDhmNGM3QzMyRDRmNzFiNTRiZEEwMjkxMyIsImFtb3VudCI6IjUwMDAwIiwicGF5VG8iOiIweDkzMDUzZjFlN0E1ZUZFRGE1MzJGZTY5Q2JiRTQzY0JFYzNBMEYxM2YiLCJtYXhUaW1lb3V0U2Vjb25kcyI6MzAwLCJleHRyYSI6eyJuYW1lIjoiVVNEIENvaW4iLCJ2ZXJzaW9uIjoiMiJ9fSx7InNjaGVtZSI6ImV4YWN0IiwibmV0d29yayI6ImVpcDE1NToxOTYiLCJhc3NldCI6IjB4Nzc5RGVkMGM5ZTEwMjIyMjVmOEUwNjMwYjM1YTliNTRiRTcxMzczNiIsImFtb3VudCI6IjUwMDAwIiwicGF5VG8iOiIweDkzMDUzZjFlN0E1ZUZFRGE1MzJGZTY5Q2JiRTQzY0JFYzNBMEYxM2YiLCJtYXhUaW1lb3V0U2Vjb25kcyI6MzAwLCJleHRyYSI6eyJuYW1lIjoiVVNE4oKuMCIsInZlcnNpb24iOiIxIn19LHsic2NoZW1lIjoiZXhhY3QiLCJuZXR3b3JrIjoiZWlwMTU1OjU2IiwiYXNzZXQiOiIweGNFMjQ0MzlGMkQ5QzZhMjI4OUY3NDExMjBGRTIwMjI0OEI2NjY2NjYiLCJhbW91bnQiOiI1MDAwMDAwMDAwMDAwMDAwMCIsInBheVRvIjoiMHg5MzA1M2YxZTdBNWVGRURhNTMyRmU2OUNiYkU0M2NCRWMzQTBGMTNmIiwibWF4VGltZW91dFNlY29uZHMiOjMwMCwiZXh0cmEiOnsibmFtZSI6IlVuaXRlZCBTdGFibGVzIiwidmVyc2lvbiI6IjEiLCJhc3NldFRyYW5zZmVyTWV0aG9kIjoiZWlwMzAwOSIsInNpZ25lckFkZHJlc3MiOiIweDM0RjdhNjYxMTYwNzgwQ2UxMzQ2ZTZEN0I5NkQyYkUyNDQ1OTA4OTkifX0seyJzY2hlbWUiOiJleGFjdCIsIm5ldHdvcmsiOiJlaXAxNTU6NTYiLCJhc3NldCI6IjB4OGQwZDAwMGVlNDQ5NDhmYzk4YzliOThhNGZhNDkyMTQ3NmYwOGIwZCIsImFtb3VudCI6IjUwMDAwMDAwMDAwMDAwMDAwIiwicGF5VG8iOiIweDkzMDUzZjFlN0E1ZUZFRGE1MzJGZTY5Q2JiRTQzY0JFYzNBMEYxM2YiLCJtYXhUaW1lb3V0U2Vjb25kcyI6MzAwLCJleHRyYSI6eyJuYW1lIjoiV29ybGQgTGliZXJ0eSBGaW5hbmNpYWwgVVNEIiwidmVyc2lvbiI6IjEiLCJhc3NldFRyYW5zZmVyTWV0aG9kIjoiZWlwMzAwOSIsInNpZ25lckFkZHJlc3MiOiIweDM0RjdhNjYxMTYwNzgwQ2UxMzQ2ZTZEN0I5NkQyYkUyNDQ1OTA4OTkifX0seyJzY2hlbWUiOiJleGFjdCIsIm5ldHdvcmsiOiJlaXAxNTU6NTYiLCJhc3NldCI6IjB4NTVkMzk4MzI2Zjk5MDU5ZkY3NzU0ODUyNDY5OTkwMjdCMzE5Nzk1NSIsImFtb3VudCI6IjUwMDAwMDAwMDAwMDAwMDAwIiwicGF5VG8iOiIweDkzMDUzZjFlN0E1ZUZFRGE1MzJGZTY5Q2JiRTQzY0JFYzNBMEYxM2YiLCJtYXhUaW1lb3V0U2Vjb25kcyI6MzAwLCJleHRyYSI6eyJuYW1lIjoiVGV0aGVyIFVTRCIsInZlcnNpb24iOiIxIiwiYXNzZXRUcmFuc2Zlck1ldGhvZCI6InBlcm1pdDItZXhhY3QiLCJzaWduZXJBZGRyZXNzIjoiMHgzNEY3YTY2MTE2MDc4MENlMTM0NmU2RDdCOTZEMmJFMjQ0NTkwODk5Iiwic3BlbmRlckFkZHJlc3MiOiIweDMwMzhmN2FjM2I0RDFhM2ZlODg2QmRDQjVjRDAxZTlmNkJEZDg2MzMifX0seyJzY2hlbWUiOiJleGFjdCIsIm5ldHdvcmsiOiJlaXAxNTU6NTYiLCJhc3NldCI6IjB4OEFDNzZhNTFjYzk1MGQ5ODIyRDY4YjgzZkUxQWQ5N0IzMkNkNTgwZCIsImFtb3VudCI6IjUwMDAwMDAwMDAwMDAwMDAwIiwicGF5VG8iOiIweDkzMDUzZjFlN0E1ZUZFRGE1MzJGZTY5Q2JiRTQzY0JFYzNBMEYxM2YiLCJtYXhUaW1lb3V0U2Vjb25kcyI6MzAwLCJleHRyYSI6eyJuYW1lIjoiVVNEIENvaW4iLCJ2ZXJzaW9uIjoiMSIsImFzc2V0VHJhbnNmZXJNZXRob2QiOiJwZXJtaXQyLWV4YWN0Iiwic2lnbmVyQWRkcmVzcyI6IjB4MzRGN2E2NjExNjA3ODBDZTEzNDZlNkQ3Qjk2RDJiRTI0NDU5MDg5OSIsInNwZW5kZXJBZGRyZXNzIjoiMHgzMDM4ZjdhYzNiNEQxYTNmZTg4NkJkQ0I1Y0QwMWU5ZjZCRGQ4NjMzIn19LHsic2NoZW1lIjoiZXhhY3QiLCJuZXR3b3JrIjoiZWlwMTU1OjE0MyIsImFzc2V0IjoiMHg3NTQ3MDRCYzA1OUY4QzY3MDEyZkVkNjlCQzhBMzI3YTVhYWZiNjAzIiwiYW1vdW50IjoiNTAwMDAiLCJwYXlUbyI6IjB4OTMwNTNmMWU3QTVlRkVEYTUzMkZlNjlDYmJFNDNjQkVjM0EwRjEzZiIsIm1heFRpbWVvdXRTZWNvbmRzIjozMDAsImV4dHJhIjp7Im5hbWUiOiJVU0RDIiwidmVyc2lvbiI6IjIifX0seyJzY2hlbWUiOiJleGFjdCIsIm5ldHdvcmsiOiJzb2xhbmE6NWV5a3Q0VXNGdjhQOE5KZFRSRXBZMXZ6cUtxWkt2ZHAiLCJhc3NldCI6IkVQakZXZGQ1QXVmcVNTcWVNMnFOMXh6eWJhcEM4RzR3RUdHa1p3eVREdDF2IiwiYW1vdW50IjoiNTAwMDAiLCJwYXlUbyI6Iko3WnZKRXNwdndQMW9SeFFaN21ZbU5tVDIyTlRtM0dXcTN0N0hFYnZQWll4IiwibWF4VGltZW91dFNlY29uZHMiOjMwMCwiZXh0cmEiOnsiZmVlUGF5ZXIiOiJDak5GVGp2QmhiSkpkMkI1ZVBQTUhSTHgxRUxacGE4ZHdRZ0dMNzI3ZUt3dyJ9fV0sImV4dGVuc2lvbnMiOnsiYmF6YWFyIjp7ImluZm8iOnsiaW5wdXQiOnsidHlwZSI6Imh0dHAiLCJib2R5VHlwZSI6Impzb24iLCJib2R5Ijp7ImNoYWlucyI6WyJldGhlcmV1bSIsInNvbGFuYSJdLCJmaWx0ZXJzIjp7ImV4Y2x1ZGVfc21hcnRfbW9uZXlfbGFiZWxzIjpbIjMwRCBTbWFydCBUcmFkZXIiXSwiaW5jbHVkZV9uYXRpdmVfdG9rZW5zIjpmYWxzZSwiaW5jbHVkZV9zbWFydF9tb25leV9sYWJlbHMiOlsiRnVuZCIsIlNtYXJ0IFRyYWRlciJdLCJpbmNsdWRlX3N0YWJsZWNvaW5zIjpmYWxzZX0sIm9yZGVyX2J5IjpbeyJkaXJlY3Rpb24iOiJERVNDIiwiZmllbGQiOiJuZXRfZmxvd18yNGhfdXNkIn1dfSwibWV0aG9kIjoiUE9TVCJ9LCJvdXRwdXQiOnsidHlwZSI6Impzb24iLCJleGFtcGxlIjp7ImRhdGEiOltdLCJwYWdpbmF0aW9uIjp7fX19fSwic2NoZW1hIjp7IiRzY2hlbWEiOiJodHRwczovL2pzb24tc2NoZW1hLm9yZy9kcmFmdC8yMDIwLTEyL3NjaGVtYSIsInR5cGUiOiJvYmplY3QiLCJwcm9wZXJ0aWVzIjp7ImlucHV0Ijp7InR5cGUiOiJvYmplY3QiLCJwcm9wZXJ0aWVzIjp7InR5cGUiOnsidHlwZSI6InN0cmluZyIsImNvbnN0IjoiaHR0cCJ9LCJtZXRob2QiOnsidHlwZSI6InN0cmluZyIsImVudW0iOlsiUE9TVCIsIlBVVCIsIlBBVENIIl19LCJib2R5VHlwZSI6eyJ0eXBlIjoic3RyaW5nIiwiZW51bSI6WyJqc29uIiwiZm9ybS1kYXRhIiwidGV4dCJdfSwiYm9keSI6eyJ0eXBlIjoib2JqZWN0IiwicHJvcGVydGllcyI6eyJjaGFpbnMiOnsidHlwZSI6ImFycmF5In0sImZpbHRlcnMiOnsidHlwZSI6Im9iamVjdCJ9LCJwcmVtaXVtX2xhYmVscyI6eyJ0eXBlIjoiYm9vbGVhbiJ9LCJwYWdpbmF0aW9uIjp7InR5cGUiOiJvYmplY3QifSwib3JkZXJfYnkiOnsidHlwZSI6ImFycmF5In19LCJyZXF1aXJlZCI6WyJjaGFpbnMiXX19LCJyZXF1aXJlZCI6WyJ0eXBlIiwibWV0aG9kIiwiYm9keVR5cGUiLCJib2R5Il0sImFkZGl0aW9uYWxQcm9wZXJ0aWVzIjpmYWxzZX0sIm91dHB1dCI6eyJ0eXBlIjoib2JqZWN0IiwicHJvcGVydGllcyI6eyJ0eXBlIjp7InR5cGUiOiJzdHJpbmcifSwiZXhhbXBsZSI6eyJ0eXBlIjoib2JqZWN0IiwicHJvcGVydGllcyI6eyJkYXRhIjp7InR5cGUiOiJhcnJheSIsIml0ZW1zIjp7InR5cGUiOiJvYmplY3QiLCJwcm9wZXJ0aWVzIjp7InRva2VuX2FkZHJlc3MiOnsidHlwZSI6InN0cmluZyJ9LCJ0b2tlbl9zeW1ib2wiOnsidHlwZSI6InN0cmluZyJ9LCJuZXRfZmxvd18xaF91c2QiOnsidHlwZSI6Im51bWJlciJ9LCJuZXRfZmxvd18yNGhfdXNkIjp7InR5cGUiOiJudW1iZXIifSwibmV0X2Zsb3dfN2RfdXNkIjp7InR5cGUiOiJudW1iZXIifSwibmV0X2Zsb3dfMzBkX3VzZCI6eyJ0eXBlIjoibnVtYmVyIn0sImNoYWluIjp7InR5cGUiOiJzdHJpbmcifSwidG9rZW5fc2VjdG9ycyI6eyJ0eXBlIjoiYXJyYXkifSwidHJhZGVyX2NvdW50Ijp7InR5cGUiOiJpbnRlZ2VyIn0sInRva2VuX2FnZV9kYXlzIjp7InR5cGUiOiJpbnRlZ2VyIn0sIm1hcmtldF9jYXBfdXNkIjp7InR5cGUiOiJudW1iZXIifX0sInJlcXVpcmVkIjpbInRva2VuX2FkZHJlc3MiLCJ0b2tlbl9zeW1ib2wiLCJuZXRfZmxvd18xaF91c2QiLCJuZXRfZmxvd18yNGhfdXNkIiwibmV0X2Zsb3dfN2RfdXNkIiwibmV0X2Zsb3dfMzBkX3VzZCIsImNoYWluIiwidG9rZW5fc2VjdG9ycyIsInRyYWRlcl9jb3VudCIsInRva2VuX2FnZV9kYXlzIl19fSwicGFnaW5hdGlvbiI6eyJ0eXBlIjoib2JqZWN0IiwicHJvcGVydGllcyI6eyJwYWdlIjp7InR5cGUiOiJpbnRlZ2VyIn0sInBlcl9wYWdlIjp7InR5cGUiOiJpbnRlZ2VyIn0sImlzX2xhc3RfcGFnZSI6eyJ0eXBlIjoiYm9vbGVhbiJ9fX19LCJyZXF1aXJlZCI6WyJkYXRhIiwicGFnaW5hdGlvbiJdfX0sInJlcXVpcmVkIjpbInR5cGUiXX19LCJyZXF1aXJlZCI6WyJpbnB1dCJdfX19fQ==",
+ "body": {
+  "x402Version": 2,
+  "error": "Payment required",
+  "resource": {
+   "url": "https://api.nansen.ai/api/v1/smart-money/netflow",
+   "description": "Get Smart Money Netflow Data",
+   "mimeType": ""
+  },
+  "accepts": [
+   {
+    "scheme": "exact",
+    "network": "eip155:8453",
+    "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+    "amount": "50000",
+    "payTo": "0x93053f1e7A5eFEDa532Fe69CbbE43cBEc3A0F13f",
+    "maxTimeoutSeconds": 300,
+    "extra": {
+     "name": "USD Coin",
+     "version": "2"
+    }
+   },
+   {
+    "scheme": "exact",
+    "network": "eip155:196",
+    "asset": "0x779Ded0c9e1022225f8E0630b35a9b54bE713736",
+    "amount": "50000",
+    "payTo": "0x93053f1e7A5eFEDa532Fe69CbbE43cBEc3A0F13f",
+    "maxTimeoutSeconds": 300,
+    "extra": {
+     "name": "USD₮0",
+     "version": "1"
+    }
+   },
+   {
+    "scheme": "exact",
+    "network": "eip155:56",
+    "asset": "0xcE24439F2D9C6a2289F741120FE202248B666666",
+    "amount": "50000000000000000",
+    "payTo": "0x93053f1e7A5eFEDa532Fe69CbbE43cBEc3A0F13f",
+    "maxTimeoutSeconds": 300,
+    "extra": {
+     "name": "United Stables",
+     "version": "1",
+     "assetTransferMethod": "eip3009",
+     "signerAddress": "0x34F7a661160780Ce1346e6D7B96D2bE244590899"
+    }
+   },
+   {
+    "scheme": "exact",
+    "network": "eip155:56",
+    "asset": "0x8d0d000ee44948fc98c9b98a4fa4921476f08b0d",
+    "amount": "50000000000000000",
+    "payTo": "0x93053f1e7A5eFEDa532Fe69CbbE43cBEc3A0F13f",
+    "maxTimeoutSeconds": 300,
+    "extra": {
+     "name": "World Liberty Financial USD",
+     "version": "1",
+     "assetTransferMethod": "eip3009",
+     "signerAddress": "0x34F7a661160780Ce1346e6D7B96D2bE244590899"
+    }
+   },
+   {
+    "scheme": "exact",
+    "network": "eip155:56",
+    "asset": "0x55d398326f99059fF775485246999027B3197955",
+    "amount": "50000000000000000",
+    "payTo": "0x93053f1e7A5eFEDa532Fe69CbbE43cBEc3A0F13f",
+    "maxTimeoutSeconds": 300,
+    "extra": {
+     "name": "Tether USD",
+     "version": "1",
+     "assetTransferMethod": "permit2-exact",
+     "signerAddress": "0x34F7a661160780Ce1346e6D7B96D2bE244590899",
+     "spenderAddress": "0x3038f7ac3b4D1a3fe886BdCB5cD01e9f6BDd8633"
+    }
+   },
+   {
+    "scheme": "exact",
+    "network": "eip155:56",
+    "asset": "0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d",
+    "amount": "50000000000000000",
+    "payTo": "0x93053f1e7A5eFEDa532Fe69CbbE43cBEc3A0F13f",
+    "maxTimeoutSeconds": 300,
+    "extra": {
+     "name": "USD Coin",
+     "version": "1",
+     "assetTransferMethod": "permit2-exact",
+     "signerAddress": "0x34F7a661160780Ce1346e6D7B96D2bE244590899",
+     "spenderAddress": "0x3038f7ac3b4D1a3fe886BdCB5cD01e9f6BDd8633"
+    }
+   },
+   {
+    "scheme": "exact",
+    "network": "eip155:143",
+    "asset": "0x754704Bc059F8C67012fEd69BC8A327a5aafb603",
+    "amount": "50000",
+    "payTo": "0x93053f1e7A5eFEDa532Fe69CbbE43cBEc3A0F13f",
+    "maxTimeoutSeconds": 300,
+    "extra": {
+     "name": "USDC",
+     "version": "2"
+    }
+   },
+   {
+    "scheme": "exact",
+    "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+    "asset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+    "amount": "50000",
+    "payTo": "J7ZvJEspvwP1oRxQZ7mYmNmT22NTm3GWq3t7HEbvPZYx",
+    "maxTimeoutSeconds": 300,
+    "extra": {
+     "feePayer": "CjNFTjvBhbJJd2B5ePPMHRLx1ELZpa8dwQgGL727eKww"
+    }
+   }
+  ],
+  "extensions": {
+   "bazaar": {
+    "info": {
+     "input": {
+      "type": "http",
+      "bodyType": "json",
+      "body": {
+       "chains": [
+        "ethereum",
+        "solana"
+       ],
+       "filters": {
+        "exclude_smart_money_labels": [
+         "30D Smart Trader"
+        ],
+        "include_native_tokens": false,
+        "include_smart_money_labels": [
+         "Fund",
+         "Smart Trader"
+        ],
+        "include_stablecoins": false
+       },
+       "order_by": [
+        {
+         "direction": "DESC",
+         "field": "net_flow_24h_usd"
+        }
+       ]
+      },
+      "method": "POST"
+     },
+     "output": {
+      "type": "json",
+      "example": {
+       "data": [],
+       "pagination": {}
+      }
+     }
+    },
+    "schema": {
+     "$schema": "https://json-schema.org/draft/2020-12/schema",
+     "type": "object",
+     "properties": {
+      "input": {
+       "type": "object",
+       "properties": {
+        "type": {
+         "type": "string",
+         "const": "http"
+        },
+        "method": {
+         "type": "string",
+         "enum": [
+          "POST",
+          "PUT",
+          "PATCH"
+         ]
+        },
+        "bodyType": {
+         "type": "string",
+         "enum": [
+          "json",
+          "form-data",
+          "text"
+         ]
+        },
+        "body": {
+         "type": "object",
+         "properties": {
+          "chains": {
+           "type": "array"
+          },
+          "filters": {
+           "type": "object"
+          },
+          "premium_labels": {
+           "type": "boolean"
+          },
+          "pagination": {
+           "type": "object"
+          },
+          "order_by": {
+           "type": "array"
+          }
+         },
+         "required": [
+          "chains"
+         ]
+        }
+       },
+       "required": [
+        "type",
+        "method",
+        "bodyType",
+        "body"
+       ],
+       "additionalProperties": false
+      },
+      "output": {
+       "type": "object",
+       "properties": {
+        "type": {
+         "type": "string"
+        },
+        "example": {
+         "type": "object",
+         "properties": {
+          "data": {
+           "type": "array",
+           "items": {
+            "type": "object",
+            "properties": {
+             "token_address": {
+              "type": "string"
+             },
+             "token_symbol": {
+              "type": "string"
+             },
+             "net_flow_1h_usd": {
+              "type": "number"
+             },
+             "net_flow_24h_usd": {
+              "type": "number"
+             },
+             "net_flow_7d_usd": {
+              "type": "number"
+             },
+             "net_flow_30d_usd": {
+              "type": "number"
+             },
+             "chain": {
+              "type": "string"
+             },
+             "token_sectors": {
+              "type": "array"
+             },
+             "trader_count": {
+              "type": "integer"
+             },
+             "token_age_days": {
+              "type": "integer"
+             },
+             "market_cap_usd": {
+              "type": "number"
+             }
+            },
+            "required": [
+             "token_address",
+             "token_symbol",
+             "net_flow_1h_usd",
+             "net_flow_24h_usd",
+             "net_flow_7d_usd",
+             "net_flow_30d_usd",
+             "chain",
+             "token_sectors",
+             "trader_count",
+             "token_age_days"
+            ]
+           }
+          },
+          "pagination": {
+           "type": "object",
+           "properties": {
+            "page": {
+             "type": "integer"
+            },
+            "per_page": {
+             "type": "integer"
+            },
+            "is_last_page": {
+             "type": "boolean"
+            }
+           }
+          }
+         },
+         "required": [
+          "data",
+          "pagination"
+         ]
+        }
+       },
+       "required": [
+        "type"
+       ]
+      }
+     },
+     "required": [
+      "input"
+     ]
+    }
+   }
+  }
+ }
+}

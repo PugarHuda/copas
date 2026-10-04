@@ -1,0 +1,8 @@
+{
+  "_note": "SYNTHETIC Kimi K3 chat completion (shape from platform.kimi.ai/docs/api/chat). Headers Msh-Request-Timestamp / Msh-Request-Signature are added by the test stub.",
+  "id": "cmpl-fixture",
+  "object": "chat.completion",
+  "model": "kimi-k3",
+  "choices": [{ "index": 0, "finish_reason": "stop", "message": { "role": "assistant", "content": "{\"riskLevel\":\"medium\",\"styleSummary\":{\"en\":\"Swing trader focused on BTC.\",\"id\":\"Trader swing yang fokus di BTC.\"},\"tilt\":{\"detected\":true,\"en\":\"Model says tilt.\",\"id\":\"Model bilang tilt.\"},\"drift\":{\"detected\":false,\"en\":\"No drift.\",\"id\":\"Tidak ada pergeseran.\"},\"weeklySummary\":{\"en\":\"Quiet week.\",\"id\":\"Minggu yang tenang.\"},\"devilsAdvocate\":[{\"key\":\"small_sample\",\"en\":\"Few trades.\",\"id\":\"Sedikit trade.\"},{\"key\":\"made_up_reason\",\"en\":\"Invented.\",\"id\":\"Dikarang.\"}]}" } }],
+  "usage": { "prompt_tokens": 4000, "completion_tokens": 1500, "total_tokens": 5500, "prompt_tokens_details": { "cached_tokens": 1000, "cache_write_tokens": 0 } }
+}

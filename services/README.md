@@ -1,0 +1,110 @@
+# @copas/services
+
+AI & data services for Copas: leader data, backtest, Kimi risk analyst, Nansen discovery, Tenderly simulation and
+track-record attestation. It works as a TypeScript library (`import { backtest } from "@copas/services"`) and
+as a small Hono HTTP server.
+
+AI explains and never executes (SPEC §1 principle 5). Every number comes from deterministic code. Kimi only
+phrases it, and the guard in `kimi.ts` overwrites any flag or reason the model makes up.
+
+```
+pnpm install
+cp .env.example .env     # all keys optional
+pnpm test                # vitest, fixtures only, no network
+pnpm build               # tsc -> dist/
+pnpm dev                 # http://localhost:8787
+pnpm fixtures            # re-record public fixtures (Perpl, plumb, Nansen 402)
+```
+
+From the web app: add `"@copas/services": "file:../services"`, run `pnpm build` here, and call the functions from
+route handlers (server only, because the module reads env keys).
+
+## HTTP
+
+| Route | Module | Keys | Returns |
+|---|---|---|---|
+| `GET /leader/:addr/stats?days=30[&fills=1]` | leaderData | none | official 30d row, capital estimate, closed trades, realized equity curve, stats |
+| `POST /leader/:addr/backtest` body `{follower?, mandate?, opts?, days?}` | backtest (C3) | none | follower equity curve, max DD, fees, slippage, epochs breached, compensation, assumptions |
+| `GET /leader/:addr/analysis` | features + kimi (D1, D3) | `KIMI_API_KEY` | `{analysis, features, signature, signatureValid, nonce, verifyUrl, costUsd, inputHash, outputHash}` |
+| `GET /leader/:addr/alignment?days=7` | nansen (D2) | `NANSEN_API_KEY` or `X402_PRIVATE_KEY` | alignment score, composite score, cost ledger |
+| `GET /discover?limit=10` | nansen (D2, D4) | same | candidate leaders with composite scores, cost ledger |
+| `POST /simulate` body `{from,to,data,value?,chainId?}` | simulate (C4) | Tenderly optional | balance changes and decoded events |
+| `GET /attest/:addr` | attest (A7) | `ATTESTER_PRIVATE_KEY` | record, canonical JSON, keccak hash, EIP-191 signature, attester |
+| `POST /kimi/verify` body `{nonce,timestamp,model,signature}` | kimi | `KIMI_API_KEY` | `{valid}` |
+
+When a key is missing, the route returns `503 {error, missing}`. `/analysis` also returns the deterministic
+`features` in that case, so the UI can still show the numbers.
+
+## Modules
+
+### 1. Leader data (`leaderData.ts`)
+- **Official 30d PnL, ROI and volume:** `GET https://app.perpl.xyz/api/v1/trading/leaderboard/:period/:sorting`.
+  This is public and was found in the app bundle. ROI is in 1/100 % and the denominator is
+  `max(100, starting equity + inbound transfers)`, so `capitalEstimate = pnl / roi`.
+- **Fills:** Perpl's REST fill/position/portfolio endpoints (`/v1/trading/fills`, `position-history`,
+  `portfolio/:kind/:period`, …) need an Ed25519 API key enrolled by *that* wallet. We checked with curl:
+  `401` for anyone else. So the source for arbitrary leaders is an indexer:
+  - **Envio** (`copas/indexer`, entity `Fill` in `schema.graphql`) when `ENVIO_GRAPHQL_URL` is set.
+    `Fill` has no position size, so `positionAfter` is a running sum inside the window.
+  - Otherwise **plumb** (`https://plumb.huginn.tech/api/v1/wallets/:addr/trades`). This is a public third-party
+    Perpl indexer that gives every position change with its fill, fee, realized PnL and remaining size.
+- Output: normalized `Fill[]`, round-trip `ClosedTrade[]` (inverts split into two trips), realized equity curve,
+  and stats (win rate, PF, max DD, hold, leverage, market mix, streaks).
+
+### 2. Backtest (`backtest.ts`, C3)
+A deterministic replay of the leader's fills through the Copas rules. It mirrors `LeaderBook.sol` (unit price,
+epoch HWM, checkpoint after each trade, DD/leverage breach, mandate rejection, `pot = bond + feeEscrow`,
+`claim = min(pot × cap / capTotal, loss)`) and `FollowerVault.sol` (`sync` target, reduce/flip first, `maxChase`,
+IOC price band, notional cap, margin, stop-loss pause, performance fee on HWM at the epoch touch). Fees are taker
+3.45 bp on each side. Slippage = half-spread + 1–3 blocks × drift. Every result carries an `assumptions[]`
+list that the UI must show.
+
+### 3. Kimi risk analyst (`features.ts`, `kimi.ts`, D1, D3)
+- `computeFeatures` (pure code): style label, tilt (size-ups ≥ 1.5× after a loss, re-entry within 1h, daily
+  frequency spikes > mean + 2σ), style drift (last 7d vs history: market-mix TVD, leverage, size, frequency, new
+  markets), weekly summary, and ranked candidates for "reasons not to follow". Each candidate has a metric and a value.
+- `analyzeLeader`: `kimi-k3`, `reasoning_effort:"high"`, `response_format: json_object`, no `temperature`.
+  Each call sends `X-Msh-Request-Nonce: <uuid>` and reads `Msh-Request-Timestamp` / `Msh-Request-Signature`.
+  The signature is verified right away at `POST /v1/signatures/verify`. All text fields are bilingual `{en, id}`.
+  Cost = (uncached input × $3 + cached × $0.30 + output × $15) / 1M.
+  Each call appends `{nonce, signature, inputHash, outputHash, usage, costUsd}` to `data/kimi-log.jsonl`.
+- Guard: `tilt.detected` and `drift.detected` are forced to equal the computed flags. Devil's-advocate items must
+  use keys from the candidate list. Invented keys are dropped and the list is topped up from the deterministic
+  ranking.
+
+### 4. Nansen discovery (`nansen.ts`, D2, D4)
+See [NANSEN.md](./NANSEN.md) for every endpoint, data category, payment mode and redistribution rule.
+
+### 5. Simulation (`simulate.ts`, C4)
+- With `TENDERLY_ACCESS_KEY` / `TENDERLY_ACCOUNT` / `TENDERLY_PROJECT` set, it uses the Tenderly Simulation API
+  (`network_id` 143 or 10143; Tenderly's public network list includes both).
+- Otherwise it calls **`eth_simulateV1`** on `rpc.monad.xyz` through viem `simulateCalls({traceAssetChanges:true})`.
+  This returns ERC-20/native balance diffs of `from` plus events decoded with `copas/abis/*.json`.
+- Tested live: an AUSD transfer from an EOA returned the diff and a decoded `Transfer` event.
+- Monad limits on the fallback:
+  - The sender must be an EOA ("sender not eoa").
+  - `gasUsed` shows the gas limit, because Monad charges by gas limit.
+
+### 6. Track-record attestation (`attest.ts`, A7)
+- `buildTrackRecord` builds the record: PnL 30d (official leaderboard), all-time realized net PnL over fetched
+  fills, max DD (AUSD and % of the ROI base), win rate, closed trades, first/last trade, `complete` flag, sources.
+- `canonicalJson` sorts keys and writes amounts as fixed 6-decimal strings.
+- The record is hashed with `keccak256` and signed with EIP-191 `signMessage({message:{raw: hash}})` by
+  `ATTESTER_PRIVATE_KEY`.
+- To verify: `verifyAttestation(a)`, or in the browser
+  `viem.verifyMessage({address: attester, message:{raw: hash}, signature})`.
+- The label "offchain attested" is part of the response.
+
+## Tests
+`test/services.test.ts` (24 tests) runs against `test/fixtures`:
+- Real recordings: Perpl leaderboard, plumb fills of leader `0xedcd…409b`, plumb wallet, live Nansen 402.
+- Synthetic files, marked `_note`, shaped from the official schemas: Nansen 200s, Kimi completion, Tenderly.
+- Real `@x402/fetch` payment flow against the recorded 402. It checks the `PAYMENT-SIGNATURE` V2 payload on
+  `eip155:143` and that `X-PAYMENT` is never sent.
+- Exact contract math cases: a breach paying `min(pro-rata, loss)`, fees on both sides, chase/band/cap.
+- Determinism and claim invariants on the real leader.
+- Envio GraphQL source.
+- 503s, and LLM guard overrides.
+
+Not covered by tests: the `eth_simulateV1` fallback (checked live only) and real Kimi/Nansen responses (no keys
+yet). Run `pnpm fixtures` after adding keys to extend the recordings.
