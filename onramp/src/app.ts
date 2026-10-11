@@ -63,7 +63,10 @@ export function createApp(o: AppOpts = {}) {
     if (err instanceof BadRequest) return c.json({ error: err.message }, 400);
     if (err instanceof HttpError) {
       const status = err.status === 429 ? 429 : 502;
-      return c.json({ error: err.message, upstreamStatus: err.status, upstream: err.body }, status);
+      // Upstream bodies may echo request headers; strip our keys before reflecting them to the browser.
+      let s = JSON.stringify({ error: err.message, upstreamStatus: err.status, upstream: err.body });
+      for (const k of [apiKey, connectKey]) if (k) s = s.split(k).join('<redacted>');
+      return c.body(s, status, { 'content-type': 'application/json' });
     }
     if (err instanceof Error && err.name === 'TimeoutError') return c.json({ error: 'upstream timeout' }, 504);
     console.error(err);
