@@ -52,4 +52,4 @@ Legenda: ✅ selesai + teruji · 🟡 dikerjakan · ⏳ menunggu (key/deploy) ·
 | H5 | i18n ID/EN | 🟡 | web | |
 | I1–I4 | Leader/follower nyata, model bisnis, update publik | ⏳ | — | setelah deploy mainnet |
 
-Deploy: script `contracts/script/Deploy.s.sol` siap (dry-run testnet OK, ±2,86 MON testnet). ⏳ butuh kunci deployer + MON.
+Deploy: ✅ **testnet 10143** 11 Okt 2026, block 70102394 — registry `0xA8BA57c7Af1d9A28660653E0439A180c86D03e3d`, alamat lengkap di `contracts/deployments/10143.json` (`contracts/deploy-testnet.sh`). Mainnet ⏳.
