@@ -1,0 +1,8 @@
+{
+ "token": "<redacted-jwt>",
+ "expires_at": 1791130252,
+ "rate_limit": {
+  "rps": 1,
+  "burst": 1
+ }
+}

@@ -1,0 +1,81 @@
+{
+ "result": [
+  {
+   "createdAt": "2026-08-14T08:32:33Z",
+   "details": {
+    "estimatedTime": "42",
+    "intermediaryAddress": "0xDACE323d141AfCa01dACeBF00D439ED6FC5Bf7A3",
+    "messageSigned": false,
+    "messageToSign": "{\"deadline\":\"2026-08-21T08:32:33Z\",\"intents\":[{\"contract_id\":\"proxy-signer-dev.near\",\"intent\":\"auth_call\",\"min_gas\":\"30000000000000\",\"msg\":\"{\\\"request\\\":{\\\"domain_id\\\":0,\\\"path\\\":\\\"0x1111111111111111111111111111111111111111\\\",\\\"payload_v2\\\":{\\\"Ecdsa\\\":\\\"d65d027e32be2a210953a47c022f580ab6d4e8d5a4a23d37c2357af8f86d7593\\\"}}}\"},{\"contract_id\":\"proxy-signer-dev.near\",\"intent\":\"auth_call\",\"min_gas\":\"30000000000000\",\"msg\":\"{\\\"request\\\":{\\\"domain_id\\\":0,\\\"path\\\":\\\"0x1111111111111111111111111111111111111111\\\",\\\"payload_v2\\\":{\\\"Ecdsa\\\":\\\"7f4fc19f7ffad4fc2d0ce86fd828f857322df9079680773deef755ad271d6f27\\\"}}}\"}],\"nonce\":\"AAAAAAAiMjUyRyCA+O3EzRh8eY3MIGzvTaC0Gn3zXk4=\",\"signer_id\":\"0x1111111111111111111111111111111111111111\",\"verifying_contract\":\"intents.near\"}",
+    "networkFee": "129122",
+    "payload": {
+     "payload_bytes_base64": "eyJkZWFkbGluZSI6IjIwMjYtMDgtMjFUMDg6MzI6MzNaIiwiaW50ZW50cyI6W3siY29udHJhY3RfaWQiOiJwcm94eS1zaWduZXItZGV2Lm5lYXIiLCJpbnRlbnQiOiJhdXRoX2NhbGwiLCJtaW5fZ2FzIjoiMzAwMDAwMDAwMDAwMDAiLCJtc2ciOiJ7XCJyZXF1ZXN0XCI6e1wiZG9tYWluX2lkXCI6MCxcInBhdGhcIjpcIjB4MTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMVwiLFwicGF5bG9hZF92MlwiOntcIkVjZHNhXCI6XCJkNjVkMDI3ZTMyYmUyYTIxMDk1M2E0N2MwMjJmNTgwYWI2ZDRlOGQ1YTRhMjNkMzdjMjM1N2FmOGY4NmQ3NTkzXCJ9fX0ifSx7ImNvbnRyYWN0X2lkIjoicHJveHktc2lnbmVyLWRldi5uZWFyIiwiaW50ZW50IjoiYXV0aF9jYWxsIiwibWluX2dhcyI6IjMwMDAwMDAwMDAwMDAwIiwibXNnIjoie1wicmVxdWVzdFwiOntcImRvbWFpbl9pZFwiOjAsXCJwYXRoXCI6XCIweDExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTFcIixcInBheWxvYWRfdjJcIjp7XCJFY2RzYVwiOlwiN2Y0ZmMxOWY3ZmZhZDRmYzJkMGNlODZmZDgyOGY4NTczMjJkZjkwNzk2ODA3NzNkZWVmNzU1YWQyNzFkNmYyN1wifX19In1dLCJub25jZSI6IkFBQUFBQUFpTWpVeVJ5Q0ErTzNFelJoOGVZM01JR3p2VGFDMEduM3pYazQ9Iiwic2lnbmVyX2lkIjoiMHgxMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExIiwidmVyaWZ5aW5nX2NvbnRyYWN0IjoiaW50ZW50cy5uZWFyIn0=",
+     "payload_json": "{\"deadline\":\"2026-08-21T08:32:33Z\",\"intents\":[{\"contract_id\":\"proxy-signer-dev.near\",\"intent\":\"auth_call\",\"min_gas\":\"30000000000000\",\"msg\":\"{\\\"request\\\":{\\\"domain_id\\\":0,\\\"path\\\":\\\"0x1111111111111111111111111111111111111111\\\",\\\"payload_v2\\\":{\\\"Ecdsa\\\":\\\"d65d027e32be2a210953a47c022f580ab6d4e8d5a4a23d37c2357af8f86d7593\\\"}}}\"},{\"contract_id\":\"proxy-signer-dev.near\",\"intent\":\"auth_call\",\"min_gas\":\"30000000000000\",\"msg\":\"{\\\"request\\\":{\\\"domain_id\\\":0,\\\"path\\\":\\\"0x1111111111111111111111111111111111111111\\\",\\\"payload_v2\\\":{\\\"Ecdsa\\\":\\\"7f4fc19f7ffad4fc2d0ce86fd828f857322df9079680773deef755ad271d6f27\\\"}}}\"}],\"nonce\":\"AAAAAAAiMjUyRyCA+O3EzRh8eY3MIGzvTaC0Gn3zXk4=\",\"signer_id\":\"0x1111111111111111111111111111111111111111\",\"verifying_contract\":\"intents.near\"}",
+     "standard": "erc191"
+    },
+    "signingStandard": "erc191"
+   },
+   "executionMode": "quote_with_steps",
+   "id": "40bf5813-8d49-41c3-8c72-72c97e1c23a4",
+   "metadata": {
+    "leg": 1,
+    "venue": "aave-v3",
+    "flowType": "bridge-in:ethereum",
+    "total_legs": 2,
+    "sourceChain": "base"
+   },
+   "quote": {
+    "amount": "1000000",
+    "amountIn": "1000000",
+    "amountInUsd": "0.999598000000",
+    "amountOut": "560777",
+    "amountOutUsd": "0.689621660602",
+    "deadline": "2026-08-14T08:42:32Z",
+    "depositAddress": "0xc90481bd2cAe47D2Ec06E7Bf327a6EF5e38dD0e2",
+    "depositMemo": null,
+    "destinationAsset": "nep141:eth-0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48.omft.near",
+    "minAmountIn": "1000000",
+    "minAmountOut": "553878",
+    "originAsset": "nep141:base-0x833589fcd6edb6e08f4c7c32d4f71b54bda02913.omft.near",
+    "recipient": "0xDACE323d141AfCa01dACeBF00D439ED6FC5Bf7A3",
+    "swapType": "EXACT_INPUT"
+   },
+   "status": "EXPIRED",
+   "steps": [
+    {
+     "to": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+     "parameters": [
+      "0x87870Bca3F3fD6335C3F4ce8392D69350B4fA4E2",
+      "424831"
+     ],
+     "functionSignature": "approve(address,uint256)"
+    },
+    {
+     "to": "0x87870Bca3F3fD6335C3F4ce8392D69350B4fA4E2",
+     "parameters": [
+      "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+      "424831",
+      "0xDACE323d141AfCa01dACeBF00D439ED6FC5Bf7A3",
+      "0"
+     ],
+     "functionSignature": "supply(address,uint256,address,uint16)"
+    },
+    {
+     "to": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+     "functionSignature": "transfer(address,uint256)",
+     "parameters": [
+      "0x546252c9a0E974f75892b4c54b7a67B69a0aFf45",
+      "129122"
+     ],
+     "value": "0",
+     "metadata": {
+      "name": "Fee Transfer",
+      "description": "Gas fee reimbursement"
+     }
+    }
+   ],
+   "type": "evm",
+   "version": "v1"
+  }
+ ]
+}

@@ -1,0 +1,4 @@
+{
+ "status": 400,
+ "body": {"message":"No liquidity available","correlationId":"6cc55ecc-c657-4ca5-87bd-6cee702c392c","timestamp":"2026-10-11T09:35:13.732Z","path":"/v0/quote"}
+}

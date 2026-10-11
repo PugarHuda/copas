@@ -101,9 +101,9 @@ contracts:
 
 chains:
   - id: 143 # Monad mainnet
-    # 2026-02-10 00:00 UTC, two days before Perpl's first trading day (DefiLlama start 2026-02-12).
+    # Block of the first Perpl Exchange log (54,773,010), verified via HyperSync.
     # Must precede ContractAdded events so market decimals are captured (a fallback table exists too).
-    start_block: 54350505
+    start_block: 54773010 # first Perpl event (HyperSync, 11 Oct 2026)
     contracts:
       - name: PerplExchange
         address: 0x34B6552d57a35a1D042CcAe1951BD1C370112a6F # proxy

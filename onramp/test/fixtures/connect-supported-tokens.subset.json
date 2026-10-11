@@ -1,0 +1,308 @@
+{
+ "result": {
+  "in": [
+   {
+    "assetId": "nep141:eth-0xdac17f958d2ee523a2206206994597c13d831ec7.omft.near",
+    "symbol": "USDT",
+    "blockchain": "eth",
+    "contractAddress": "0xdac17f958d2ee523a2206206994597c13d831ec7",
+    "decimals": 6,
+    "price": 0.999894,
+    "priceUpdatedAt": "2026-10-03T16:07:30.407Z",
+    "coingeckoId": "tether"
+   },
+   {
+    "assetId": "nep141:eth-0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48.omft.near",
+    "symbol": "USDC",
+    "blockchain": "eth",
+    "contractAddress": "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+    "decimals": 6,
+    "price": 0.999972,
+    "priceUpdatedAt": "2026-10-03T16:07:30.407Z",
+    "coingeckoId": "usd-coin"
+   },
+   {
+    "assetId": "nep141:eth.omft.near",
+    "symbol": "ETH",
+    "blockchain": "eth",
+    "contractAddress": "",
+    "decimals": 18,
+    "price": 2679.7,
+    "priceUpdatedAt": "2026-10-03T16:07:30.407Z",
+    "coingeckoId": "ethereum"
+   },
+   {
+    "assetId": "nep141:sol.omft.near",
+    "symbol": "SOL",
+    "blockchain": "sol",
+    "contractAddress": "",
+    "decimals": 9,
+    "price": 119.61,
+    "priceUpdatedAt": "2026-10-03T16:07:30.407Z",
+    "coingeckoId": "solana"
+   },
+   {
+    "assetId": "nep245:v2_1.omni.hot.tg:143_11111111111111111111",
+    "symbol": "MON",
+    "blockchain": "monad",
+    "contractAddress": "",
+    "decimals": 18,
+    "price": 0.03159565,
+    "priceUpdatedAt": "2026-10-03T16:07:30.407Z",
+    "coingeckoId": "monad"
+   },
+   {
+    "assetId": "nep141:sol-c800a4bd850783ccb82c2b2c7e84175443606352.omft.near",
+    "symbol": "USDT",
+    "blockchain": "sol",
+    "contractAddress": "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB",
+    "decimals": 6,
+    "price": 0.999894,
+    "priceUpdatedAt": "2026-10-03T16:07:30.407Z",
+    "coingeckoId": "tether"
+   },
+   {
+    "assetId": "nep141:arb.omft.near",
+    "symbol": "ETH",
+    "blockchain": "arb",
+    "contractAddress": "",
+    "decimals": 18,
+    "price": 2679.7,
+    "priceUpdatedAt": "2026-10-03T16:07:30.407Z",
+    "coingeckoId": "ethereum"
+   },
+   {
+    "assetId": "nep141:arb-0xaf88d065e77c8cc2239327c5edb3a432268e5831.omft.near",
+    "symbol": "USDC",
+    "blockchain": "arb",
+    "contractAddress": "0xaf88d065e77c8cc2239327c5edb3a432268e5831",
+    "decimals": 6,
+    "price": 0.999972,
+    "priceUpdatedAt": "2026-10-03T16:07:30.407Z",
+    "coingeckoId": "usd-coin"
+   },
+   {
+    "assetId": "nep141:arb-0xfd086bc7cd5c481dcc9c85ebe478a1c0b69fcbb9.omft.near",
+    "symbol": "USDT0",
+    "blockchain": "arb",
+    "contractAddress": "0xfd086bc7cd5c481dcc9c85ebe478a1c0b69fcbb9",
+    "decimals": 6,
+    "price": 1,
+    "priceUpdatedAt": "2026-10-03T16:07:30.407Z",
+    "coingeckoId": "usdt0"
+   },
+   {
+    "assetId": "nep141:base.omft.near",
+    "symbol": "ETH",
+    "blockchain": "base",
+    "contractAddress": "",
+    "decimals": 18,
+    "price": 2679.7,
+    "priceUpdatedAt": "2026-10-03T16:07:30.407Z",
+    "coingeckoId": "ethereum"
+   },
+   {
+    "assetId": "nep141:base-0x833589fcd6edb6e08f4c7c32d4f71b54bda02913.omft.near",
+    "symbol": "USDC",
+    "blockchain": "base",
+    "contractAddress": "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+    "decimals": 6,
+    "price": 0.999972,
+    "priceUpdatedAt": "2026-10-03T16:07:30.407Z",
+    "coingeckoId": "usd-coin"
+   },
+   {
+    "assetId": "nep141:sol-5ce3bf3a31af18be40ba30f721101b4341690186.omft.near",
+    "symbol": "USDC",
+    "blockchain": "sol",
+    "contractAddress": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+    "decimals": 6,
+    "price": 0.999972,
+    "priceUpdatedAt": "2026-10-03T16:07:30.407Z",
+    "coingeckoId": "usd-coin"
+   },
+   {
+    "assetId": "nep245:v2_1.omni.hot.tg:56_2w93GqMcEmQFDru84j3HZZWt557r",
+    "symbol": "USDC",
+    "blockchain": "bsc",
+    "contractAddress": "0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d",
+    "decimals": 18,
+    "price": 0.999972,
+    "priceUpdatedAt": "2026-10-03T16:07:30.407Z",
+    "coingeckoId": "usd-coin"
+   },
+   {
+    "assetId": "nep245:v2_1.omni.hot.tg:56_2CMMyVTGZkeyNZTSvS5sarzfir6g",
+    "symbol": "USDT",
+    "blockchain": "bsc",
+    "contractAddress": "0x55d398326f99059ff775485246999027b3197955",
+    "decimals": 18,
+    "price": 0.999894,
+    "priceUpdatedAt": "2026-10-03T16:07:30.407Z",
+    "coingeckoId": "tether"
+   },
+   {
+    "assetId": "nep245:v2_1.omni.hot.tg:143_4EJiJxSALvGoTZbnc8K7Ft9533et",
+    "symbol": "USDT0",
+    "blockchain": "monad",
+    "contractAddress": "0xe7cd86e13ac4309349f30b3435a9d337750fc82d",
+    "decimals": 6,
+    "price": 1,
+    "priceUpdatedAt": "2026-10-03T16:07:30.407Z",
+    "coingeckoId": "usdt0"
+   },
+   {
+    "assetId": "nep245:v2_1.omni.hot.tg:143_2dmLwYWkCQKyTjeUPAsGJuiVLbFx",
+    "symbol": "USDC",
+    "blockchain": "monad",
+    "contractAddress": "0x754704bc059f8c67012fed69bc8a327a5aafb603",
+    "decimals": 6,
+    "price": 0.999972,
+    "priceUpdatedAt": "2026-10-03T16:07:30.407Z",
+    "coingeckoId": "usd-coin"
+   }
+  ],
+  "out": [
+   {
+    "assetId": "nep141:eth-0xdac17f958d2ee523a2206206994597c13d831ec7.omft.near",
+    "symbol": "USDT",
+    "blockchain": "eth",
+    "contractAddress": "0xdac17f958d2ee523a2206206994597c13d831ec7",
+    "decimals": 6,
+    "price": 0.999894,
+    "priceUpdatedAt": "2026-10-03T16:07:30.407Z",
+    "coingeckoId": "tether"
+   },
+   {
+    "assetId": "nep141:eth-0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48.omft.near",
+    "symbol": "USDC",
+    "blockchain": "eth",
+    "contractAddress": "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+    "decimals": 6,
+    "price": 0.999972,
+    "priceUpdatedAt": "2026-10-03T16:07:30.407Z",
+    "coingeckoId": "usd-coin"
+   },
+   {
+    "assetId": "nep141:eth.omft.near",
+    "symbol": "ETH",
+    "blockchain": "eth",
+    "contractAddress": "",
+    "decimals": 18,
+    "price": 2679.7,
+    "priceUpdatedAt": "2026-10-03T16:07:30.407Z",
+    "coingeckoId": "ethereum"
+   },
+   {
+    "assetId": "nep141:sol.omft.near",
+    "symbol": "SOL",
+    "blockchain": "sol",
+    "contractAddress": "",
+    "decimals": 9,
+    "price": 119.61,
+    "priceUpdatedAt": "2026-10-03T16:07:30.407Z",
+    "coingeckoId": "solana"
+   },
+   {
+    "assetId": "nep245:v2_1.omni.hot.tg:143_11111111111111111111",
+    "symbol": "MON",
+    "blockchain": "monad",
+    "contractAddress": "",
+    "decimals": 18,
+    "price": 0.03159565,
+    "priceUpdatedAt": "2026-10-03T16:07:30.407Z",
+    "coingeckoId": "monad"
+   },
+   {
+    "assetId": "nep141:sol-c800a4bd850783ccb82c2b2c7e84175443606352.omft.near",
+    "symbol": "USDT",
+    "blockchain": "sol",
+    "contractAddress": "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB",
+    "decimals": 6,
+    "price": 0.999894,
+    "priceUpdatedAt": "2026-10-03T16:07:30.407Z",
+    "coingeckoId": "tether"
+   },
+   {
+    "assetId": "nep141:arb.omft.near",
+    "symbol": "ETH",
+    "blockchain": "arb",
+    "contractAddress": "",
+    "decimals": 18,
+    "price": 2679.7,
+    "priceUpdatedAt": "2026-10-03T16:07:30.407Z",
+    "coingeckoId": "ethereum"
+   },
+   {
+    "assetId": "nep141:arb-0xaf88d065e77c8cc2239327c5edb3a432268e5831.omft.near",
+    "symbol": "USDC",
+    "blockchain": "arb",
+    "contractAddress": "0xaf88d065e77c8cc2239327c5edb3a432268e5831",
+    "decimals": 6,
+    "price": 0.999972,
+    "priceUpdatedAt": "2026-10-03T16:07:30.407Z",
+    "coingeckoId": "usd-coin"
+   },
+   {
+    "assetId": "nep141:arb-0xfd086bc7cd5c481dcc9c85ebe478a1c0b69fcbb9.omft.near",
+    "symbol": "USDT0",
+    "blockchain": "arb",
+    "contractAddress": "0xfd086bc7cd5c481dcc9c85ebe478a1c0b69fcbb9",
+    "decimals": 6,
+    "price": 1,
+    "priceUpdatedAt": "2026-10-03T16:07:30.407Z",
+    "coingeckoId": "usdt0"
+   },
+   {
+    "assetId": "nep141:base.omft.near",
+    "symbol": "ETH",
+    "blockchain": "base",
+    "contractAddress": "",
+    "decimals": 18,
+    "price": 2679.7,
+    "priceUpdatedAt": "2026-10-03T16:07:30.407Z",
+    "coingeckoId": "ethereum"
+   },
+   {
+    "assetId": "nep141:base-0x833589fcd6edb6e08f4c7c32d4f71b54bda02913.omft.near",
+    "symbol": "USDC",
+    "blockchain": "base",
+    "contractAddress": "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+    "decimals": 6,
+    "price": 0.999972,
+    "priceUpdatedAt": "2026-10-03T16:07:30.407Z",
+    "coingeckoId": "usd-coin"
+   },
+   {
+    "assetId": "nep141:sol-5ce3bf3a31af18be40ba30f721101b4341690186.omft.near",
+    "symbol": "USDC",
+    "blockchain": "sol",
+    "contractAddress": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+    "decimals": 6,
+    "price": 0.999972,
+    "priceUpdatedAt": "2026-10-03T16:07:30.407Z",
+    "coingeckoId": "usd-coin"
+   },
+   {
+    "assetId": "nep245:v2_1.omni.hot.tg:143_4EJiJxSALvGoTZbnc8K7Ft9533et",
+    "symbol": "USDT0",
+    "blockchain": "monad",
+    "contractAddress": "0xe7cd86e13ac4309349f30b3435a9d337750fc82d",
+    "decimals": 6,
+    "price": 1,
+    "priceUpdatedAt": "2026-10-03T16:07:30.407Z",
+    "coingeckoId": "usdt0"
+   },
+   {
+    "assetId": "nep245:v2_1.omni.hot.tg:143_2dmLwYWkCQKyTjeUPAsGJuiVLbFx",
+    "symbol": "USDC",
+    "blockchain": "monad",
+    "contractAddress": "0x754704bc059f8c67012fed69bc8a327a5aafb603",
+    "decimals": 6,
+    "price": 0.999972,
+    "priceUpdatedAt": "2026-10-03T16:07:30.407Z",
+    "coingeckoId": "usd-coin"
+   }
+  ]
+ }
+}
