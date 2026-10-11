@@ -480,7 +480,7 @@ indexer.onEvent({ contract: "PerplExchange", event: "FundingEventCompleted", fie
 
 for (const name of ["ContractAdded", "ContractAddedV2"] as const)
   indexer.onEvent({ contract: "PerplExchange", event: name, fields: F }, async ({ event: e, context: ctx }) => {
-    const m = await loadMarket(ctx, e.params.perpId, e.block.timestamp);
+    const m = await loadMarket(ctx, e.params.perpId, e.block.timestamp, true);
     ctx.Market.set({
       ...m, symbol: e.params.symbol, name: e.params.name,
       priceDecimals: Number(e.params.priceDecimals), lotDecimals: Number(e.params.lotDecimals),

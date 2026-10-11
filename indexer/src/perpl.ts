@@ -38,12 +38,12 @@ export const notional = (m: Market, pricePNS: bigint, lotLNS: bigint) =>
 // loaders (return mutable copies; callers `set` them when done)
 // ---------------------------------------------------------------------------
 
-export async function loadMarket(ctx: Ctx, perpId: bigint, ts: number): Promise<Mut<Market>> {
+export async function loadMarket(ctx: Ctx, perpId: bigint, ts: number, quiet = false): Promise<Mut<Market>> {
   const id = perpId.toString();
   const m = await ctx.Market.get(id);
   if (m) return { ...m };
   const k = KNOWN_MARKETS[Number(perpId)];
-  if (!k && !ctx.isPreload) ctx.log.warn(`Perpl: unknown perpId ${id}, notional will be wrong until ContractAdded`);
+  if (!k && !quiet && !ctx.isPreload) ctx.log.warn(`Perpl: unknown perpId ${id}, notional will be wrong until ContractAdded`);
   return {
     id, perpId: Number(perpId), symbol: k?.[0] ?? `PERP-${id}`, name: k?.[0] ?? "",
     priceDecimals: k?.[1] ?? 0, lotDecimals: k?.[2] ?? 0, lastPricePNS: 0n,
