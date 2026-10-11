@@ -5,6 +5,7 @@ import { Panel, PageHead, Segmented, Source, Stat, StatRow, Empty } from "@/comp
 import { TimeChart } from "@/components/TimeChart";
 import { FLOW_DAYS, activeUsers, flows, fundingHistory, markets, protocolSnapshot, tvlHistory, volumeHistory } from "@/lib/perpl/analytics";
 import { getLeaderboard } from "@/lib/perpl/api";
+import { indexerConfigured, indexerSyncedAt } from "@/lib/perpl/indexer";
 import { ago, num, pct, price, short, usd } from "@/lib/format";
 import { explorerTx } from "@/lib/chains";
 import { getT } from "@/lib/i18n/server";
@@ -24,7 +25,9 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: SP
   const { t, lang } = await getT();
   const L = (a: string, b: string) => (lang === "id" ? a : b);
   const vt = ["30d", "90d", "all"].includes(sp.vt ?? "") ? sp.vt! : "90d";
-  const fw = sp.fw === "1" ? 1 : FLOW_DAYS;
+  const idx = indexerConfigured();
+  // fw = window in days for flows/liquidations; 0 = full indexed history (indexer only)
+  const fw = sp.fw === "1" ? 1 : idx ? (["7", "30"].includes(sp.fw ?? "") ? Number(sp.fw) : 0) : FLOW_DAYS;
   const q = (k: string, v: string) => `/analytics?${new URLSearchParams({ vt, fw: String(fw), [k]: v })}`;
 
   return (
@@ -76,10 +79,19 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: SP
           aside={
             <Segmented
               active={String(fw)}
-              items={[
-                { key: "1", label: "24H", href: q("fw", "1") },
-                { key: String(FLOW_DAYS), label: `${FLOW_DAYS}D`, href: q("fw", String(FLOW_DAYS)) },
-              ]}
+              items={
+                idx
+                  ? [
+                      { key: "1", label: "24H", href: q("fw", "1") },
+                      { key: "7", label: "7D", href: q("fw", "7") },
+                      { key: "30", label: "30D", href: q("fw", "30") },
+                      { key: "0", label: L("Semua", "All"), href: q("fw", "0") },
+                    ]
+                  : [
+                      { key: "1", label: "24H", href: q("fw", "1") },
+                      { key: String(FLOW_DAYS), label: `${FLOW_DAYS}D`, href: q("fw", String(FLOW_DAYS)) },
+                    ]
+              }
             />
           }
         >
@@ -87,7 +99,10 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: SP
             <Flows days={fw} L={L} />
           </Suspense>
         </Panel>
-        <Panel title={L("TVL exchange, 5 hari", "Exchange TVL, 5 days")} aside={<Source kind="rpc">{L("State historis onchain", "Historical onchain state")}</Source>}>
+        <Panel
+          title={idx ? L("Deposit bersih kumulatif", "Cumulative net deposits") : L("TVL exchange, 5 hari", "Exchange TVL, 5 days")}
+          aside={idx ? <Source kind="indexer">ProtocolDaily</Source> : <Source kind="rpc">{L("State historis onchain", "Historical onchain state")}</Source>}
+        >
           <Suspense fallback={<Skeleton h={300} />}>
             <Tvl L={L} />
           </Suspense>
@@ -101,7 +116,7 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: SP
       </Panel>
 
       <div className="grid gap-6 lg:grid-cols-5">
-        <Panel className="lg:col-span-3" title={L("Likuidasi", "Liquidations")} aside={<Source kind="rpc">PositionLiquidated</Source>}>
+        <Panel className="lg:col-span-3" title={L("Likuidasi", "Liquidations")} aside={<Source kind={idx ? "indexer" : "rpc"}>{idx ? "Liquidation" : "PositionLiquidated"}</Source>}>
           <Suspense fallback={<Skeleton h={360} />}>
             <Liquidations days={fw} L={L} />
           </Suspense>
@@ -142,6 +157,13 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: SP
 
 type Lx = (a: string, b: string) => string;
 
+/** Source footnote for indexer-backed sections: the indexer may still be syncing. */
+async function envioNote(L: Lx, what: string) {
+  const at = await indexerSyncedAt().catch(() => 0);
+  const when = at ? new Date(at).toISOString().slice(0, 16).replace("T", " ") + " UTC" : "?";
+  return L(`Indexer Envio (${what}), seluruh histori, tersinkron sampai ${when}.`, `Envio indexer (${what}), full history, synced to ${when}.`);
+}
+
 function Skeleton({ h }: { h: number }) {
   return <div className="animate-pulse rounded bg-surface-2/60" style={{ height: h }} aria-hidden />;
 }
@@ -157,7 +179,7 @@ async function Headline({ L }: { L: Lx }) {
         <Stat label={L("Volume 24 jam", "24h volume")} value={usd(vol24, { compact: true })} sub={`7d ${usd(v.v7d, { compact: true })}`} />
         <Stat label={L("Volume 30 hari", "30d volume")} value={usd(v.v30d, { compact: true })} sub={`${L("Semua", "All-time")} ${usd(v.vAll, { compact: true })}`} />
         <Stat label="Open interest" value={usd(oi, { compact: true })} sub={`${num(p.openPositions, 0)} ${L("posisi", "positions")}`} />
-        <Stat label="TVL" value={usd(p.tvl, { compact: true })} sub={net != null ? `${L(`Arus bersih ${f!.days}h`, `${f!.days}d net flow`)} ${usd(net, { compact: true, sign: true })}` : undefined} />
+        <Stat label="TVL" value={usd(p.tvl, { compact: true })} sub={net != null ? `${f!.days ? L(`Arus bersih ${f!.days}h`, `${f!.days}d net flow`) : L("Arus bersih total", "All-time net flow")} ${usd(net, { compact: true, sign: true })}` : undefined} />
         <Stat
           label={L("Saldo fee protokol", "Protocol fee balance")}
           value={usd(p.protocolBalance, { compact: true })}
@@ -216,7 +238,7 @@ async function Markets() {
 async function Flows({ days, L }: { days: number; L: Lx }) {
   const f = await flows(FLOW_DAYS).catch(() => null);
   if (!f) return <Empty>{L("RPC log sedang tidak tersedia. Coba lagi sebentar.", "The log RPC is unavailable right now. Try again shortly.")}</Empty>;
-  const since = Date.now() - days * DAY;
+  const since = days ? Date.now() - days * DAY : 0;
   const daily = f.daily.filter((d) => d.t >= since);
   const dep = daily.reduce((a, d) => a + d.deposits, 0);
   const wd = daily.reduce((a, d) => a + d.withdrawals, 0);
@@ -261,24 +283,39 @@ async function Flows({ days, L }: { days: number; L: Lx }) {
           </table>
         </div>
       </details>
-      <p className="mt-2 text-xs text-ink-3">{L("Event CollateralDeposit / CollateralWithdrawal dari kontrak exchange.", "CollateralDeposit / CollateralWithdrawal events from the exchange contract.")}</p>
+      <p className="mt-2 text-xs text-ink-3">
+        {f.source === "envio"
+          ? await envioNote(L, "CollateralFlow")
+          : L("Event CollateralDeposit / CollateralWithdrawal dari kontrak exchange.", "CollateralDeposit / CollateralWithdrawal events from the exchange contract.")}
+      </p>
     </>
   );
 }
 
 async function Tvl({ L }: { L: Lx }) {
-  const pts = await tvlHistory().catch(() => []);
+  const { source, pts } = await tvlHistory().catch(() => ({ source: "rpc" as const, pts: [] }));
   if (!pts.length) return <Empty>{L("State historis tidak tersedia.", "Historical state unavailable.")}</Empty>;
   const first = pts[0].tvl;
   const last = pts[pts.length - 1].tvl;
   return (
     <>
       <div className="mb-4 grid grid-cols-2 gap-4">
-        <Stat label={L("TVL sekarang", "TVL now")} value={usd(last, { compact: true })} />
-        <Stat label={L("Perubahan 5 hari", "5-day change")} value={pct(((last - first) / first) * 100, 2, true)} tone={last >= first ? "text-up" : "text-down"} />
+        <Stat label={source === "envio" ? L("Deposit bersih", "Net deposits") : L("TVL sekarang", "TVL now")} value={usd(last, { compact: true })} />
+        <Stat
+          label={source === "envio" ? L("Perubahan 7 hari", "7-day change") : L("Perubahan 5 hari", "5-day change")}
+          value={(() => {
+            const base = source === "envio" ? (pts[Math.max(0, pts.length - 8)]?.tvl ?? first) : first;
+            return pct(base ? ((last - base) / base) * 100 : null, 2, true);
+          })()}
+          tone={last >= first ? "text-up" : "text-down"}
+        />
       </div>
       <TimeChart ariaLabel="TVL" height={200} series={[{ name: "TVL", kind: "area", color: C1, data: pts.map((p) => ({ t: p.t, v: p.tvl })) }]} />
-      <p className="mt-2 text-xs text-ink-3">{L("Saldo AUSD exchange (getExchangeInfo) di 48 blok historis. RPC publik menyimpan state ±130 jam.", "Exchange AUSD balance (getExchangeInfo) at 48 historical blocks. The public RPC keeps ~130h of state.")}</p>
+      <p className="mt-2 text-xs text-ink-3">
+        {source === "envio"
+          ? `${L("Deposit − penarikan kumulatif per hari (proxy TVL, tanpa PnL trader).", "Cumulative deposits − withdrawals per day (TVL proxy, excludes trader PnL).")} ${await envioNote(L, "ProtocolDaily")}`
+          : L("Saldo AUSD exchange (getExchangeInfo) di 48 blok historis. RPC publik menyimpan state ±130 jam.", "Exchange AUSD balance (getExchangeInfo) at 48 historical blocks. The public RPC keeps ~130h of state.")}
+      </p>
     </>
   );
 }
@@ -308,7 +345,7 @@ async function Funding({ L }: { L: Lx }) {
 async function Liquidations({ days, L }: { days: number; L: Lx }) {
   const f = await flows(FLOW_DAYS).catch(() => null);
   if (!f) return <Empty>{L("RPC log sedang tidak tersedia.", "The log RPC is unavailable right now.")}</Empty>;
-  const since = Date.now() - days * DAY;
+  const since = days ? Date.now() - days * DAY : 0;
   const daily = f.daily.filter((d) => d.t >= since);
   const ls = f.liqsAll.filter((x) => x.t >= since);
   const longN = ls.filter((x) => x.side === "long").reduce((a, x) => a + x.notional, 0);
@@ -316,7 +353,7 @@ async function Liquidations({ days, L }: { days: number; L: Lx }) {
   return (
     <>
       <div className="mb-4 grid grid-cols-3 gap-4">
-        <Stat label={L(`Likuidasi ${days} hari`, `Liquidations, ${days}d`)} value={num(ls.length, 0)} />
+        <Stat label={days ? L(`Likuidasi ${days} hari`, `Liquidations, ${days}d`) : L("Likuidasi, semua", "Liquidations, all-time")} value={num(ls.length, 0)} />
         <Stat label={L("Notional long", "Long notional")} value={usd(longN, { compact: true })} />
         <Stat label={L("Notional short", "Short notional")} value={usd(shortN, { compact: true })} />
       </div>
@@ -357,6 +394,7 @@ async function Liquidations({ days, L }: { days: number; L: Lx }) {
           </tbody>
         </table>
       </div>
+      {f.source === "envio" && <p className="mt-2 text-xs text-ink-3">{await envioNote(L, "Liquidation")}</p>}
     </>
   );
 }

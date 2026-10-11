@@ -4,9 +4,11 @@ import { getCandles, getContext, getFundingAll, getLeaderboard, getTicker, cns, 
 import { accountByAddr, accountById, addressesFor, allPositions, equityCurve, exchangeInfo, perpInfos, tvlCurve, type Position } from "./onchain";
 import { BLOCKS_PER_DAY, accountWord, dataWord, decode, ev, scan, timeline } from "./logs";
 import { computeTradeStats, type Trade } from "./stats";
-import { indexerConfigured, indexerWalletTrades } from "./indexer";
+import { indexerConfigured, indexerUrl, indexerFlows, indexerTvlCurve, indexerWalletEquity, indexerWalletFlows, indexerWalletTrades } from "./indexer";
 
 const DAY = 86_400_000;
+/** Cache-key part so toggling the indexer env never serves entries built from the other source. */
+const SRC = indexerUrl() || "rpc";
 
 export const markets = unstable_cache(async () => toMarkets(await getContext()), ["perpl-markets"], { revalidate: 600 });
 
@@ -203,8 +205,20 @@ export type LiqEvent = { t: number; block: number; tx: string; accountId: number
  */
 export const FLOW_DAYS = Number(process.env.FLOWS_SCAN_DAYS || 7);
 
-/** Deposits, withdrawals and liquidations for the last `days` days, straight from exchange logs. */
+/** Deposits, withdrawals and liquidations: full history from the indexer (days = null), else the last `days` days of logs. */
 export const flows = unstable_cache(
+  async (days: number) => {
+    if (indexerConfigured()) {
+      const f = await indexerFlows().catch(() => null);
+      if (f) return { source: "envio" as const, ...f };
+    }
+    return { source: "rpc" as const, ...(await rpcFlows(days)) };
+  },
+  ["perpl-flows-src", SRC],
+  { revalidate: 120 },
+);
+
+const rpcFlows = unstable_cache(
   async (days: number) => {
     const ms = await markets();
     const byId = new Map(ms.map((m) => [m.id, m]));
@@ -272,7 +286,17 @@ export const flows = unstable_cache(
   { revalidate: 120 },
 );
 
-export const tvlHistory = unstable_cache(async () => tvlCurve(48), ["perpl-tvl"], { revalidate: 300 });
+export const tvlHistory = unstable_cache(
+  async () => {
+    if (indexerConfigured()) {
+      const pts = await indexerTvlCurve().catch(() => null);
+      if (pts?.length) return { source: "envio" as const, pts };
+    }
+    return { source: "rpc" as const, pts: await tvlCurve(48) };
+  },
+  ["perpl-tvl-src", SRC],
+  { revalidate: 300 },
+);
 
 /* ----------------------------------- wallet ----------------------------------- */
 
@@ -300,8 +324,14 @@ export const walletSnapshot = unstable_cache(
 );
 
 export const walletEquityCurve = unstable_cache(
-  async (accountId: number) => equityCurve(await markets(), accountId, 40),
-  ["perpl-wallet-equity"],
+  async (accountId: number) => {
+    if (indexerConfigured()) {
+      const pts = await indexerWalletEquity(accountId).catch(() => null);
+      if (pts) return { source: "envio" as const, pts };
+    }
+    return { source: "rpc" as const, pts: await equityCurve(await markets(), accountId, 40) };
+  },
+  ["perpl-wallet-equity-src", SRC],
   { revalidate: 300 },
 );
 
@@ -313,15 +343,20 @@ export const TRADE_WINDOW_HOURS = Number(process.env.TRADE_SCAN_HOURS || 6);
 
 export const walletTrades = unstable_cache(
   async (accountId: number) => {
-    const ms = await markets();
     if (indexerConfigured()) {
-      const trades = await indexerWalletTrades(accountId, ms).catch(() => null);
-      if (trades) return { source: "envio" as const, windowHours: null, trades, stats: computeTradeStats(trades) };
+      const trades = await indexerWalletTrades(accountId).catch(() => null);
+      if (trades) {
+        // ponytail: stats use every trade; list and curve are thinned so the entry stays under unstable_cache's 2MB cap
+        const stats = computeTradeStats(trades);
+        const step = Math.ceil(stats.curve.length / 1000);
+        stats.curve = stats.curve.filter((_, i, a) => i % step === 0 || i === a.length - 1);
+        return { source: "envio" as const, windowHours: null, trades: trades.slice(0, 500), stats };
+      }
     }
-    const trades = await rpcWalletTrades(accountId, ms, TRADE_WINDOW_HOURS);
+    const trades = await rpcWalletTrades(accountId, await markets(), TRADE_WINDOW_HOURS);
     return { source: "rpc" as const, windowHours: TRADE_WINDOW_HOURS, trades, stats: computeTradeStats(trades) };
   },
-  ["perpl-wallet-trades"],
+  ["perpl-wallet-trades", SRC],
   { revalidate: 120 },
 );
 
@@ -385,6 +420,10 @@ async function rpcWalletTrades(accountId: number, ms: Market[], hours: number): 
 }
 
 export async function walletFlows(accountId: number) {
-  const f = await flows(FLOW_DAYS);
-  return f.all.filter((x) => x[1] === accountId).map(([t, , amount, tx]) => ({ t, amount, tx }));
+  if (indexerConfigured()) {
+    const rows = await indexerWalletFlows(accountId).catch(() => null);
+    if (rows) return { source: "envio" as const, rows };
+  }
+  const f = await rpcFlows(FLOW_DAYS);
+  return { source: "rpc" as const, rows: f.all.filter((x) => x[1] === accountId).map(([t, , amount, tx]) => ({ t, amount, tx })) };
 }

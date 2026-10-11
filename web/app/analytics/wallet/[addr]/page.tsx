@@ -9,6 +9,7 @@ import type { TradeStats } from "@/lib/perpl/stats";
 import { ago, isAddress, num, pct, price, short, usd } from "@/lib/format";
 import { explorerAddr, explorerTx } from "@/lib/chains";
 import { getT } from "@/lib/i18n/server";
+import { indexerConfigured } from "@/lib/perpl/indexer";
 import { WalletSearch, WatchButton } from "../../_c/client";
 
 type P = Promise<{ addr: string }>;
@@ -44,6 +45,7 @@ export default async function WalletPage({ params }: { params: P }) {
     );
 
   const address = snap.address.toLowerCase();
+  const idx = indexerConfigured();
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
@@ -84,7 +86,10 @@ export default async function WalletPage({ params }: { params: P }) {
             <Periods address={address} L={L} />
           </Suspense>
         </Panel>
-        <Panel title={L("Kurva equity, 5 hari", "Equity curve, 5 days")} aside={<Source kind="rpc">{L("State historis", "Historical state")}</Source>}>
+        <Panel
+          title={idx ? L("Kurva equity terealisasi, seluruh histori", "Realized equity curve, full history") : L("Kurva equity, 5 hari", "Equity curve, 5 days")}
+          aside={idx ? <Source kind="indexer">AccountDaily + CollateralFlow</Source> : <Source kind="rpc">{L("State historis", "Historical state")}</Source>}
+        >
           <Suspense fallback={<Sk h={220} />}>
             <Equity accountId={snap.accountId} L={L} />
           </Suspense>
@@ -95,7 +100,11 @@ export default async function WalletPage({ params }: { params: P }) {
         <Trades accountId={snap.accountId} snap={snap} L={L} />
       </Suspense>
 
-      <Panel title={L(`Deposit dan penarikan, ${FLOW_DAYS} hari`, `Deposits and withdrawals, ${FLOW_DAYS} days`)} pad={false} aside={<Source kind="rpc">CollateralDeposit / Withdrawal</Source>}>
+      <Panel
+        title={idx ? L("Deposit dan penarikan, seluruh histori", "Deposits and withdrawals, full history") : L(`Deposit dan penarikan, ${FLOW_DAYS} hari`, `Deposits and withdrawals, ${FLOW_DAYS} days`)}
+        pad={false}
+        aside={idx ? <Source kind="indexer">CollateralFlow</Source> : <Source kind="rpc">CollateralDeposit / Withdrawal</Source>}
+      >
         <Suspense fallback={<Sk h={120} />}>
           <Flows accountId={snap.accountId} L={L} />
         </Suspense>
@@ -215,7 +224,10 @@ async function Periods({ address, L }: { address: string; L: Lx }) {
 }
 
 async function Equity({ accountId, L }: { accountId: number; L: Lx }) {
-  const [pts, flows] = await Promise.all([walletEquityCurve(accountId).catch(() => []), walletFlows(accountId).catch(() => [])]);
+  const [eq, wf] = await Promise.all([walletEquityCurve(accountId).catch(() => null), walletFlows(accountId).catch(() => null)]);
+  const pts = eq?.pts ?? [];
+  const flows = wf?.rows ?? [];
+  const envio = eq?.source === "envio";
   if (pts.length < 2) return <Empty>{L("Belum cukup histori.", "Not enough history yet.")}</Empty>;
   // Flow-adjusted: remove deposits/withdrawals made after the first sample, so a withdrawal is not a drawdown.
   const t0 = pts[0].t;
@@ -231,12 +243,16 @@ async function Equity({ accountId, L }: { accountId: number; L: Lx }) {
   return (
     <>
       <div className="mb-3 grid grid-cols-3 gap-4">
-        <Stat label={L("Perubahan 5 hari", "5-day change")} value={usd(last - first, { sign: true, compact: true })} tone={last >= first ? "text-up" : "text-down"} />
+        <Stat label={envio ? L("Perubahan sejak awal", "Change since start") : L("Perubahan 5 hari", "5-day change")} value={usd(last - first, { sign: true, compact: true })} tone={last >= first ? "text-up" : "text-down"} />
         <Stat label={L("Drawdown maks (tanpa arus dana)", "Max drawdown (flow-adjusted)")} value={pct(dd * 100, 2)} tone={dd > 0.1 ? "text-down" : ""} />
         <Stat label={L("Equity puncak", "Peak equity")} value={usd(Math.max(...pts.map((p) => p.equity)), { compact: true })} />
       </div>
       <TimeChart ariaLabel="Equity" height={180} series={[{ name: "Equity", kind: "area", color: "#3987e5", data: pts.map((p) => ({ t: p.t, v: p.equity })) }]} />
-      <p className="mt-2 text-xs text-ink-3">{L("Equity = saldo + Σ(margin + PnL) di 41 blok historis. Deposit dan penarikan ikut menggeser kurva.", "Equity = balance + Σ(margin + PnL) at 41 historical blocks. Deposits and withdrawals also move the curve.")}</p>
+      <p className="mt-2 text-xs text-ink-3">
+        {envio
+          ? L("Equity terealisasi harian = deposit bersih + PnL terealisasi kumulatif − fee (tanpa PnL belum terealisasi). Deposit dan penarikan ikut menggeser kurva.", "Daily realized equity = net deposits + cumulative realized PnL − fees (excludes unrealized PnL). Deposits and withdrawals also move the curve.")
+          : L("Equity = saldo + Σ(margin + PnL) di 41 blok historis. Deposit dan penarikan ikut menggeser kurva.", "Equity = balance + Σ(margin + PnL) at 41 historical blocks. Deposits and withdrawals also move the curve.")}
+      </p>
     </>
   );
 }
@@ -384,9 +400,11 @@ function Insights({ s, snap, L }: { s: TradeStats; snap: AccountSnapshot; L: Lx 
 }
 
 async function Flows({ accountId, L }: { accountId: number; L: Lx }) {
-  const f = await walletFlows(accountId).catch(() => null);
-  if (!f) return <Empty>{L("RPC log tidak tersedia.", "The log RPC is unavailable.")}</Empty>;
-  if (!f.length) return <Empty>{L(`Tidak ada deposit atau penarikan dalam ${FLOW_DAYS} hari.`, `No deposits or withdrawals in ${FLOW_DAYS} days.`)}</Empty>;
+  const r = await walletFlows(accountId).catch(() => null);
+  if (!r) return <Empty>{L("RPC log tidak tersedia.", "The log RPC is unavailable.")}</Empty>;
+  const f = r.rows;
+  if (!f.length)
+    return <Empty>{r.source === "envio" ? L("Belum ada deposit atau penarikan yang terindeks.", "No indexed deposits or withdrawals yet.") : L(`Tidak ada deposit atau penarikan dalam ${FLOW_DAYS} hari.`, `No deposits or withdrawals in ${FLOW_DAYS} days.`)}</Empty>;
   const net = f.reduce((a, x) => a + x.amount, 0);
   return (
     <div>
@@ -396,7 +414,7 @@ async function Flows({ accountId, L }: { accountId: number; L: Lx }) {
       <div className="max-h-72 overflow-auto">
         <table className="data">
           <tbody>
-            {f.map((x, i) => (
+            {f.slice(0, 200).map((x, i) => (
               <tr key={x.tx + i}>
                 <td className="text-ink-3">{ago(x.t)}</td>
                 <td className={x.amount >= 0 ? "text-up" : "text-down"}>{x.amount >= 0 ? L("Deposit", "Deposit") : L("Tarik", "Withdraw")}</td>

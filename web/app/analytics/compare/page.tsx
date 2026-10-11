@@ -20,7 +20,7 @@ export default async function Compare({ searchParams }: { searchParams: Promise<
       if (!snap) return { w, snap: null };
       const [periods, curve, trades] = await Promise.all([
         walletPeriods(snap.address),
-        walletEquityCurve(snap.accountId).catch(() => []),
+        walletEquityCurve(snap.accountId).then((r) => r.pts).catch(() => []),
         walletTrades(snap.accountId).catch(() => null),
       ]);
       return { w, snap, periods, curve, stats: trades?.stats ?? null };

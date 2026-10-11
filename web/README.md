@@ -58,6 +58,22 @@ source dot; live ones show green.
 - Historical state (equity/TVL curves) is limited to ~130h by the public RPC.
 - Fees are estimated from volume x base-tier rates; Perpl exposes no fee endpoint.
 
+### Envio indexer (optional, removes the caps above)
+
+Set `NEXT_PUBLIC_ENVIO_GRAPHQL_URL` (and server-only `ENVIO_GRAPHQL_SECRET` for a local Hasura,
+e.g. `http://localhost:8080/v1/graphql` + `testing`). Queries run server-side only
+(`lib/perpl/indexer.ts`, mainnet rows, `chainId = 143`). With it set, full history comes from the
+indexer:
+
+- `/analytics`: capital flows and liquidations (`ProtocolDaily`, `CollateralFlow`, `Liquidation`; extra
+  24H/7D/30D/All windows), the TVL panel becomes cumulative net deposits (`ProtocolDaily.netFlowCNS`).
+- `/analytics/wallet/[addr]` and compare: trades and stats (`ClosedTrade`), realized equity curve
+  (`AccountDaily.cumNetPnlCNS` + net deposits), deposits/withdrawals (`CollateralFlow`).
+
+Live state (positions, liq map, markets, funding, volume candles, leaderboard ranks) stays on
+RPC/REST. Any indexer error falls back to the RPC scan for that section. Indexer sections show the
+last synced event time, since a fresh indexer is still catching up.
+
 ## Passkeys
 
 PRF is required. Chrome passkeys stored in a local profile often lack PRF; use a synced passkey
