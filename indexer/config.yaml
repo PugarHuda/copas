@@ -118,7 +118,10 @@ chains:
       - name: FollowerVault
       - name: UnderwriterPool
   - id: 10143 # Monad testnet
-    start_block: 0 # HyperSync skips to the first event
+    # ponytail: testnet Perpl history isn't needed (dashboard = mainnet; Copas testnet deploys come later)
+    # and syncing from 0 takes ~74h on the free HyperSync tier. Testnet perps skipped this way lose their
+    # ContractAdded decimals (notional on testnet only); start at 0 again on a paid tier if that matters.
+    start_block: 70084000
     contracts:
       - name: PerplExchange
         address: 0x1964C32f0bE608E7D29302AFF5E61268E72080cc
