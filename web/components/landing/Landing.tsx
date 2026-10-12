@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Hero3D } from "./Hero3D";
 
-type Stats = { leaders: number; bonded: number; bond: number | null; breached: number; followerAum: number };
+type Stats = { leaders: number | null; bonded: number; bond: number | null; breached: number; followerAum: number };
 /** Lifetime indexer counters (lib/copas/indexer protocolMetrics); null when the indexer is down. */
 type Metrics = { followers: number; syncs: number; slashPaid: number; claims: number; vaults: number; upkeep: number } | null;
 type Lx = (id: string, en: string) => string;
@@ -64,7 +64,7 @@ export function Landing({ stats, metrics, L }: { stats: Stats; metrics: Metrics;
           <Link href="#leaders" className="micro rounded-full bg-[#121212] px-3 py-2 font-medium text-white hover:bg-black">
             {L("Lihat leader", "See leaders")} ↓
           </Link>
-          <span className="micro hidden sm:inline">{L("Testnet live", "Live on testnet")} · {stats.leaders} {L("leader", stats.leaders === 1 ? "leader" : "leaders")}</span>
+          <span className="micro hidden sm:inline">{L("Testnet live", "Live on testnet")} · {stats.leaders == null ? "registry read failed, reload" : `${stats.leaders} ${stats.leaders === 1 ? "leader" : "leaders"}`}</span>
         </div>
         <h1 className="display pointer-events-none absolute bottom-1 right-3 text-[22vw] leading-[0.78] tracking-[-0.03em] text-[#1a1a1a] sm:right-6 sm:text-[17vw] lg:text-[220px]">copas</h1>
       </section>
@@ -77,7 +77,7 @@ export function Landing({ stats, metrics, L }: { stats: Stats; metrics: Metrics;
         </div>
         <div className="mt-4 grid grid-cols-2 gap-x-6 gap-y-5 sm:grid-cols-3 lg:grid-cols-6">
           {[
-            { k: "AUSD bonded", v: stats.bond == null ? "–" : fmt(stats.bond), s: `across ${stats.leaders} ${stats.leaders === 1 ? "leader" : "leaders"}` },
+            { k: "AUSD bonded", v: stats.bond == null ? "–" : fmt(stats.bond), s: stats.leaders == null ? "registry read failed" : `across ${stats.leaders} ${stats.leaders === 1 ? "leader" : "leaders"}` },
             { k: "Active followers", v: metrics ? fmt(metrics.followers) : "–", s: "follows live now" },
             { k: "Copy syncs executed", v: metrics ? fmt(metrics.syncs) : "–", s: "Synced events onchain" },
             { k: "Slashes paid", v: metrics ? `${metrics.slashPaid.toLocaleString("en-US", { maximumFractionDigits: metrics.slashPaid < 1 ? 4 : 2 })} AUSD` : "–", s: metrics ? `${metrics.claims} ${metrics.claims === 1 ? "claim" : "claims"} by followers` : "" },

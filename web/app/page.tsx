@@ -26,7 +26,7 @@ export default async function Home({ searchParams }: { searchParams: SP }) {
   const atStake = leaders.reduce((a, l) => a + l.bond + l.underwritten, 0);
   const aum = leaders.reduce((a, l) => a + l.followerAum, 0);
 
-  const stats = { leaders: leaders.length, bonded: atStake, bond: read ? leaders.reduce((a, l) => a + l.bond, 0) : null, breached: leaders.filter((l) => l.status === "breached").length, followerAum: aum };
+  const stats = { leaders: read ? leaders.length : null, bonded: atStake, bond: read ? leaders.reduce((a, l) => a + l.bond, 0) : null, breached: leaders.filter((l) => l.status === "breached").length, followerAum: aum };
   return (
     <div className="space-y-8">
       <Landing stats={stats} metrics={metrics} L={L} />
