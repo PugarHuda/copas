@@ -10,7 +10,7 @@ This Node service keeps Copas running. It does seven jobs:
 - posts ERC-8004 reputation
 - sends alerts
 
-The keeper has **no discretion and holds no funds**. Every call it makes (`sync`, `checkpoint`, `rollEpoch`, `touch`, `settle`) is permissionless and bounded by the contracts. If the keeper is down, anyone can make the same calls. The Privy policy is a second layer on top: it stops the keeper wallet from calling anything else.
+The keeper has **no discretion and holds no funds** (the opt-in DOWN market maker below is separate: own key, own funds). Every call it makes (`sync`, `checkpoint`, `rollEpoch`, `touch`, `settle`) is permissionless and bounded by the contracts. If the keeper is down, anyone can make the same calls. The Privy policy is a second layer on top: it stops the keeper wallet from calling anything else.
 
 ## Run
 
@@ -102,6 +102,32 @@ After each finished epoch of a leader with `AgentLeaderRegistry.agentOf(lb) != 0
 - A clean epoch posts `value=100` with tags `copas` / `epoch-clean`. A breach posts `value=-100` with tags `copas` / `breach-drawdown`, `breach-leverage`, `breach-notional` or `breach-market`. The endpoint is `copas:<chainId>:<leaderBook>:epoch-<e>`.
 - **Signer caveat:** the registry reverts with `"Self-feedback not allowed"` when the sender owns or operates the agent. So the keeper wallet must be a different address from both the agent owner and the agent wallet. That holds by default, because agent owners are leaders. The pre-send simulation catches the revert and logs a warning. Epochs that already got feedback are recorded in `data/state-*.json`.
 
+## DOWN market maker (`MM_PRIVATE_KEY`, testnet)
+
+Step 4 of `pnpm tick` (`src/mm.ts`, decisions in `src/mmLogic.ts`, tested in `test/mm.test.ts`) keeps a live breach-risk book for every Active leader. It is the one part of the keeper that holds funds, so it signs with its own plain key, not the Privy wallet (whose policy denies AUSD on purpose). Without `MM_PRIVATE_KEY`, or on mainnet (Kuru listing is owner-only there), it does nothing.
+
+Per Active leader, for the running epoch and, in its last `MM_PREMINT_SEC` (900 s), for epoch+1:
+
+1. **Series:** if the MM holds less than one quote of DOWN, `BreachMarket.mint(lb, e, n, mm)` (`MM_MINT_SIZE` 100 pairs, at most `MM_MAX_MINT_PER_SERIES` 300 per series).
+2. **Book:** the DOWN/AUSD Kuru market address is deterministic (`Router.computeAddress` over the `onramp/src/kuru/market.ts` defaults). No code there: `Router.deployProxy`. The web finds the same address the same way (`web/lib/copas/data.ts`), so there is no registry to keep in sync.
+3. **Quotes:** all DOWN goes into the Kuru MarginAccount and `MM_MARGIN_AUSD` (50) AUSD is kept there for bids. Our live orders are read from `s_orders` (stateless, nothing cached between ticks). One bid and one ask of `MM_QUOTE_SIZE` (50 DOWN) sit at p ∓ `MM_SPREAD`/2 (0.04 wide). A side is replaced (one `batchUpdate`: cancel + post) only when it is more than `MM_REQUOTE` (0.01) from target, less than half filled, or duplicated. Bids stop above `MM_MAX_DOWN` (200) DOWN of inventory.
+4. **Sweep:** every series of `e-2 … e+1` it no longer quotes (finished, breached, leader not Active, epoch over but not rolled) gets its orders cancelled, its DOWN withdrawn from Kuru, and the winning side redeemed (`redeemPair` while unsettled).
+
+Caps: `MM_MAX_SPEND_PER_TICK` (500 AUSD minted + deposited per tick, all leaders), no new series below 0.4 MON, and the MM tops itself up from the testnet AUSD faucet below `MM_MIN_AUSD` (1,000). Every send is simulated first and journaled in the job summary (`mm:*` rows), with one decision row per series showing p and its inputs.
+
+**Fair price** (probability the leader breaches its drawdown mandate before the epoch ends):
+
+```
+dd    = max(0, (peak - u) / peak)              u = LeaderBook.unitPrice(), peak = peakUnitPrice() (resets each epoch)
+b     = ln((1 - dd) / (1 - maxDD))             log distance to the breach level peak·(1 - maxDD), maxDD = mandate.maxDDbps
+s     = σ · sqrt(secondsLeft / 1 day)          σ = MM_SIGMA_DAILY (0.10); secondsLeft = epochEnd - now (epochLen for epoch+1, dd = 0)
+pDiff = 2 · Φ(-b / s)                          reflection principle: a driftless log price touches the barrier
+r     = riskBump[riskLevel] = 0 / .05 / .15 / .35, from CopasRiskConsumer.latest(lb) if under a day old (CRE workflow)
+p     = clamp(1 - (1 - pFloor)(1 - pDiff)(1 - r), pFloor = 0.02, 0.98)      dd ≥ maxDD → 0.98
+```
+
+pFloor is the jump risk the diffusion term cannot see. Gas is the real cost: a new series is about 0.33 MON at testnet prices (mint deploys two tokens, `deployProxy` a book and its vault), so with 1-hour epochs budget roughly 8 MON per Active leader per day. Known limit: between ticks (5 min) a breach can hit the resting ask before the sweep cancels it.
+
 ## Alerts (G4)
 
 **Telegram:** set `TELEGRAM_BOT_TOKEN` (get one from @BotFather). Users send the bot:
@@ -151,6 +177,7 @@ Use `MONAD_MAINNET` for chain 143. Copy the webhook's *signing key* into `ALCHEM
 ## Layout
 
 - `src/logic.ts`: pure logic, tested
+- `src/mm.ts`, `src/mmLogic.ts`: DOWN market maker (I/O, pure pricing/decisions)
 - `src/keeper.ts`: log watching and jobs
 - `src/signer.ts`: LOCAL/PRIVY signers
 - `src/erc8004.ts`, `src/alerts.ts`, `src/http.ts`, `src/config.ts`

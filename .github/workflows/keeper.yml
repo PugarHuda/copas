@@ -63,6 +63,8 @@ jobs:
           PRIVY_APP_SECRET: ${{ secrets.PRIVY_APP_SECRET }}
           PRIVY_AUTHORIZATION_KEY: ${{ secrets.PRIVY_AUTHORIZATION_KEY }}
           PRIVY_WALLET_ID: ${{ secrets.PRIVY_WALLET_ID }}
+          # DOWN market maker (keeper/src/mm.ts): plain key holding MON + AUSD. Unset = the tick skips market making.
+          MM_PRIVATE_KEY: ${{ secrets.MM_PRIVATE_KEY }}
           # optional: Telegram channel alerts (keeper/README.md). Unset = the tick skips alerts.
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}

@@ -6,6 +6,7 @@ import { client } from './chain.js';
 import type { Signer } from './signer.js';
 import { alert, alertsSent, recentAlerts, sendChannel } from './alerts.js';
 import { feedbackCall } from './erc8004.js';
+import { marketMake } from './mm.js';
 import {
   BREACH_REASON, CHANNEL_EVENTS, STATUS, channelMessage, chunkRanges, ddAlert, leaderForAccount, leaderTickAction, vaultSkipReason, needsUnwind, shouldCheckpoint, shouldRoll, vaultsToSync,
   type Leader, type Vault,
@@ -406,7 +407,7 @@ export class Keeper {
   // ---------------------------------------------------------------- one-shot mode (`pnpm tick`, GitHub Actions cron)
   /**
    * Read everything, send only the txs that change state, wait for them, report, return an exit code.
-   * Order: rollEpoch -> (settle/feedback of finished epochs) -> checkpoint -> touch -> sync every (vault, market).
+   * Order: rollEpoch -> (settle/feedback of finished epochs) -> checkpoint -> touch -> sync every (vault, market) -> DOWN market maker (src/mm.ts).
    */
   async tick(): Promise<number> {
     const t0 = Date.now();
@@ -458,6 +459,9 @@ export class Keeper {
     await this.drain();
     for (const v of this.vaults.values()) if (!vaultSkipReason(v)) for (const perpId of this.markets) this.sync(v, perpId);
     await this.drain();
+    // 4. DOWN market maker (own key, sequential txs; no-op without MM_PRIVATE_KEY)
+    await marketMake(this.dep, [...this.leaders.values()], (await client.getBlock({ blockTag: 'latest' })).timestamp, { journal: this.journal, decisions, dryRun: this.dryRun })
+      .catch((e) => this.journal!.push({ kind: 'mm', to: this.dep.breachMarket, outcome: 'failed', detail: String(e?.shortMessage ?? e).slice(0, 200) }));
     await this.announce();
     this.save();
 

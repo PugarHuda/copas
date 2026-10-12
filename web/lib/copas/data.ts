@@ -316,6 +316,20 @@ export async function breachInputs(book: `0x${string}`, e: number, claim?: { vau
 
 /** Live UP/DOWN series for this or next epoch, plus Kuru top of book when DOWN is listed. Null = nothing minted yet. */
 const bookAbi = [{ type: "function", name: "bestBidAsk", stateMutability: "view", inputs: [], outputs: [{ type: "uint256" }, { type: "uint256" }] }] as const;
+// Kuru V1 testnet router: market addresses are deterministic (CREATE2 over the market params), so the DOWN/AUSD book
+// the keeper market maker (keeper/src/mm.ts) lists with the defaults below is found without logs or a registry.
+const KURU_ROUTER = "0x7EFbE105Ca7415dE98F96622173458ac1c054630";
+const kuruAbi = parseAbi([
+  "function computeAddress(address base, address quote, uint96 sizePrecision, uint32 pricePrecision, uint32 tickSize, uint96 minSize, uint96 maxSize, uint256 takerFeeBps, uint256 makerFeeBps, uint96 kuruAmmSpread, address oldImplementation, bool old) view returns (address)",
+]);
+async function kuruMarket(down: `0x${string}`): Promise<`0x${string}` | undefined> {
+  if (copasChain.id !== 10143 || !deployment?.ausd) return undefined; // mainnet Kuru listing is permissioned
+  const m = await client.readContract({
+    address: KURU_ROUTER, abi: kuruAbi, functionName: "computeAddress",
+    args: [down, deployment.ausd, 100n, 10_000, 10, 100n, 10n ** 12n, 30n, 10n, 100n, ZERO, false],
+  });
+  return (await client.getCode({ address: m })) ? m : undefined;
+}
 export async function getDownMarket(book: string, epoch: number) {
   if (!deployment?.breachMarket) return null;
   const bm = { address: deployment.breachMarket, abi: copasAbi.BreachMarket as Abi };
@@ -325,7 +339,7 @@ export async function getDownMarket(book: string, epoch: number) {
       | null;
     if (!s || s.down === ZERO) continue;
     const supply = A(await client.readContract({ address: s.down, abi: copasAbi.BreachToken as Abi, functionName: "totalSupply" }));
-    const market = deployment.kuruDownMarkets?.[s.down.toLowerCase()];
+    const market = await kuruMarket(s.down).catch(() => undefined);
     let bid = 0, ask = 0;
     if (market) {
       const [b, a] = (await client.readContract({ address: market, abi: bookAbi, functionName: "bestBidAsk" })) as [bigint, bigint];
