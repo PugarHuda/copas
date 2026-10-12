@@ -4,11 +4,11 @@ import { decodeFunctionResult, encodeFunctionData, getAddress, parseEventLogs, z
 import { ABI, cfg, log, type Deployments } from './config.js';
 import { client } from './chain.js';
 import type { Signer } from './signer.js';
-import { alert, alertsSent, recentAlerts, sendChannel } from './alerts.js';
+import { alert, alertsSent, channelCard, channelExtra, recentAlerts, sendChannelCard } from './alerts.js';
 import { feedbackCall } from './erc8004.js';
 import { marketMake } from './mm.js';
 import {
-  BREACH_REASON, CHANNEL_EVENTS, STATUS, channelMessage, chunkRanges, ddAlert, leaderForAccount, leaderTickAction, vaultSkipReason, needsUnwind, shouldCheckpoint, shouldRoll, vaultsToSync,
+  BREACH_REASON, CHANNEL_EVENTS, STATUS, chunkRanges, ddAlert, leaderForAccount, leaderTickAction, vaultSkipReason, needsUnwind, shouldCheckpoint, shouldRoll, vaultsToSync,
   type Leader, type Vault,
 } from './logic.js';
 
@@ -492,9 +492,11 @@ export class Keeper {
     } catch (e) { return log('warn', 'channel alerts: getLogs failed, retrying next tick', { from, head, err: String(e) }); }
     logs.sort((a, b) => Number(a.blockNumber - b.blockNumber) || a.logIndex - b.logIndex);
     for (const lg of logs) {
-      const text = channelMessage(lg, ex);
-      if (!text) continue;
-      try { await sendChannel(text); log('info', 'channel alert sent', { ev: lg.eventName, tx: lg.transactionHash }); }
+      if (!(CHANNEL_EVENTS as readonly string[]).includes(lg.eventName)) continue;
+      try {
+        const card = channelCard(lg, await channelExtra(lg), ex);
+        if (card) { await sendChannelCard(card); log('info', 'channel alert sent', { ev: lg.eventName, tx: lg.transactionHash }); }
+      }
       catch (e) {
         // resume from this block next tick (earlier posts in the same block may repeat, later ones are not lost)
         this.alertCursor = BigInt(lg.blockNumber) - 1n > this.alertCursor ? BigInt(lg.blockNumber) - 1n : this.alertCursor;

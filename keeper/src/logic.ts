@@ -119,27 +119,3 @@ export function vaultSkipReason(v: Vault): string | null {
 // ---------------------------------------------------------------- channel alerts (hosted tick -> TELEGRAM_CHAT_ID)
 /** Events the tick announces to the public channel. */
 export const CHANNEL_EVENTS = ['LeaderCreated', 'Breached', 'EpochRolled', 'Claimed', 'FollowerRegistered'] as const;
-
-const ausd = (x: bigint | number | string) => (Number(x) / 1e6).toLocaleString('en-US', { maximumFractionDigits: 2 });
-const shortA = (a: string) => `${a.slice(0, 6)}…${a.slice(-4)}`;
-
-/** One channel post per Copas event, or null for events the channel ignores. `address` is the emitting contract. */
-export function channelMessage(ev: { eventName: string; address: string; args: Record<string, any>; transactionHash?: string | null }, explorer: string, app = 'https://copas-mocha.vercel.app'): string | null {
-  const a = ev.args ?? {};
-  const tx = ev.transactionHash ? `\n${explorer}/tx/${ev.transactionHash}` : '';
-  const lb = ev.address.toLowerCase();
-  switch (ev.eventName) {
-    case 'LeaderCreated':
-      return `New leader ${shortA(String(a.leaderBook))} (owner ${shortA(String(a.owner))}) registered on Copas.\n${app}/leader/${String(a.leaderBook).toLowerCase()}${tx}`;
-    case 'Breached':
-      return `BREACH: leader ${shortA(lb)} broke its ${BREACH_REASON[Number(a.reason)] ?? 'unknown'} mandate in epoch ${a.epoch}. ${ausd(a.pot)} AUSD of bond slashed to followers.\n${app}/leader/${lb}${tx}`;
-    case 'EpochRolled':
-      return `Leader ${shortA(lb)} rolled into epoch ${a.epoch}, unit price ${(Number(a.unitPrice) / 1e18).toFixed(4)}, status ${['Active', 'Unbonded', 'Breached'][Number(a.status)] ?? a.status}.${tx}`;
-    case 'Claimed':
-      return `Slash paid: vault ${shortA(String(a.vault))} claimed ${ausd(a.amount)} AUSD from leader ${shortA(lb)} (epoch ${a.epoch}).${tx}`;
-    case 'FollowerRegistered':
-      return `New follower: vault ${shortA(String(a.vault))} now copies leader ${shortA(lb)} with a ${ausd(a.cap)} AUSD cap.${tx}`;
-    default:
-      return null;
-  }
-}
