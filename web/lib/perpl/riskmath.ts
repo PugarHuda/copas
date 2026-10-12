@@ -68,7 +68,7 @@ const median = (xs: number[]) => {
 
 /** Traders bucketed by lifetime volume: how each size class actually fared (realized PnL after fees). */
 export function cohorts(rows: AccountRow[]) {
-  const out = COHORTS.map((c) => ({ label: c.label, traders: 0, profitable: 0, netPnl: 0, fees: 0, liquidated: 0, wins: 0, closed: 0, pnls: [] as number[] }));
+  const out = COHORTS.map((c) => ({ label: c.label, traders: 0, profitable: 0, netPnl: 0, fees: 0, liquidated: 0, pnls: [] as number[], rates: [] as number[] }));
   for (const r of rows) {
     const b = out[COHORTS.findIndex((c) => r.volume < c.max)];
     b.traders++;
@@ -76,13 +76,12 @@ export function cohorts(rows: AccountRow[]) {
     b.netPnl += r.netPnl;
     b.fees += r.fees;
     if (r.liquidations > 0) b.liquidated++;
-    b.wins += r.wins;
-    b.closed += r.wins + r.losses;
+    if (r.wins + r.losses) b.rates.push((r.wins / (r.wins + r.losses)) * 100);
     b.pnls.push(r.netPnl);
   }
   return out
     .filter((b) => b.traders)
-    .map(({ pnls, wins, closed, ...b }) => ({ ...b, medianPnl: median(pnls), winRate: closed ? (wins / closed) * 100 : null }));
+    .map(({ pnls, rates, ...b }) => ({ ...b, medianPnl: median(pnls), winRate: rates.length ? median(rates) : null })); // per-trader median: trade-weighted rates are all bots
 }
 
 /** Share of all positive PnL taken by the top `pct` % of traders by PnL. */

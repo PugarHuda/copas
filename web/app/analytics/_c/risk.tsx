@@ -93,7 +93,7 @@ const bps = (v: number | null) => (v == null ? "> book" : `${num(v, v < 10 ? 1 :
 export async function BookRisk({ L }: { L: Lx }) {
   const rows = await bookRisk().catch(() => null);
   if (!rows?.length) return <Empty>{L("Order book Perpl sedang tidak tersedia.", "The Perpl order book is unavailable right now.")}</Empty>;
-  const cover = (depth: number, liq: number) => (liq > 0 ? depth / liq : null);
+  const cover = (depth: number, liq: number) => (liq >= 1000 ? depth / liq : null); // ratio over a few dollars of liqs is noise
   const tone = (c: number | null) => (c == null ? "text-ink-3" : c < 1 ? "text-down" : c < 3 ? "text-warn" : "text-up");
   return (
     <>
@@ -167,7 +167,7 @@ export async function Cohorts({ L, idx }: { L: Lx; idx: boolean }) {
               <th>{L("Volume seumur hidup", "Lifetime volume")}</th>
               <th className="r">Trader</th>
               <th className="r">{L("Profit", "In profit")}</th>
-              <th className="r">{L("Win rate", "Win rate")}</th>
+              <th className="r">{L("Win rate median", "Median win rate")}</th>
               <th className="r">{L("PnL median", "Median PnL")}</th>
               <th className="r">{L("PnL total", "Total PnL")}</th>
               <th className="r">{L("Fee", "Fees")}</th>

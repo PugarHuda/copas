@@ -21,6 +21,7 @@ assert.equal(c[0].traders, 3);
 assert.equal(c[0].profitable, 1);
 assert.equal(c[0].medianPnl, -10);
 assert.equal(c[0].liquidated, 1);
+assert.equal(c[0].winRate, 0); // per-trader rates 0, 100, 0 -> median 0
 assert.equal(c[1].label, "$1M–10M");
 assert.equal(profitConcentration([a(1, 90), a(1, 10), a(1, -5), a(1, -5)], 25), 90);
 
