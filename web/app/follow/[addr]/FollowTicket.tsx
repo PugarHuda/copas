@@ -101,8 +101,9 @@ export function FollowTicket({ leader: l, maxDeposit }: { leader: Leader; maxDep
     const vault = vaults[vaults.length - 1];
     const v = { address: vault, abi: copasAbi.FollowerVault as Abi };
     const amt = toAusd(n.deposit);
-    await write("small", { address: deployment.ausd, abi: erc20Abi as Abi, functionName: "approve", args: [vault, amt] });
-    await write("small", { ...v, functionName: "deposit", args: [amt] });
+    // stop at the first failed step: a failed approve made the deposit and follow revert too, burning gas and hiding the cause
+    if (!(await write("small", { address: deployment.ausd, abi: erc20Abi as Abi, functionName: "approve", args: [vault, amt] }))) return;
+    if (!(await write("small", { ...v, functionName: "deposit", args: [amt] }))) return;
     const ref = getReferrer();
     if (ref && ref.toLowerCase() !== address?.toLowerCase()) await write("small", { ...v, functionName: "setReferrer", args: [ref] });
     if (await write("small", { ...v, functionName: "follow", args: [l.book, params] })) setDone(vault);
