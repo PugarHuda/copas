@@ -10,7 +10,7 @@ On Perpl, 71% of traders lose money within 30 days, and copy-trading leaders ris
 
 ## Links
 - Repo: https://github.com/PugarHuda/copas
-- Live app: _(Vercel URL)_ — testnet 10143. Judges: create a passkey account, then use **Get testnet MON + AUSD** in the account menu.
+- Live app: https://copas-mocha.vercel.app — testnet 10143. Judges: create a passkey account, then use **Get testnet MON + AUSD** in the account menu.
 - Demo video (≤3 min): _(link)_ · Pitch (≤2 min): _(link)_
 - Contracts: `contracts/deployments/10143.json` (registry `0xA8BA57c7Af1d9A28660653E0439A180c86D03e3d`, feed `0x75d52573C684C7799778Da633fDceB80297d7718`)
 

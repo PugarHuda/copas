@@ -34,7 +34,7 @@ Each app folder has its own README with setup, env vars, and what is live versus
 
 Copas is live on Monad testnet (chain `10143`), trading on the Perpl testnet exchange. All addresses are in [`contracts/deployments/10143.json`](contracts/deployments/10143.json).
 
-1. Open the web app and choose **Create passkey account**. You get no seed phrase, and no key is stored on any server. Use a browser and passkey manager with WebAuthn PRF: Windows 11, iCloud Keychain, Google Password Manager or 1Password. A local Chrome desktop profile does not support PRF.
+1. Open the web app at https://copas-mocha.vercel.app and choose **Create passkey account**. You get no seed phrase, and no key is stored on any server. Use a browser and passkey manager with WebAuthn PRF: Windows 11, iCloud Keychain, Google Password Manager or 1Password. A local Chrome desktop profile does not support PRF.
 2. Open the account menu and choose **Get testnet MON + AUSD**. You receive 1 MON for gas plus 10,000 AUSD from the Perpl testnet faucet (`0xd236c18d274e54faccc3dd9dda4b27965a73ee6c`, `requestFunds(address)`).
 3. Follow a leader from the leaderboard, open your vault in **Me**, and watch the copied position. Alternatively, open **Become a leader** to post a bond and a mandate.
 
