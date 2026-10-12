@@ -118,4 +118,4 @@ export function vaultSkipReason(v: Vault): string | null {
 
 // ---------------------------------------------------------------- channel alerts (hosted tick -> TELEGRAM_CHAT_ID)
 /** Events the tick announces to the public channel. */
-export const CHANNEL_EVENTS = ['LeaderCreated', 'Breached', 'EpochRolled', 'Claimed', 'FollowerRegistered'] as const;
+export const CHANNEL_EVENTS = ['LeaderCreated', 'Breached', 'EpochRolled', 'Claimed', 'FollowerRegistered', 'UnbondRequested'] as const;

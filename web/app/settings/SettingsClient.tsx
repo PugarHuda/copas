@@ -12,7 +12,7 @@ const CLEARED = "copas.cleared";
 export function SettingsClient() {
   const { t, lang } = useT();
   const L = useL();
-  const { status, address, expiresAt, error, supported, create, signIn, signOut } = useMeraSession();
+  const { status, address, expiresAt, error, supported, create, signIn, signOut, persona, switchPersona } = useMeraSession();
   const left = useMinutesLeft(status === "signed-in" ? expiresAt : undefined);
   const [expect, setExpect] = useState<string | null>(null);
   const [cleared, setCleared] = useState(false);
@@ -85,6 +85,33 @@ export function SettingsClient() {
             "Your account is derived from the passkey's PRF output. On Chrome, passkeys saved to a local profile often lack PRF. Use a synced passkey: Google Password Manager, iCloud Keychain, 1Password or Windows Hello.",
           )}
         </p>
+      </Panel>
+
+      <Panel
+        title={L("Identitas follower privat", "Private follower identity")}
+        aside={<Pill tone={persona === 1 ? "up" : undefined}>{persona === 1 ? L("privat", "private") : L("utama", "main")}</Pill>}
+      >
+        <p className="text-sm leading-relaxed text-ink-2">
+          {L(
+            "Passkey yang sama menurunkan alamat kedua (HKDF info secp256k1/account/1). Tidak ada data onchain yang menautkannya ke alamat utama: leader dan publik melihat vault milik alamat yang tidak pernah dipakai di tempat lain. Hanya passkey kamu yang tahu keduanya milikmu.",
+            "The same passkey derives a second address (HKDF info secp256k1/account/1). Nothing onchain ties it to your main address: leaders and the public see a vault owned by an address used nowhere else. Only your passkey knows both are yours.",
+          )}
+        </p>
+        <p className="mt-2 text-xs leading-relaxed text-warn">
+          {L(
+            "Jangan danai alamat privat dari alamat utama: transfer itu sendiri menautkan keduanya. Di testnet, isi lewat Get testnet MON + AUSD di menu akun.",
+            "Do not fund the private address from your main one: that transfer is itself the link. On testnet, fill it with Get testnet MON + AUSD in the account menu.",
+          )}
+        </p>
+        <div className="mt-3 flex flex-wrap gap-2">
+          <button className={persona === 0 ? btn.primary : btn.ghost} disabled={status === "working" || !address || persona === 0} onClick={() => quiet(switchPersona(0))}>
+            {L("Akun utama", "Main account")}
+          </button>
+          <button className={persona === 1 ? btn.primary : btn.ghost} disabled={status === "working" || !address || persona === 1} onClick={() => quiet(switchPersona(1))}>
+            {L("Identitas privat", "Private identity")}
+          </button>
+        </div>
+        {!address && <p className="mt-2 text-xs text-ink-3">{L("Masuk dulu dengan passkey.", "Sign in with your passkey first.")}</p>}
       </Panel>
 
       <Panel title={t("settings.session")}>

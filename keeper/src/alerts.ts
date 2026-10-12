@@ -1,7 +1,9 @@
-// G4 alerts: Telegram bot with a tiny JSON subscriber store.
-// /start = all alerts · /watch <leaderBook|vault> = only those addresses · /unwatch <addr> · /stop · /list
+// G4 alerts. Who gets what: the alerts channel (TELEGRAM_CHAT_ID) gets every card; a chat that sent /watch <leader|vault> to
+// @copas_monad_bot gets the events touching those addresses in a DM. Watch lists live in the bot's private Vercel Blob store
+// (web/lib/tgWatch.ts, one blob per chat at tg/watch/<chatId>.json); the keeper only reads them (BLOB_READ_WRITE_TOKEN).
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { get, list } from '@vercel/blob';
 import { parseEventLogs, type Address, type Hex } from 'viem';
 import { ABI, cfg, log } from './config.js';
 import { client } from './chain.js';
@@ -9,48 +11,49 @@ import { BREACH_REASON } from './logic.js';
 
 export type AlertKind = 'position-opened' | 'position-closed' | 'dd-warning' | 'breach' | 'claim-available' | 'unbond-requested' | 'stop-loss';
 
-const FILE = resolve(cfg.dataDir, 'subscribers.json');
-const API = `https://api.telegram.org/bot${cfg.telegramToken}`;
-let subs: Record<string, string[]> = {}; // chatId -> watched addresses (empty = everything)
-try { subs = JSON.parse(readFileSync(FILE, 'utf8')); } catch { /* first run */ }
-const save = () => { mkdirSync(cfg.dataDir, { recursive: true }); writeFileSync(FILE, JSON.stringify(subs, null, 2)); };
+const WATCH_PREFIX = 'tg/watch/';
+
+/** chatId -> watched addresses (lowercase). Empty without BLOB_READ_WRITE_TOKEN or when the store is unreachable. Never throws. */
+export async function loadWatchers(token = process.env.BLOB_READ_WRITE_TOKEN): Promise<Map<string, string[]>> {
+  const out = new Map<string, string[]>();
+  if (!token) return out;
+  try {
+    // ponytail: one list + one get per watching chat each tick; fine to a few hundred chats, a single index blob after that
+    let cursor: string | undefined;
+    do {
+      const page = await list({ prefix: WATCH_PREFIX, cursor, token });
+      await Promise.all(page.blobs.map(async (b) => {
+        const r = await get(b.pathname, { access: 'private', useCache: false, token });
+        if (r?.statusCode !== 200) return;
+        const { addrs } = JSON.parse(await new Response(r.stream).text()) as { addrs?: string[] };
+        if (addrs?.length) out.set(b.pathname.slice(WATCH_PREFIX.length, -'.json'.length), addrs.map((a) => a.toLowerCase()));
+      }));
+      cursor = page.hasMore ? page.cursor : undefined;
+    } while (cursor);
+  } catch (e) { log('warn', 'watch lists unreadable', { err: String(e) }); }
+  return out;
+}
+
+/** Chats watching any of `addrs`. */
+export function watchersOf(watchers: Map<string, string[]>, addrs: string[]): string[] {
+  const want = addrs.filter(Boolean).map((a) => a.toLowerCase());
+  return [...watchers].filter(([, w]) => w.some((a) => want.includes(a))).map(([chat]) => chat);
+}
 
 export const recentAlerts: { t: string; kind: AlertKind; text: string }[] = [];
 export let alertsSent = 0;
 
-async function tg(method: string, body: object) {
-  const r = await fetch(`${API}/${method}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
-  const j: any = await r.json();
-  if (!j.ok) throw new Error(`telegram ${method}: ${j.description}`);
-  return j.result;
-}
-
-/** Fan an alert out to every chat watching any of `addrs` (or everything). Never throws. */
+let cached: { at: number; w: Map<string, string[]> } | undefined;
+/** Long-running mode: text alert to every chat watching any of `addrs` (watch lists re-read at most once a minute). Never throws. */
 export async function alert(kind: AlertKind, text: string, addrs: string[]) {
   recentAlerts.unshift({ t: new Date().toISOString(), kind, text });
   recentAlerts.length = Math.min(recentAlerts.length, 50);
   log('info', 'alert', { kind, text });
   if (!cfg.telegramToken) return;
-  const want = addrs.map((a) => a.toLowerCase());
-  for (const [chat, watch] of Object.entries(subs)) {
-    if (watch.length && !watch.some((w) => want.includes(w))) continue;
-    try { await tg('sendMessage', { chat_id: chat, text, disable_web_page_preview: true }); alertsSent++; }
+  if (!cached || Date.now() - cached.at > 60_000) cached = { at: Date.now(), w: await loadWatchers() };
+  for (const chat of watchersOf(cached.w, addrs)) {
+    try { await tgCall(cfg.telegramToken, 'sendMessage', { chat_id: chat, text, link_preview_options: { is_disabled: true } }); alertsSent++; }
     catch (e) { log('warn', 'telegram send failed', { chat, err: String(e) }); }
-  }
-}
-
-function command(chat: string, text: string): string {
-  const [cmd, arg] = text.trim().split(/\s+/);
-  const addr = arg?.toLowerCase();
-  switch (cmd.replace(/@.*/, '')) {
-    case '/start': subs[chat] ??= []; save(); return 'Subscribed to Copas alerts. /watch <address> to narrow to a leader or vault, /stop to leave.';
-    case '/watch':
-      if (!addr || !/^0x[0-9a-f]{40}$/.test(addr)) return 'Usage: /watch 0x<leaderBook or vault>';
-      subs[chat] = [...new Set([...(subs[chat] ?? []), addr])]; save(); return `Watching ${addr}`;
-    case '/unwatch': subs[chat] = (subs[chat] ?? []).filter((a) => a !== addr); save(); return `Stopped watching ${addr}`;
-    case '/stop': delete subs[chat]; save(); return 'Unsubscribed.';
-    case '/list': return subs[chat] ? (subs[chat].length ? subs[chat].join('\n') : 'All alerts') : 'Not subscribed. /start';
-    default: return 'Commands: /start /watch <addr> /unwatch <addr> /list /stop';
   }
 }
 
@@ -74,6 +77,10 @@ const pctBps = (x: unknown) => `${(Number(x) / 100).toFixed(2)}%`;
 const lev = (h: unknown) => `${(Number(h) / 100).toFixed(1)}x`;
 const shortA = (a: string) => `${a.slice(0, 6)}…${a.slice(-4)}`;
 const STATUS_NAME = ['Active', 'Unbonded', 'Breached'];
+
+/** Addresses an event concerns: the leader book, plus the vault for follower events. Watchers of either get the card. */
+export const eventAddrs = (ev: ChannelEvent) =>
+  [(ev.eventName === 'LeaderCreated' ? String(ev.args?.leaderBook) : ev.address).toLowerCase(), ...(ev.args?.vault ? [String(ev.args.vault).toLowerCase()] : [])];
 
 /** One photo card per Copas event (the leader's live OG image + real numbers + buttons), or null for events the channel ignores. */
 export function channelCard(ev: ChannelEvent, x: Extra, explorer: string, app = APP, now = Date.now()): Card | null {
@@ -119,6 +126,12 @@ export function channelCard(ev: ChannelEvent, x: Extra, explorer: string, app = 
       ];
       break;
     }
+    case 'UnbondRequested':
+      lines = [
+        `<b>Unbond requested</b> · leader ${L} asked to withdraw <b>${ausd(a.amount)} AUSD</b> of its bond, unlocking at epoch ${esc(a.unlockEpoch)}.`,
+        'Follower protection shrinks by that amount once it unlocks. Followers can tighten limits or unfollow before then.',
+      ];
+      break;
     case 'Claimed':
       lines = [`<b>Slash paid</b> · vault ${esc(shortA(String(a.vault)))} claimed <b>${ausd(a.amount)} AUSD</b> from the epoch ${esc(a.epoch)} pot of leader ${L}`];
       break;
@@ -191,23 +204,4 @@ export async function channelExtra(ev: ChannelEvent): Promise<Extra> {
     try { mkdirSync(cfg.dataDir, { recursive: true }); writeFileSync(UNITS, JSON.stringify(units)); } catch { /* read-only fs: no change line next roll */ }
   }
   return x;
-}
-
-/** Long-polls getUpdates for subscription commands. */
-export async function runTelegramBot() {
-  if (!cfg.telegramToken) return log('info', 'telegram disabled (no TELEGRAM_BOT_TOKEN)');
-  let offset = 0;
-  for (;;) {
-    try {
-      const updates: any[] = await tg('getUpdates', { offset, timeout: 30 });
-      for (const u of updates) {
-        offset = u.update_id + 1;
-        const m = u.message;
-        if (m?.text?.startsWith('/')) await tg('sendMessage', { chat_id: m.chat.id, text: command(String(m.chat.id), m.text) });
-      }
-    } catch (e) {
-      log('warn', 'telegram poll failed', { err: String(e) });
-      await new Promise((r) => setTimeout(r, 5000));
-    }
-  }
 }

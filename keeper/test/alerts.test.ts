@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { channelCard, esc, sendChannelCard, type Card } from '../src/alerts.js';
+import { channelCard, esc, eventAddrs, loadWatchers, sendChannelCard, watchersOf, type Card } from '../src/alerts.js';
 
 const EX = 'https://testnet.monadexplorer.com';
 const APP = 'https://copas-mocha.vercel.app';
@@ -96,5 +96,21 @@ describe('sendChannelCard', () => {
   it('throws when Telegram refuses both, so the tick retries', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ ok: false, description: 'Bad Request: chat not found' }), { status: 400 })));
     await expect(sendChannelCard(card, 'T', '@nope')).rejects.toThrow('chat not found');
+  });
+});
+
+describe('watch lists', () => {
+  const w = new Map([['111', [lb]], ['222', [V]], ['333', ['0x' + '00'.repeat(20)]]]);
+  it('a leader event reaches the leader watchers; a follower event also reaches the vault watchers', () => {
+    expect(watchersOf(w, eventAddrs({ eventName: 'Breached', address: LB, args: {} }))).toEqual(['111']);
+    expect(watchersOf(w, eventAddrs({ eventName: 'Claimed', address: LB, args: { vault: V.toUpperCase().replace('0X', '0x') } }))).toEqual(['111', '222']);
+    expect(watchersOf(w, eventAddrs({ eventName: 'LeaderCreated', address: '0xregistry', args: { leaderBook: LB } }))).toEqual(['111']);
+  });
+  it('no Blob token: nobody, without a network call', async () => {
+    expect((await loadWatchers('')).size).toBe(0);
+  });
+  it('unbond card names the amount and unlock epoch', () => {
+    const c = channelCard({ eventName: 'UnbondRequested', address: LB, args: { amount: 20_000_000n, unlockEpoch: 9n } }, {}, EX)!;
+    expect(c.caption).toContain('<b>20 AUSD</b> of its bond, unlocking at epoch 9');
   });
 });

@@ -68,6 +68,8 @@ jobs:
           # optional: Telegram channel alerts (keeper/README.md). Unset = the tick skips alerts.
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          # read-only use: per-chat /watch lists the bot keeps in its private Vercel Blob store (web/lib/tgWatch.ts)
+          BLOB_READ_WRITE_TOKEN: ${{ secrets.BLOB_READ_WRITE_TOKEN }}
       - uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         if: always()
         with:

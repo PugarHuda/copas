@@ -9,7 +9,7 @@ import {
 } from "@category-labs/mera";
 import { toViemAccount } from "@category-labs/mera/viem";
 import type { LocalAccount } from "viem";
-import { sessionFromPrf } from "./derive";
+import { sessionFromPrf, type Persona } from "./derive";
 
 /** E2: prompt-free window for small actions. */
 export const SESSION_TTL_MS = 30 * 60 * 1000;
@@ -25,7 +25,7 @@ export type ActionRisk = "small" | "risky";
 
 // Convenience hint only. Losing it changes nothing: sign-in works from the passkey alone.
 const HINT_KEY = "copas.mera.hint";
-type Hint = { credential: PasskeyCredentialMetadata; address: `0x${string}` };
+type Hint = { credential: PasskeyCredentialMetadata; address: `0x${string}`; persona?: Persona };
 
 type Status = "signed-out" | "working" | "signed-in" | "expired";
 
@@ -42,6 +42,10 @@ type MeraState = {
   cancel: () => void;
   /** Returns a viem account allowed to sign an action of the given risk. Re-prompts when required. */
   authorize: (risk: ActionRisk) => Promise<LocalAccount>;
+  /** E4: 0 = main account, 1 = private follower identity (same passkey, unlinkable address). */
+  persona: Persona;
+  /** Switches identity with one passkey prompt; the session restarts on the other address. */
+  switchPersona: (p: Persona) => Promise<void>;
   /** "Many Keys": PRF output of the same passkey under another 32-byte salt. Caller owns (and should wipe) the bytes. */
   prf: (salt: Uint8Array) => Promise<Uint8Array>;
 };
@@ -127,12 +131,16 @@ export function MeraProvider({ children }: { children: React.ReactNode }) {
   const sessionRef = useRef<Secp256k1SigningSession | null>(null);
   const accountRef = useRef<LocalAccount | null>(null);
   const credRef = useRef<PasskeyCredentialMetadata | undefined>(undefined);
+  const [persona, setPersona] = useState<Persona>(0);
+  const personaRef = useRef<Persona>(0);
 
   useEffect(() => {
     setSupported(typeof window !== "undefined" && !!window.PublicKeyCredential && window.isSecureContext);
     const h = readHint();
     if (h) {
       credRef.current = h.credential;
+      personaRef.current = h.persona ?? 0;
+      setPersona(personaRef.current);
       setAddress(h.address); // shown as "last used", not signed in
     }
   }, []);
@@ -157,7 +165,7 @@ export function MeraProvider({ children }: { children: React.ReactNode }) {
 
   const start = useCallback(
     async (prfOutput: Uint8Array, credential: PasskeyCredentialMetadata, expect?: `0x${string}`) => {
-      const { session, address: addr } = await sessionFromPrf(prfOutput);
+      const { session, address: addr } = await sessionFromPrf(prfOutput, personaRef.current);
       if (expect && expect.toLowerCase() !== addr.toLowerCase()) {
         session.end();
         throw Object.assign(new Error("address mismatch"), { code: "ADDRESS_MISMATCH" });
@@ -166,7 +174,7 @@ export function MeraProvider({ children }: { children: React.ReactNode }) {
       sessionRef.current = session;
       accountRef.current = toViemAccount(session);
       credRef.current = credential;
-      writeHint({ credential, address: addr });
+      writeHint({ credential, address: addr, persona: personaRef.current });
       setAddress(addr);
       setExpiresAt(Date.now() + SESSION_TTL_MS);
       setStatus("signed-in");
@@ -204,6 +212,8 @@ export function MeraProvider({ children }: { children: React.ReactNode }) {
   const create = useCallback(
     () =>
       run(async () => {
+        personaRef.current = 0; // a new passkey starts on its main account
+        setPersona(0);
         const res = await createPasskeyWithPrfOutput({
           rp: { id: rpId(), name: "Copas" },
           user: { name: `copas-${new Date().toISOString().slice(0, 10)}`, displayName: "Copas account" },
@@ -243,6 +253,24 @@ export function MeraProvider({ children }: { children: React.ReactNode }) {
     [expiresAt, run, start, address],
   );
 
+  const switchPersona = useCallback(
+    async (p: Persona) => {
+      const prev = personaRef.current;
+      personaRef.current = p;
+      try {
+        await run(async () => {
+          const res = await getPasskeyPrfOutput({ rpId: rpId(), credential: credRef.current, timeout: PASSKEY_TIMEOUT_MS });
+          await start(res.prfOutput, { credentialId: res.credentialId });
+        });
+        setPersona(p);
+      } catch (e) {
+        personaRef.current = prev;
+        throw e;
+      }
+    },
+    [run, start],
+  );
+
   const prf = useCallback(
     (salt: Uint8Array) =>
       run(async () => {
@@ -254,7 +282,7 @@ export function MeraProvider({ children }: { children: React.ReactNode }) {
   );
 
   return (
-    <Ctx.Provider value={{ status, address, expiresAt, error, supported, create, signIn, signOut, cancel, authorize, prf }}>
+    <Ctx.Provider value={{ status, address, expiresAt, error, supported, create, signIn, signOut, cancel, authorize, prf, persona, switchPersona }}>
       {children}
     </Ctx.Provider>
   );

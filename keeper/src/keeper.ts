@@ -4,7 +4,7 @@ import { decodeFunctionResult, encodeFunctionData, getAddress, parseEventLogs, z
 import { ABI, cfg, log, type Deployments } from './config.js';
 import { client } from './chain.js';
 import type { Signer } from './signer.js';
-import { alert, alertsSent, channelCard, channelExtra, recentAlerts, sendChannelCard } from './alerts.js';
+import { alert, alertsSent, channelCard, channelExtra, eventAddrs, loadWatchers, recentAlerts, sendChannelCard, watchersOf } from './alerts.js';
 import { feedbackCall } from './erc8004.js';
 import { marketMake } from './mm.js';
 import {
@@ -472,15 +472,16 @@ export class Keeper {
   }
 
   /**
-   * Post LeaderCreated / Breached / EpochRolled / Claimed / FollowerRegistered since the last tick to TELEGRAM_CHAT_ID.
+   * Post LeaderCreated / Breached / EpochRolled / Claimed / FollowerRegistered / UnbondRequested since the last tick to TELEGRAM_CHAT_ID,
+   * and DM the same card to every chat that /watch-es the leader or vault (watch lists from the bot's Blob store).
    * Without the env (or on the first run) the cursor just moves to head, so enabling it later never replays history.
    * The cursor only advances past a range once all its posts went out; a Telegram outage retries next tick. Never throws.
    */
   async announce() {
     const head = await client.getBlockNumber();
     const from = this.alertCursor + 1n;
-    if (!cfg.telegramToken || !cfg.telegramChatId || !this.alertCursor || head - this.alertCursor > CHANNEL_MAX_LAG) {
-      if (cfg.telegramToken && cfg.telegramChatId && this.alertCursor) log('warn', 'channel alerts: gap too large, skipping', { from, head });
+    if (!cfg.telegramToken || !this.alertCursor || head - this.alertCursor > CHANNEL_MAX_LAG) {
+      if (cfg.telegramToken && this.alertCursor) log('warn', 'channel alerts: gap too large, skipping', { from, head });
       this.alertCursor = head;
       return;
     }
@@ -491,11 +492,18 @@ export class Keeper {
       logs = await this.getLogsChunked(from, head, CHANNEL, [this.dep.registry, ...[...this.leaders.values()].map((l) => l.address)], 4);
     } catch (e) { return log('warn', 'channel alerts: getLogs failed, retrying next tick', { from, head, err: String(e) }); }
     logs.sort((a, b) => Number(a.blockNumber - b.blockNumber) || a.logIndex - b.logIndex);
+    const watchers = logs.some((lg) => (CHANNEL_EVENTS as readonly string[]).includes(lg.eventName)) ? await loadWatchers() : new Map<string, string[]>();
     for (const lg of logs) {
       if (!(CHANNEL_EVENTS as readonly string[]).includes(lg.eventName)) continue;
       try {
         const card = channelCard(lg, await channelExtra(lg), ex);
-        if (card) { await sendChannelCard(card); log('info', 'channel alert sent', { ev: lg.eventName, tx: lg.transactionHash }); }
+        if (!card) continue;
+        if (await sendChannelCard(card)) log('info', 'channel alert sent', { ev: lg.eventName, tx: lg.transactionHash });
+        for (const chat of watchersOf(watchers, eventAddrs(lg))) {
+          // a DM failure (user blocked the bot) must not hold back the channel cursor
+          try { await sendChannelCard(card, cfg.telegramToken, chat); log('info', 'watch alert sent', { ev: lg.eventName, chat }); }
+          catch (e) { log('warn', 'watch alert failed', { chat, err: String(e) }); }
+        }
       }
       catch (e) {
         // resume from this block next tick (earlier posts in the same block may repeat, later ones are not lost)

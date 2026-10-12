@@ -39,7 +39,7 @@ function useInTelegram() {
 }
 
 export function AccountButton() {
-  const { status, address, expiresAt, error, create, signIn, signOut, cancel } = useMeraSession();
+  const { status, address, expiresAt, error, create, signIn, signOut, cancel, persona } = useMeraSession();
   const { t, lang } = useT();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -66,6 +66,7 @@ export function AccountButton() {
         <button onClick={() => setOpen(!open)} aria-expanded={open} className="num flex items-center gap-2 rounded-md border border-line-strong px-3 py-1.5 text-sm">
           <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-up" />
           {short(address)}
+          {persona === 1 && <span className="rounded bg-gold/15 px-1 text-[10px] uppercase tracking-wide text-gold-2">private</span>}
         </button>
         {open && (
           <div className="absolute right-0 mt-2 w-72 rounded-lg border border-line bg-surface p-3 text-sm shadow-xl shadow-black/40">

@@ -10,10 +10,12 @@ import { copasAbi, deployment, type Leader } from "@/lib/copas/contracts";
 import { copasChain, explorerTx, rpcTransport } from "@/lib/chains";
 import { getLeaderboard, type LbPeriod } from "@/lib/perpl/api";
 import { num, pct, pctAuto, short } from "@/lib/format";
+import { MAX_WATCH, getWatch, setWatch } from "@/lib/tgWatch";
 
 /**
  * @copas_monad_bot webhook (setWebhook url=…/api/telegram, secret_token=TELEGRAM_WEBHOOK_SECRET).
- * Stateless: every answer is a live chain / indexer / Perpl read. Leader cards carry a ↻ button that re-reads the
+ * Every answer is a live chain / indexer / Perpl read. The only state is each chat's /watch list (private Vercel Blob, lib/tgWatch),
+ * which the hosted keeper reads to DM watchers. Leader cards carry a ↻ button that re-reads the
  * LeaderBook and edits the card (image + numbers) in place, in chats, groups and inline-shared messages alike.
  */
 export const dynamic = "force-dynamic";
@@ -25,7 +27,7 @@ type Chat = { id: number; type: string };
 type Msg = { message_id: number; chat: Chat; text?: string; photo?: unknown[] };
 type Update = {
   message?: Msg;
-  callback_query?: { id: string; data?: string; message?: Msg; inline_message_id?: string };
+  callback_query?: { id: string; data?: string; message?: Msg; inline_message_id?: string; from: { id: number } };
   inline_query?: { id: string; query: string };
 };
 
@@ -114,7 +116,7 @@ function caption(l: Leader) {
 function cardKeyboard(l: Leader, priv: boolean): Btn[][] {
   const b = l.book.toLowerCase();
   return [
-    [{ text: "↻ Refresh", callback_data: `R:${b}` }, open("Open in Copas", `${APP}/leader/${b}`, priv)],
+    [{ text: "↻ Refresh", callback_data: `R:${b}` }, { text: "🔔 Watch", callback_data: `W:${b}` }, open("Open in Copas", `${APP}/leader/${b}`, priv)],
     [{ text: "Breach odds", url: `${APP}/market/${b}` }, { text: "Follow", url: `${APP}/follow/${b}` }, { text: "Proof", url: `${APP}/proof` }],
   ];
 }
@@ -137,6 +139,9 @@ const HELP = [
   "/proof: the latest real breach with its drawdown math",
   "/reality [week|month|all]: how many Perpl traders lost money",
   "/season: this week's follower-outcome league",
+  "",
+  "/watch &lt;leader | 0xvault&gt;: get a message here when it breaches, rolls an epoch, starts unbonding, gains a follower or pays a claim",
+  "/unwatch &lt;leader | 0xvault | all&gt; · /watching: what this chat watches",
   "",
   "Share a leader in any chat: type <code>@copas_monad_bot 0xb1b0</code> or <code>@copas_monad_bot leaders</code>.",
 ].join("\n");
@@ -169,6 +174,12 @@ async function command(chat: Chat, text: string) {
       return reality(chat, arg);
     case "/season":
       return season(chat);
+    case "/watch":
+      return arg ? watch(chat, arg) : watching(chat);
+    case "/unwatch":
+      return unwatch(chat, arg);
+    case "/watching":
+      return watching(chat);
     default:
       return priv ? say(chat, HELP) : undefined; // groups: stay quiet on commands meant for other bots
   }
@@ -292,9 +303,72 @@ async function season(chat: Chat) {
   );
 }
 
+/** A leader (#n, name, 0x prefix) or a full FollowerVault address, checked against the registry. */
+async function resolveTarget(arg: string): Promise<{ addr: string; label: string } | null> {
+  const ls = await getLeaders();
+  const l = ls && find(ls, arg);
+  if (l) return { addr: l.book.toLowerCase(), label: `leader ${l.name}` };
+  const a = arg.trim().toLowerCase();
+  if (!/^0x[0-9a-f]{40}$/.test(a) || !deployment?.registry) return null;
+  const client = createPublicClient({ chain: copasChain, transport: rpcTransport(copasChain) });
+  const ok = await client.readContract({ address: deployment.registry, abi: copasAbi.CopasRegistry as Abi, functionName: "isVault", args: [a] }).catch(() => false);
+  return ok ? { addr: a, label: `vault ${short(a)}` } : null;
+}
+
+async function addWatch(chatId: number, addr: string) {
+  const cur = await getWatch(chatId);
+  if (cur.includes(addr)) return "already";
+  if (cur.length >= MAX_WATCH) return "full";
+  await setWatch(chatId, [...cur, addr]);
+  return "added";
+}
+
+async function watch(chat: Chat, arg: string) {
+  const t = await resolveTarget(arg);
+  if (!t) return say(chat, `<code>${esc(arg)}</code> is not a Copas leader or vault. Try /leaders, then /watch #1.`);
+  const r = await addWatch(chat.id, t.addr);
+  if (r === "full") return say(chat, `This chat already watches ${MAX_WATCH} addresses. /unwatch one first.`);
+  return say(chat, `${r === "added" ? "Watching" : "Already watching"} ${esc(t.label)} (<code>${t.addr}</code>). The Copas keeper checks the chain every 5 minutes and messages this chat when something happens to it. /watching lists, /unwatch stops.`);
+}
+
+async function unwatch(chat: Chat, arg: string) {
+  const cur = await getWatch(chat.id);
+  if (arg.trim().toLowerCase() === "all") {
+    await setWatch(chat.id, []);
+    return say(chat, `Stopped watching ${cur.length} address${cur.length === 1 ? "" : "es"}.`);
+  }
+  const t = await resolveTarget(arg);
+  const addr = t?.addr ?? arg.trim().toLowerCase();
+  if (!cur.includes(addr)) return say(chat, "This chat does not watch that. /watching lists what it does.");
+  await setWatch(chat.id, cur.filter((a) => a !== addr));
+  return say(chat, `Stopped watching <code>${addr}</code>.`);
+}
+
+async function watching(chat: Chat) {
+  const [cur, ls] = await Promise.all([getWatch(chat.id), getLeaders()]);
+  if (!cur.length) return say(chat, "This chat watches nothing yet. /watch &lt;leader | 0xvault&gt;, or tap 🔔 Watch on a leader card.");
+  const name = (a: string) => ls?.find((l) => l.book.toLowerCase() === a);
+  return say(
+    chat,
+    [
+      "<b>Watching</b>",
+      ...cur.map((a) => {
+        const l = name(a);
+        return l ? `• leader ${esc(l.name)} · ${l.status.toUpperCase()} · drawdown ${pctAuto(l.liveDD)} / ${pctAuto(l.maxDD)}\n  <code>${a}</code>` : `• vault <code>${a}</code>`;
+      }),
+    ].join("\n"),
+  );
+}
+
 async function callback(cq: NonNullable<Update["callback_query"]>) {
   const [kind, addr] = (cq.data ?? "").split(":");
   const chat = cq.message?.chat;
+  if (kind === "W" && /^0x[0-9a-f]{40}$/.test(addr ?? "")) {
+    // the person who tapped gets the DM, also when the card was shared into a group or inline
+    const r = await addWatch(cq.from.id, addr);
+    const text = r === "full" ? `You already watch ${MAX_WATCH} addresses. Send /unwatch in a DM to the bot first.` : `${r === "added" ? "Watching" : "Already watching"} ${short(addr)}. Alerts arrive in your DM with @copas_monad_bot (press Start there once if you never have).`;
+    return tg("answerCallbackQuery", { callback_query_id: cq.id, text, show_alert: true });
+  }
   if (kind === "LS" && chat) await leaders(chat);
   else if (kind === "PF" && chat) await proof(chat);
   else if (kind === "L" || kind === "R") {
