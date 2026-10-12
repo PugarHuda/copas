@@ -131,7 +131,7 @@ export function guardAnalysis(raw: any, f: Features): Analysis {
   // a sentence that contradicts the activity facts is replaced by the deterministic summary
   const fact = (b: Bilingual): Bilingual => ((traded && CLAIMS_NO_TRADING.test(b.en)) || (holds && CLAIMS_NO_POSITION.test(b.en)) ? { en: act!.summary, id: act!.summary } : b);
   let style = fact(bi(raw?.styleSummary));
-  if (act && act.status !== "trading" && style.en !== act.summary && !/closed trades?/i.test(style.en)) style = { en: `${act.summary} ${style.en}`.trim(), id: `${act.summary} ${style.en}`.trim() };
+  if (act && act.status !== "trading" && style.en !== act.summary && !/bclosedb/i.test(style.en)) style = { en: `${act.summary} ${style.en}`.trim(), id: `${act.summary} ${style.en}`.trim() };
   let level = ["low", "medium", "high"].includes(raw?.riskLevel) ? raw.riskLevel : "medium";
   if (act && act.status !== "trading" && level === "low") level = "medium"; // no track record is never "low risk"
   return {
