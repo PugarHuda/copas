@@ -15,20 +15,20 @@ Legenda: ✅ selesai + teruji · 🟡 dikerjakan · ⏳ menunggu (key/deploy) ·
 | A8 | Leader AI agent ERC-8004 | ✅ kontrak + testnet + reputasi | `AgentLeaderRegistry.sol`, `script/AgentLeader.s.sol`, `keeper/scripts/reputation.ts` | agentId 2209 tertaut, agent trade lewat operator; 5 feedback epoch di ReputationRegistry testnet, dibaca halaman leader |
 | A9 | Persetujuan mandat (mandate consent) | ✅ kontrak + testnet + web | `FollowerVault.accepted/consentOk/acceptMandate`, `test/MandateConsent.t.sol` | mandat lebih longgar → sync ke 0 sampai owner setuju; fee = tarif yang disetujui. VaultFactory baru `0x09C8…B6fb` (vault lama tanpa cek ini) |
 | B1 | Underwriter pool | ✅ + testnet | `UnderwriterPool.sol`, `script/Underwrite.s.sol` | 100 AUSD di pool leader demo |
-| B2 | Token DOWN + Kuru | ✅ kontrak · 🟡 Kuru testnet | `BreachMarket.sol`, `onramp/scripts` | |
+| B2 | Token DOWN + Kuru | ✅ testnet | `BreachMarket.sol`, `keeper/src/mm.ts`, `web/app/market` | MM keeper listing + quote tiap epoch; `/market` tampilkan L2 book + fill (HyperSync) + beli/jual DOWN dari wallet passkey (tx `0xe72f5462…`, `0x91730098…`). Mainnet: mint/tebus saja (listing Kuru mainnet owner-only) |
 | B3 | Insured follow | ⬜ | | P3 |
 | C1 | FollowerVault + sync copy-only | ✅ | `FollowerVault.sol` | fork mainnet: entry sama blok |
 | C2 | Kontrol risiko follower | ✅ | `FollowerVault` | stop-loss, mask, leverage, chase, band |
-| C3 | Backtest | 🟡 | `services/` | |
-| C4 | Preview Tenderly | 🟡 | `services/` | |
+| C3 | Backtest | ✅ live | `services/src/backtest.ts` | replay fill Perpl nyata dengan matematika kontrak; `POST /leader/:addr/backtest` di copas-services |
+| C4 | Preview transaksi | ✅ eth_simulateV1 · ⬜ Tenderly | `services/src/simulate.ts` | `POST /simulate` live (diff saldo + event terdekode, testnet & mainnet). Tenderly tidak dikonfigurasi (tidak ada akun) |
 | C5 | Portofolio leader | 🟡 | web (multi-vault) | |
 | C6 | Auto-unfollow | 🟡 | keeper + kontrak (target 0 saat Unbonded/Breached) | |
 | C7 | Bukti eksekusi | 🟡 | indexer + web | |
 | C8 | Klaim slashing | ✅ | `FollowerVault.claim` | |
-| D1 | Analis Kimi + signature | 🟡 | `services/` | |
-| D2 | Nansen discovery + alignment | 🟡 | `services/` | |
-| D3 | Agent penantang | 🟡 | `services/` | |
-| D4 | x402 bayar data | 🟡 | `services/` | |
+| D1 | Analis LLM + receipt | ✅ live | `services/src/kimi.ts` | OpenRouter free model; receipt EIP-191 oleh attester atas hash input/output. Batas free tier 50 req/hari |
+| D2 | Nansen discovery + alignment | ⏳ kredit habis | `services/src/nansen.ts` | API key 403 insufficient_credits; x402 Nansen hanya USDC mainnet. Produksi tampil tanpa data Nansen |
+| D3 | Agent penantang | ✅ live | `services/src/features.ts`, `kimi.ts` | `devilsAdvocate`: 3 alasan tidak follow dari ranking deterministik |
+| D4 | x402 bayar data | 🟡 | `services/src/x402seller.ts`, `scripts/x402-pay.ts` | `GET /x402/report/:addr` live (402, 0.01 USDC testnet, facilitator Monad molandak). Belum ada pembayaran settle: tidak ada USDC testnet (faucet.circle.com butuh browser) |
 | E1 | Login Mera web | ✅ | `web/lib/mera` | passkey PRF → HKDF → secp256k1; uji stateless (hapus data → alamat sama) lulus di produksi via `web/e2e/passkey.spec.ts` (authenticator virtual CDP dengan PRF) |
 | E2 | Session Mera | ✅ | `MeraProvider.authorize` | sesi 30 menit di memori tab untuk aksi kecil; withdraw, createVault/follow, postBond, setOperator, approve underwriter = passkey ulang (`authorize("risky")`, alamat harus sama). Mera sendiri tidak punya TTL, timer `end()` dari app |
 | E3 | Feed strategi terenkripsi | ✅ kontrak + UI · belum ada post onchain | `web/lib/mera/feed.ts`, `CopasFeed` `0x75d5…7718` | salt PRF kedua → X25519; post hanya oleh owner leader yang masuk dengan passkey; leader demo dimiliki key uji, jadi `posts()` masih kosong |
@@ -36,12 +36,12 @@ Legenda: ✅ selesai + teruji · 🟡 dikerjakan · ⏳ menunggu (key/deploy) ·
 | E5 | Vault kunci API | ⬜ tidak dibuat | | tidak ada kunci API pengguna yang dipakai Copas, jadi vault tanpa konsumen. Mera punya `createSecretVaultWithExistingPasskey` kalau nanti dibutuhkan |
 | E6 | Privy server wallet + policy + sponsorship + DENY demo | ✅ testnet | `keeper/privy`, `keeper/src/signer.ts` | keeper hosted menandatangani lewat Privy (owner = authorization key P-256, policy ALLOW 5 fungsi keeper + giveFeedback, DENY AUSD/Perpl), gas disponsori. Webhook Privy hanya bisa dibuat di dashboard (tidak dipakai) |
 | E7 | Blockaid | ⬜ | | API Blockaid tanpa key = 401; key hanya lewat sales/demo blockaid.io. Tx plugin `mm copas` tetap discan Blockaid oleh host Agent Wallet (sisi MetaMask) |
-| F1 | Aurora deposit→follow | 🟡 | `onramp/` | butuh akses Intents Connect |
-| F2 | Socket deposit address | 🟡 | `onramp/` | |
-| F3 | Kuru Flow swap | 🟡 | `onramp/` | |
+| F1 | Aurora deposit→follow | ✅ 1Click · ⏳ Connect | `onramp/` | quote/deposit address/status live di copas-onramp.vercel.app (12 Okt). Recipe Intents Connect butuh akses alpha |
+| F2 | Socket deposit address | ✅ live | `onramp/src/socket.ts` | quote + deposit address + status live 12 Okt |
+| F3 | Kuru Flow swap | ✅ quote · ⬜ swap | `onramp/src/kuru/flow.ts` | mainnet saja; quote + calldata live, belum ada swap (tanpa dana mainnet) |
 | G1 | Indexer Envio | ✅ | `indexer/` | Envio Cloud, mainnet + testnet di head (72,5 jt event mainnet); testnet Perpl mulai blok 70.084.000 |
 | G2 | Dashboard Perpl Analytics | ✅ | `web/analytics` | + heatmap funding & OI (MarketDaily), kohort trader (Account), likuiditas order book vs tekanan likuidasi (`/book`) |
-| G3 | CRE workflow | 🟡 | `cre/` | |
+| G3 | CRE workflow | ✅ simulasi broadcast · ⏳ deploy | `cre/` | 2 report onchain ke consumer (`cre/SIMULATION.md`); deploy DON butuh `cre account access` |
 | G4 | Alert Alchemy + Telegram | ✅ Telegram · ⏳ Alchemy | `web/app/api/telegram`, `web/app/api/alchemy`, `keeper/src/alerts.ts` | @copas_monad_bot: `/watch` `/unwatch` `/watching` + tombol 🔔 Watch; daftar per chat di Vercel Blob privat (`tg/watch/<chat>.json`, diuji di produksi); tick keeper kirim kartu ke channel + DM ke watcher (breach, roll, unbond, follower baru, klaim, leader baru). Alchemy: receiver `/api/alchemy` live (503 sampai env diisi), butuh akun Alchemy (daftar via browser, langkah di `keeper/README.md`) |
 | G5 | Halaman Proof | 🟡 | web | |
 | G6 | Fuzz/invariant | ✅ | `contracts/test/CopasInvariant.t.sol` | 3 invariant |

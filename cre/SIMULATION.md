@@ -14,6 +14,20 @@ $ cre workflow simulate copas-risk-guardian -T testnet-settings --non-interactiv
 2026-10-12T11:53:22Z [USER LOG] report written to 0xBc28c947e51572e55eeb0f988a068C7A0f4ec7b0 tx=0x28bdb9385d27536d9a42c42b993141a168fb295ced9a0954fd3ccbe392dfe878
 ```
 
+
+**Second run, 12 Oct 2026 22:06 UTC, 5 leaders in the registry.** `cre whoami` shows the account logged in with **Deploy Access: Not enabled**, so the workflow cannot be deployed to the DON yet (request it with `cre account access`). The OpenRouter free tier was out of daily requests (429), so every leader fell back to the deterministic heuristic score (`risk=0(heuristic)`, `llmDD=-1`). That is the designed degradation: the report still lands and the checkpoint rule does not depend on the LLM. The fifth leader is the breached one and is skipped.
+
+```
+$ cre workflow simulate copas-risk-guardian -T testnet-settings --non-interactive --trigger-index 0 --broadcast
+2026-10-12T22:06:50Z [USER LOG] registry 0xA8BA57c7Af1d9A28660653E0439A180c86D03e3d: 5 leader(s), evaluating 5
+2026-10-12T22:06:51Z [USER LOG] price BTC: perpl=82639 cex=82565 div=9bps
+2026-10-12T22:06:51Z [USER LOG] leader 0xda695cB060c7e2dF0b5c36EA591eA69399463D90 risk=0(heuristic) dd=0% llmDD=-1 checkpoint=false
+2026-10-12T22:06:51Z [USER LOG] leader 0xbC277432C927996E5F91a2D356289895e1415958 risk=0(heuristic) dd=0% llmDD=-1 checkpoint=false
+2026-10-12T22:06:51Z [USER LOG] leader 0x77f406d2E4Da6CF74B11eF38D29ccC61A251606F risk=0(heuristic) dd=0% llmDD=-1 checkpoint=false
+2026-10-12T22:06:51Z [USER LOG] leader 0x989427C70fb5ED71aCe9c6c9966bd9FB2C3912C6 risk=0(heuristic) dd=0% llmDD=-1 checkpoint=false
+2026-10-12T22:06:53Z [USER LOG] report written to 0xBc28c947e51572e55eeb0f988a068C7A0f4ec7b0 tx=0xd838a728ad8c00d40c305298c14a4e125d1194d11e6357ca3d0778eb50d60286
+```
+
 ---
 
 Earlier notes (4 Oct, before the login):
