@@ -494,4 +494,39 @@ describe("D1 receipt + D4 x402 seller", () => {
       delete process.env.X402_PAY_TO;
     }
   });
+  it("never settles a paid request whose report failed (503 + Retry-After, /settle not called)", async () => {
+    process.env.X402_PAY_TO = "0x57A9fCEEdeB87A0561481Dd24E0489bFECb96523";
+    process.env.X402_FACILITATOR_URL = "https://facilitator.test";
+    const realFetch = globalThis.fetch;
+    const hits: string[] = [];
+    globalThis.fetch = (async (u: any, init?: any) => {
+      const url = String(u?.url ?? u);
+      if (!url.startsWith("https://facilitator.test")) return realFetch(u, init);
+      hits.push(new URL(url).pathname);
+      const body = url.endsWith("/supported")
+        ? { kinds: [{ x402Version: 2, scheme: "exact", network: "eip155:10143" }], extensions: [], signers: {} }
+        : url.endsWith("/verify")
+          ? { isValid: true, payer: "0x0000000000000000000000000000000000000001" }
+          : { success: true, transaction: "0x01", network: "eip155:10143" };
+      return new Response(JSON.stringify(body), { status: 200, headers: { "content-type": "application/json" } });
+    }) as typeof fetch;
+    try {
+      const { wrapFetchWithPayment, x402Client } = await import("@x402/fetch");
+      const { registerExactEvmScheme } = await import("@x402/evm/exact/client");
+      const { privateKeyToAccount } = await import("viem/accounts");
+      const app = createApp({ fetch: stubFetch, now: () => NOW }); // no LLM key: the analysis part fails
+      const client = new x402Client();
+      registerExactEvmScheme(client, { signer: privateKeyToAccount(TEST_PK), networks: ["eip155:10143"] });
+      const r = await wrapFetchWithPayment(((u: any, init?: any) => app.request(String(u?.url ?? u), init ?? (u instanceof Request ? u : undefined))) as typeof fetch, client)(`http://localhost/x402/report/${LEADER}`);
+      expect(r.status).toBe(503);
+      expect(r.headers.get("retry-after")).toBe("3600");
+      expect(((await r.json()) as any).failed.map((x: any) => x.part)).toContain("analysis");
+      expect(hits).toContain("/verify");
+      expect(hits).not.toContain("/settle");
+    } finally {
+      globalThis.fetch = realFetch;
+      delete process.env.X402_PAY_TO;
+      delete process.env.X402_FACILITATOR_URL;
+    }
+  });
 });

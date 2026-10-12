@@ -60,7 +60,14 @@ export function createApp(deps: { fetch?: Fetch; now?: () => number } = {}) {
     app.use("/x402/*", seller.middleware);
     app.get("/x402/report/:addr", async (c) => {
       const a = addr(c.req.param("addr"));
-      const [attestation, analysis] = await Promise.all([attest(a, { fetch: f, now: now() }), runAnalysis(a, 30).catch((e) => ({ error: (e as Error).message }))]);
+      // Both parts are required. Any failure answers >= 400, and @x402/hono then cancels instead of settling,
+      // so a buyer never pays for an error (dist/esm/index.mjs: `if (res.status >= 400)` -> cancellation).
+      const [attestation, analysis] = await Promise.all([
+        attest(a, { fetch: f, now: now() }).catch((e: Error) => ({ error: e.message })),
+        runAnalysis(a, 30).catch((e: Error) => ({ error: e.message })),
+      ]);
+      const failed = Object.entries({ attestation, analysis }).filter(([, v]) => "error" in (v as object)).map(([k, v]) => ({ part: k, error: (v as { error: string }).error }));
+      if (failed.length) return c.json({ error: "report incomplete, payment not settled", failed }, 503, { "Retry-After": "3600" });
       return c.json({ attestation, analysis, paidWith: seller.terms });
     });
   }

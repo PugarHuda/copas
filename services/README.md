@@ -109,7 +109,10 @@ See [NANSEN.md](./NANSEN.md) for every endpoint, data category, payment mode and
 `GET /x402/report/:addr` sits behind `@x402/hono` `paymentMiddleware`: 0.01 testnet USDC on Monad testnet
 (`eip155:10143`, USDC `0x534b2f3A21130d7a60830c2Df862319e593943A3`, EIP-712 domain `USDC`/`2`), paid to `X402_PAY_TO`
 (production: the attester `0x6dbB…2aa1`). The Monad facilitator `https://x402-facilitator.molandak.org` verifies the
-EIP-3009 authorization and settles it, paying the gas. Payer script:
+EIP-3009 authorization and settles it, paying the gas. Both parts of the report are required: if the attestation or the analysis fails (e.g. OpenRouter 429), the
+route answers `503` with `Retry-After: 3600` and `failed[]`, and `@x402/hono` cancels instead of settling (it settles
+only responses below 400), so the buyer is not charged. A 200 always has `attestation` (record, hash, signature) and
+`analysis` (text, features, receipt). Payer script:
 `X402_PAYER_KEY=0x.. pnpm exec tsx scripts/x402-pay.ts [base] [leader]` prints the `payment-response` settlement tx.
 Live, 12 Oct: a real payment settled against production, tx `0x5d9c18d9819552d7979f5fc6819b2ead3a4da01471056ac5463729864e20e1f5`, submitted by the facilitator
 `0x7f6a…Db86` (0.01 USDC from the deployer to the attester). Testnet USDC for the payer came from selling 0.8 MON on
