@@ -68,9 +68,38 @@ export function MeView({ live, chain, leader, fills, query }: { live: LiveVault 
   const signed = (p?: { side: string; size: number }) => (p ? (p.side === "long" ? p.size : -p.size) : 0);
   const claimable = live ? live.claimable : chain.claimable;
 
+  // vaults from the 12 Oct factory only copy under mandate terms their owner accepted (FollowerVault.consentOk)
+  const c = chain.consent;
+  const ask = c && (!c.ok ? { m: c.live, why: "lapsed" as const } : c.pending ? { m: c.pending.next, why: "pending" as const } : null);
+  const consentPanel = ask && (
+    <Panel title={ask.why === "lapsed" ? L("Copy berhenti: leader melonggarkan mandat", "Copying stopped: the leader loosened its mandate") : L(`Leader melonggarkan mandat mulai epoch ${c!.pending!.effectiveEpoch}`, `The leader loosens its mandate from epoch ${c!.pending!.effectiveEpoch}`)} aside={<Source kind="rpc">FollowerVault.consentOk</Source>}>
+      <div className="grid gap-1 text-sm sm:grid-cols-2">
+        <span className="text-ink-3">{L("Yang kamu setujui", "What you agreed to")}</span>
+        <span className="num">DD {c!.accepted.maxDD}% · fee {c!.accepted.feePct}% · {c!.accepted.maxLeverage}x · {c!.accepted.markets.join(", ")}</span>
+        <span className="text-ink-3">{L("Syarat baru", "New terms")}</span>
+        <span className="num text-warn">DD {ask.m.maxDD}% · fee {ask.m.feePct}% · {ask.m.maxLeverage}x · {ask.m.markets.join(", ")}</span>
+      </div>
+      <p className="mt-3 text-sm text-ink-2">
+        {ask.why === "lapsed"
+          ? L("Vault kamu tidak menyalin leader ini (sync menutup posisi) sampai kamu setuju. Fee tetap memakai tarif yang kamu setujui.", "Your vault does not copy this leader (sync unwinds to flat) until you accept. Fees stay at the rate you agreed to.")
+          : L("Kalau tidak kamu setujui, vault berhenti menyalin saat epoch berganti. Kamu juga bisa unfollow.", "If you don't accept, your vault stops copying when the epoch rolls. You can also unfollow.")}
+      </p>
+      <button
+        disabled={pending || !isOwner}
+        className={btn.primary + " mt-3"}
+        onClick={async () => {
+          if (await write("risky", { ...vault, functionName: "acceptMandate", args: [ask.m.raw] })) router.refresh();
+        }}
+      >
+        {L("Setujui syarat baru", "Accept the new terms")}
+      </button>
+    </Panel>
+  );
+
   return (
     <div className="space-y-6">
       {head}
+      {consentPanel}
       <Panel
         title={
           <span>

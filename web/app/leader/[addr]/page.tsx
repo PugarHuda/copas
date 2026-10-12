@@ -5,7 +5,7 @@ import { Panel, Source, Stat, StatRow, Empty, btn, Pill } from "@/components/ui"
 import { Seal } from "@/components/Seal";
 import { TimeChart } from "@/components/TimeChart";
 import { DDMeter, StatusPill, protection } from "@/components/copas";
-import { getLeader, perplPositions } from "@/lib/copas/data";
+import { agentReputation, getLeader, pendingMandate, perplPositions, REPUTATION_8004 } from "@/lib/copas/data";
 import { leaderCheckpoints, type LiveCheckpoint } from "@/lib/copas/indexer";
 import type { Leader } from "@/lib/copas/contracts";
 import type { Position } from "@/lib/perpl/onchain";
@@ -33,10 +33,115 @@ export default async function LeaderPage({ params }: { params: P }) {
   const L: Lx = (a, b) => (lang === "id" ? a : b);
   const leader = await getLeader(addr);
   if (leader) {
-    const [cps, positions] = await Promise.all([leaderCheckpoints(leader.book), perplPositions(leader.book).catch(() => null)]);
-    return <Bonded l={leader} cps={cps} positions={positions} L={L} statusLabel={t(`status.${leader.status}`)} />;
+    const [cps, positions, pending, rep] = await Promise.all([
+      leaderCheckpoints(leader.book),
+      perplPositions(leader.book).catch(() => null),
+      pendingMandate(leader.book).catch(() => null),
+      leader.agent?.erc8004Id ? agentReputation(leader.agent.erc8004Id) : null,
+    ]);
+    return (
+      <>
+        {pending && <PendingMandate p={pending} L={L} />}
+        <Bonded l={leader} cps={cps} positions={positions} L={L} statusLabel={t(`status.${leader.status}`)} />
+        {leader.agent?.erc8004Id ? <Reputation id={leader.agent.erc8004Id} rep={rep} L={L} /> : null}
+      </>
+    );
   }
   return <ShadowProfile addr={addr.toLowerCase()} L={L} />;
+}
+
+type Pending = NonNullable<Awaited<ReturnType<typeof pendingMandate>>>;
+
+/** Terms of a declared-but-not-live mandate change, side by side with the live ones. */
+function PendingMandate({ p, L }: { p: Pending; L: Lx }) {
+  const rows: [string, string, string, boolean][] = [
+    [L("Drawdown maks", "Max drawdown"), pctAuto(p.current.maxDD), pctAuto(p.next.maxDD), p.next.maxDD > p.current.maxDD],
+    [L("Fee kinerja", "Performance fee"), `${p.current.feePct}%`, `${p.next.feePct}%`, p.next.feePct > p.current.feePct],
+    [L("Leverage maks", "Max leverage"), `${p.current.maxLeverage}x`, `${p.next.maxLeverage}x`, p.next.maxLeverage > p.current.maxLeverage],
+    [L("Notional maks", "Max notional"), usd(p.current.maxNotional, { dp: 0 }), usd(p.next.maxNotional, { dp: 0 }), p.next.maxNotional > p.current.maxNotional],
+    [L("Market", "Markets"), p.current.markets.join(", "), p.next.markets.join(", "), p.next.markets.some((m) => !p.current.markets.includes(m))],
+    [L("Panjang epoch", "Epoch length"), `${p.current.epochLenH}h`, `${p.next.epochLenH}h`, false],
+  ];
+  return (
+    <Panel
+      className="mb-6"
+      title={L(`Perubahan mandat terjadwal: berlaku epoch ${p.effectiveEpoch}`, `Mandate change scheduled for epoch ${p.effectiveEpoch}`)}
+      aside={<Source kind="rpc">LeaderBook.pendingMandate</Source>}
+    >
+      <div className="overflow-x-auto">
+        <table className="data">
+          <thead>
+            <tr>
+              <th />
+              <th className="r">{L("Sekarang", "Now")}</th>
+              <th className="r">{L("Berikutnya", "Next")}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map(([k, a, b, worse]) => (
+              <tr key={k}>
+                <td>{k}</td>
+                <td className="r num">{a}</td>
+                <td className={`r num ${worse ? "text-down" : a !== b ? "text-up" : ""}`}>{b}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <p className={`mt-3 text-sm ${p.looser ? "text-warn" : "text-ink-2"}`}>
+        {p.looser
+          ? L(
+              "Mandat baru lebih longgar. Vault follower berhenti menyalin (posisi ditutup) saat epoch berganti, kecuali pemiliknya menyetujui syarat baru di Me. Fee tetap ditarik dengan tarif yang disetujui.",
+              "The new mandate is looser. Follower vaults stop copying (positions unwind) when the epoch rolls unless their owner accepts the new terms in Me. Fees stay at the rate each follower agreed to.",
+            )
+          : L("Mandat baru sama atau lebih ketat: follower tidak perlu berbuat apa-apa.", "The new mandate is the same or tighter: followers need to do nothing.")}
+      </p>
+    </Panel>
+  );
+}
+
+type Rep = Awaited<ReturnType<typeof agentReputation>>;
+
+/** ERC-8004 ReputationRegistry feedback for an agent leader: one entry per finished epoch from the Copas rater. */
+function Reputation({ id, rep, L }: { id: number; rep: Rep; L: Lx }) {
+  return (
+    <Panel
+      className="mt-6"
+      title={L(`Reputasi onchain ERC-8004 · agent #${id}`, `ERC-8004 onchain reputation · agent #${id}`)}
+      aside={
+        <a className="text-xs text-ink-3 hover:text-ink-2" href={explorerAddr(REPUTATION_8004, copasChain.id)} target="_blank" rel="noreferrer">
+          ReputationRegistry
+        </a>
+      }
+    >
+      {!rep ? (
+        <Empty>{L("Registry reputasi tidak merespons. Coba lagi sebentar.", "The reputation registry did not respond. Try again shortly.")}</Empty>
+      ) : !rep.count ? (
+        <Empty>{L("Belum ada feedback untuk agent ini.", "No feedback for this agent yet.")}</Empty>
+      ) : (
+        <>
+          <StatRow>
+            <Stat label={L("Feedback", "Feedback")} value={String(rep.count)} sub={`${rep.clients} ${rep.clients === 1 ? "client" : "clients"}`} />
+            <Stat label={L("Skor rata-rata", "Average score")} value={num(rep.avg ?? 0, 0)} sub={L("+100 epoch bersih, −100 breach", "+100 clean epoch, −100 breach")} tone={(rep.avg ?? 0) >= 0 ? "text-up" : "text-down"} />
+            <Stat label={L("Breach tercatat", "Breaches recorded")} value={String(rep.entries.filter((e) => e.tag2.startsWith("breach")).length)} />
+          </StatRow>
+          <div className="mt-3 flex flex-wrap gap-1.5">
+            {rep.entries.map((e) => (
+              <span key={`${e.client}-${e.index}`} title={`${e.client} #${e.index} · ${e.tag1}/${e.tag2}`} className={`num rounded px-1.5 py-0.5 text-xs ${e.value >= 0 ? "bg-up/15 text-up" : "bg-down/15 text-down"}`}>
+                #{e.index} {e.tag2}
+              </span>
+            ))}
+          </div>
+        </>
+      )}
+      <p className="mt-3 text-xs text-ink-3">
+        {L(
+          "Ditulis ke ReputationRegistry ERC-8004 oleh rater Copas (bukan pemilik agent; registry menolak self-feedback) setiap epoch selesai. Agent lain dan marketplace bisa membaca skor ini tanpa mempercayai Copas.",
+          "Written to the ERC-8004 ReputationRegistry by the Copas rater (not the agent's owner; the registry rejects self-feedback) after each finished epoch. Other agents and marketplaces can read this score without trusting Copas.",
+        )}
+      </p>
+    </Panel>
+  );
 }
 
 function Bonded({ l, cps, positions: read, L, statusLabel }: { l: Leader; cps: LiveCheckpoint[] | null; positions: Position[] | null; L: Lx; statusLabel: string }) {

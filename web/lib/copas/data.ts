@@ -71,7 +71,7 @@ async function readLeader(book: `0x${string}`, stats: Awaited<ReturnType<typeof 
   const fns = ["owner", "status", "bond", "mandate", "unitPrice", "peakUnitPrice", "epoch", "epochEnd", "capacity", "capTotalNext", "pool", "operator", "equity"] as const;
   const r = (await client.multicall({ contracts: fns.map((f) => ({ ...lb, functionName: f })), allowFailure: false })) as unknown[];
   const [owner, status, bond, mandate, unit, peak, epoch, epochEnd, capacity, capTotal, pool, operator, equity] = r;
-  const m = mandate as { maxDDbps: number; maxLeverageHdths: number; feeBps: number; epochLen: bigint; maxNotionalCNS: bigint; marketsMask: bigint };
+  const m = mandate as RawMandate;
   const u = Number((unit as [bigint, boolean])[0]) / 1e18;
   const pk = Number(peak as bigint) / 1e18;
   const hasPool = pool && pool !== ZERO;
@@ -115,6 +115,50 @@ async function readLeader(book: `0x${string}`, stats: Awaited<ReturnType<typeof 
     returnTotal: (u - 1) * 100,
     perplAccount: book,
   };
+}
+
+type RawMandate = { maxDDbps: number; maxLeverageHdths: number; feeBps: number; epochLen: bigint; maxNotionalCNS: bigint; marketsMask: bigint };
+export type MandateView = { maxDD: number; maxLeverage: number; feePct: number; maxNotional: number; markets: string[]; epochLenH: number; raw: RawMandate };
+const mandateView = (m: RawMandate): MandateView => ({
+  maxDD: m.maxDDbps / 100,
+  maxLeverage: m.maxLeverageHdths / 100,
+  feePct: m.feeBps / 100,
+  maxNotional: A(m.maxNotionalCNS),
+  markets: Object.keys(perpIdsForChain()).filter((_, i) => (m.marketsMask >> BigInt(i)) & 1n),
+  epochLenH: Number(m.epochLen) / 3600,
+  raw: m,
+});
+/** Same rule as FollowerVault._within: is `m` looser than `a` on any term a follower agreed to? */
+export const looserThan = (m: RawMandate, a: RawMandate) =>
+  m.feeBps > a.feeBps || m.maxDDbps > a.maxDDbps || m.maxLeverageHdths > a.maxLeverageHdths || m.maxNotionalCNS > a.maxNotionalCNS || (m.marketsMask & ~a.marketsMask) !== 0n;
+
+/** A mandate change the leader declared; it goes live at the next epoch roll (LeaderBook.declare). */
+export async function pendingMandate(book: `0x${string}`) {
+  const lb = lbOf(book);
+  const [has, pend, cur, epoch] = (await client.multicall({ contracts: (["hasPendingMandate", "pendingMandate", "mandate", "epoch"] as const).map((f) => ({ ...lb, functionName: f })), allowFailure: false })) as [boolean, RawMandate, RawMandate, bigint];
+  if (!has) return null;
+  return { next: mandateView(pend), current: mandateView(cur), looser: looserThan(pend, cur), effectiveEpoch: Number(epoch) + 1 };
+}
+
+const reputationAbi = parseAbi([
+  "function getClients(uint256 agentId) view returns (address[])",
+  "function readAllFeedback(uint256 agentId, address[] clientAddresses, string tag1, string tag2, bool includeRevoked) view returns (address[] clients, uint64[] feedbackIndexes, int128[] values, uint8[] valueDecimals, string[] tag1s, string[] tag2s, bool[] revokedStatuses)",
+]);
+/** ERC-8004 ReputationRegistry v2 (same address on every testnet deployment of the reference registries). */
+export const REPUTATION_8004 = copasChain.id === 143 ? "0x8004BAa17C55a88189AE136b182e5fdA19dE9b63" : "0x8004B663056A597Dffe9eCcC1965A193B7388713";
+
+/** All unrevoked feedback an ERC-8004 agent received, from every client (Copas keeper writes tag1 "copas", one per epoch). */
+export async function agentReputation(agentId: number) {
+  try {
+    const id = BigInt(agentId);
+    const clients = await client.readContract({ address: REPUTATION_8004, abi: reputationAbi, functionName: "getClients", args: [id] });
+    if (!clients.length) return { count: 0, avg: null, clients: 0, entries: [] };
+    const [cs, idx, vals, decs, t1, t2] = await client.readContract({ address: REPUTATION_8004, abi: reputationAbi, functionName: "readAllFeedback", args: [id, clients, "", "", false] });
+    const entries = cs.map((c, i) => ({ client: c, index: Number(idx[i]), value: Number(vals[i]) / 10 ** decs[i], tag1: t1[i], tag2: t2[i] }));
+    return { count: entries.length, avg: entries.reduce((a, e) => a + e.value, 0) / entries.length, clients: clients.length, entries };
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -210,7 +254,7 @@ export async function vaultState({ owner, vault }: { owner?: string; vault?: str
     const [vOwner, leader, following, eq, hwm, paused, params] = (await client.multicall({ contracts: fns.map((f) => ({ ...fv, functionName: f })), allowFailure: false })) as unknown[];
     const p = params as { ratioBps: number; maxLeverageHdths: number; stopLossBps: number };
     const lead = following && leader !== ZERO ? (leader as `0x${string}`) : null;
-    const [positions, leaderPositions, claimable] = await Promise.all([perplPositions(v), lead ? perplPositions(lead) : [], lead ? chainClaimable(lead, v) : []]);
+    const [positions, leaderPositions, claimable, consent] = await Promise.all([perplPositions(v), lead ? perplPositions(lead) : [], lead ? chainClaimable(lead, v) : [], lead ? vaultConsent(v, lead) : null]);
     return {
       vault: v,
       owner: vOwner as `0x${string}`,
@@ -222,12 +266,33 @@ export async function vaultState({ owner, vault }: { owner?: string; vault?: str
       positions,
       leaderPositions,
       claimable,
+      consent,
     };
   } catch {
     return null;
   }
 }
 export type VaultState = NonNullable<Awaited<ReturnType<typeof vaultState>>>;
+
+/**
+ * Mandate consent of a vault (vaults from the 12 Oct VaultFactory). `ok` false = the leader's live mandate is looser than what the
+ * owner accepted, so sync targets 0 until acceptMandate. Null for older vaults, which have no consent check.
+ */
+async function vaultConsent(vault: `0x${string}`, book: `0x${string}`) {
+  const fv = { address: vault, abi: copasAbi.FollowerVault as Abi };
+  const r = await client.multicall({ contracts: [{ ...fv, functionName: "accepted" }, { ...fv, functionName: "consentOk" }], allowFailure: true });
+  if (r[0].status !== "success" || r[1].status !== "success") return null;
+  const accepted = r[0].result as RawMandate;
+  const pending = await pendingMandate(book).catch(() => null);
+  const live = (await client.readContract({ ...lbOf(book), functionName: "mandate" })) as RawMandate;
+  return {
+    ok: r[1].result as boolean,
+    accepted: mandateView(accepted),
+    live: mandateView(live),
+    // a looser pending change this vault has not pre-accepted: it will stop copying at the next roll
+    pending: pending && looserThan(pending.next.raw, accepted) ? pending : null,
+  };
+}
 
 /** Unclaimed breaches of the current leader for this vault (estimate before min(·, actual loss)). */
 async function chainClaimable(book: `0x${string}`, vault: `0x${string}`) {
