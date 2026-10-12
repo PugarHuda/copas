@@ -30,6 +30,9 @@ contract FollowerVault {
     mapping(uint256 => uint256) public endEquity; // equity when the vault moved past epoch e
     uint256 public highWaterMark; // for performance fees
     address public referrer; // earns part of the protocol's fee cut
+    /// @notice Leader terms the owner agreed to. A live mandate looser than this stops copying (target 0)
+    /// and the fee is charged at the agreed rate, so a leader cannot change the deal under a follower.
+    Mandate internal _accepted;
 
     event Deposited(address indexed from, uint256 amount);
     event Withdrawn(uint256 amount);
@@ -42,6 +45,7 @@ contract FollowerVault {
     event ClaimedSlash(uint256 indexed epoch, uint256 loss, uint256 amount);
     event ReferrerSet(address indexed referrer);
     event ReferralPaid(address indexed referrer, uint256 amount);
+    event MandateAccepted(address indexed leader, Mandate m);
 
     modifier onlyOwner() {
         if (msg.sender != owner) revert CopasErrors.NotOwner();
@@ -59,6 +63,15 @@ contract FollowerVault {
 
     function params() external view returns (FollowParams memory) {
         return _params;
+    }
+
+    function accepted() external view returns (Mandate memory) {
+        return _accepted;
+    }
+
+    /// @notice False when the leader's live mandate is looser than the one this vault accepted.
+    function consentOk() public view returns (bool) {
+        return _within(leader.mandate(), _accepted);
     }
 
     function equity() public view returns (uint256 eq, bool valid) {
@@ -133,6 +146,8 @@ contract FollowerVault {
         following = true;
         paused = false;
         _params = p;
+        _accepted = lb.mandate();
+        emit MandateAccepted(address(lb), _accepted);
         epochSeen = 0;
         _touchEpoch();
         (uint256 eq,) = equity();
@@ -158,6 +173,25 @@ contract FollowerVault {
                 || p.ratioBps == 0 || p.priceBandBps == 0
         ) revert CopasErrors.BadParams();
         _params = p;
+    }
+
+    /// @notice Re-consents to the leader's live mandate, or pre-accepts its pending one (effective next epoch).
+    function acceptMandate(Mandate calldata m) external onlyOwner {
+        if (!following) revert CopasErrors.BadParams();
+        bytes32 h = keccak256(abi.encode(m));
+        if (
+            h != keccak256(abi.encode(leader.mandate()))
+                && !(leader.hasPendingMandate() && h == keccak256(abi.encode(leader.pendingMandate())))
+        ) revert CopasErrors.BadParams();
+        _accepted = m;
+        emit MandateAccepted(address(leader), m);
+    }
+
+    /// @dev ponytail: epochLen is not compared; follower caps already bound leverage/notional/markets per trade,
+    /// this guards the terms only the leader controls (fee, breach threshold) plus the rest for clarity.
+    function _within(Mandate memory m, Mandate memory a) internal pure returns (bool) {
+        return m.feeBps <= a.feeBps && m.maxDDbps <= a.maxDDbps && m.maxLeverageHdths <= a.maxLeverageHdths
+            && m.maxNotionalCNS <= a.maxNotionalCNS && (m.marketsMask & ~a.marketsMask) == 0;
     }
 
     // ================================================================ sync
@@ -217,7 +251,7 @@ contract FollowerVault {
         returns (int256)
     {
         perpId;
-        if (!following || paused || leader.status() != LeaderStatus.Active) return 0;
+        if (!following || paused || leader.status() != LeaderStatus.Active || !consentOk()) return 0;
         if ((_params.marketsMask >> idx) & 1 == 0) return 0;
         if (_stopLossHit()) return 0;
         if (lLot == 0) return 0;
@@ -257,6 +291,7 @@ contract FollowerVault {
 
         // performance fee on profit above the high-water mark, paid into the leader's slashable escrow
         uint256 feeBps = leader.mandate().feeBps;
+        if (feeBps > _accepted.feeBps) feeBps = _accepted.feeBps;
         if (epochSeen != 0 && feeBps > 0 && eq > highWaterMark && !leader.breached(epochSeen)) {
             uint256 fee = (eq - highWaterMark) * feeBps / 10_000;
             try exchange.withdrawCollateral(fee) {

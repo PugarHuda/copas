@@ -17,6 +17,96 @@
  },
  {
   "type": "function",
+  "name": "acceptMandate",
+  "inputs": [
+   {
+    "name": "m",
+    "type": "tuple",
+    "internalType": "struct Mandate",
+    "components": [
+     {
+      "name": "maxDDbps",
+      "type": "uint32",
+      "internalType": "uint32"
+     },
+     {
+      "name": "maxLeverageHdths",
+      "type": "uint32",
+      "internalType": "uint32"
+     },
+     {
+      "name": "feeBps",
+      "type": "uint32",
+      "internalType": "uint32"
+     },
+     {
+      "name": "epochLen",
+      "type": "uint64",
+      "internalType": "uint64"
+     },
+     {
+      "name": "maxNotionalCNS",
+      "type": "uint128",
+      "internalType": "uint128"
+     },
+     {
+      "name": "marketsMask",
+      "type": "uint256",
+      "internalType": "uint256"
+     }
+    ]
+   }
+  ],
+  "outputs": [],
+  "stateMutability": "nonpayable"
+ },
+ {
+  "type": "function",
+  "name": "accepted",
+  "inputs": [],
+  "outputs": [
+   {
+    "name": "",
+    "type": "tuple",
+    "internalType": "struct Mandate",
+    "components": [
+     {
+      "name": "maxDDbps",
+      "type": "uint32",
+      "internalType": "uint32"
+     },
+     {
+      "name": "maxLeverageHdths",
+      "type": "uint32",
+      "internalType": "uint32"
+     },
+     {
+      "name": "feeBps",
+      "type": "uint32",
+      "internalType": "uint32"
+     },
+     {
+      "name": "epochLen",
+      "type": "uint64",
+      "internalType": "uint64"
+     },
+     {
+      "name": "maxNotionalCNS",
+      "type": "uint128",
+      "internalType": "uint128"
+     },
+     {
+      "name": "marketsMask",
+      "type": "uint256",
+      "internalType": "uint256"
+     }
+    ]
+   }
+  ],
+  "stateMutability": "view"
+ },
+ {
+  "type": "function",
   "name": "accountId",
   "inputs": [],
   "outputs": [
@@ -64,6 +154,19 @@
    }
   ],
   "stateMutability": "nonpayable"
+ },
+ {
+  "type": "function",
+  "name": "consentOk",
+  "inputs": [],
+  "outputs": [
+   {
+    "name": "",
+    "type": "bool",
+    "internalType": "bool"
+   }
+  ],
+  "stateMutability": "view"
  },
  {
   "type": "function",
@@ -612,6 +715,57 @@
       "name": "stopLossBps",
       "type": "uint32",
       "internalType": "uint32"
+     },
+     {
+      "name": "maxNotionalCNS",
+      "type": "uint128",
+      "internalType": "uint128"
+     },
+     {
+      "name": "marketsMask",
+      "type": "uint256",
+      "internalType": "uint256"
+     }
+    ]
+   }
+  ],
+  "anonymous": false
+ },
+ {
+  "type": "event",
+  "name": "MandateAccepted",
+  "inputs": [
+   {
+    "name": "leader",
+    "type": "address",
+    "indexed": true,
+    "internalType": "address"
+   },
+   {
+    "name": "m",
+    "type": "tuple",
+    "indexed": false,
+    "internalType": "struct Mandate",
+    "components": [
+     {
+      "name": "maxDDbps",
+      "type": "uint32",
+      "internalType": "uint32"
+     },
+     {
+      "name": "maxLeverageHdths",
+      "type": "uint32",
+      "internalType": "uint32"
+     },
+     {
+      "name": "feeBps",
+      "type": "uint32",
+      "internalType": "uint32"
+     },
+     {
+      "name": "epochLen",
+      "type": "uint64",
+      "internalType": "uint64"
      },
      {
       "name": "maxNotionalCNS",
