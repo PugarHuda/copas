@@ -102,6 +102,18 @@ After each finished epoch of a leader with `AgentLeaderRegistry.agentOf(lb) != 0
 - A clean epoch posts `value=100` with tags `copas` / `epoch-clean`. A breach posts `value=-100` with tags `copas` / `breach-drawdown`, `breach-leverage`, `breach-notional` or `breach-market`. The endpoint is `copas:<chainId>:<leaderBook>:epoch-<e>`.
 - **Signer caveat:** the registry reverts with `"Self-feedback not allowed"` when the sender owns or operates the agent. So the keeper wallet must be a different address from both the agent owner and the agent wallet. That holds by default, because agent owners are leaders. The pre-send simulation catches the revert and logs a warning. Epochs that already got feedback are recorded in `data/state-*.json`.
 
+### Catch-up rater (`scripts/reputation.ts`)
+
+The hosted tick signs with the Privy wallet, whose policy only allows Copas keeper calls, so on testnet the feedback is written by a separate plain key:
+
+```bash
+REPUTATION_PRIVATE_KEY=0x… pnpm exec tsx scripts/reputation.ts [--dry-run]
+```
+
+For every agent leader it rates each finished epoch once, in order: the rater's `getLastIndex(agentId, rater)` is the number of epochs already rated, so reruns only add new epochs (at most `REPUTATION_MAX`, default 12, per run). `feedbackURI` is the leader page (`FEEDBACK_URI_BASE`, default https://copas-mocha.vercel.app), which reads the registry back (`readAllFeedback`) and shows the score. It is run by hand, not on the 5-minute tick: each feedback costs about 0.023 MON on testnet.
+
+Run on 12 Oct 2026 with rater `0x57A9fCEEdeB87A0561481Dd24E0489bFECb96523`: agent #2209 (LeaderBook `0xbC27…5958`), epochs 1 to 5, all `epoch-clean` (+100). Txs `0x812d076c…737f`, `0x07b587d6…0b6f`, `0xe54fc8ca…b2f6eb`, `0x4ad41671…0a3a`, `0x9ceb72e9…3a3`.
+
 ## DOWN market maker (`MM_PRIVATE_KEY`, testnet)
 
 Step 4 of `pnpm tick` (`src/mm.ts`, decisions in `src/mmLogic.ts`, tested in `test/mm.test.ts`) keeps a live breach-risk book for every Active leader. It is the one part of the keeper that holds funds, so it signs with its own plain key, not the Privy wallet (whose policy denies AUSD on purpose). Without `MM_PRIVATE_KEY`, or on mainnet (Kuru listing is owner-only there), it does nothing.

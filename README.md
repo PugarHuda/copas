@@ -12,13 +12,14 @@ Every leader posts an **AUSD bond** and declares a **mandate**: max drawdown, al
 2. **Copy-only.** Anyone can call `sync()`, but it can only move the follower toward `ratio × leader position`, within the follower's caps, stop-loss and leverage limit. Bots have no discretion.
 3. **No oracle for money logic.** Equity, drawdown, breach and settlement all come from Perpl views read in the same block.
 4. **AI explains, rules execute.** Kimi produces signed risk analysis. Every action is deterministic contract logic.
-5. **Honest risk.** The UI always shows *max protection = bond / follower AUM* and the remaining risks. The contracts are unaudited, so mainnet deposits are capped.
+5. **No silent rule changes.** A leader can change its mandate, but only from the next epoch, and a follower vault only copies under terms its owner accepted. If the live mandate is looser (higher fee, drawdown, leverage, size or more markets), `sync` unwinds the vault to flat until the owner accepts, and the fee is always charged at the accepted rate.
+6. **Honest risk.** The UI always shows *max protection = bond / follower AUM* and the remaining risks. The contracts are unaudited, so mainnet deposits are capped.
 
 ## Repository
 
 | Folder | What | Sponsor tech |
 |---|---|---|
-| [`contracts/`](contracts) | `CopasRegistry`, `LeaderBook` (units, epochs, mandate, bond, breach), `FollowerVault` (copy-only sync, caps, claims, referral), `UnderwriterPool`, `BreachMarket` (UP/DOWN per leader epoch), `AgentLeaderRegistry`. Unit, invariant and mainnet-fork tests | Monad, Perpl, AUSD, ERC-8004 |
+| [`contracts/`](contracts) | `CopasRegistry`, `LeaderBook` (units, epochs, mandate, bond, breach), `FollowerVault` (copy-only sync, caps, claims, referral, mandate consent), `UnderwriterPool`, `BreachMarket` (UP/DOWN per leader epoch), `AgentLeaderRegistry`. Unit, invariant and mainnet-fork tests | Monad, Perpl, AUSD, ERC-8004 |
 | [`web/`](web) | Next.js app: bonded leaderboard, leader profile, follow ticket, vault, become-leader, underwrite, DOWN market, proof page with reproducible breach math, plus a full **Perpl analytics and risk dashboard** (protocol and wallet level) | Mera passkeys, Perpl, Envio |
 | [`indexer/`](indexer) | Envio HyperIndex v3: all Perpl fill, position, liquidation, funding and collateral events plus aggregates, and the Copas contracts via dynamic registration | Envio |
 | [`keeper/`](keeper) | Copy sync, checkpoint and epoch bot; Privy server wallet with policy, gas sponsorship and a DENY demo; ERC-8004 feedback; alerts | Privy, Alchemy, Telegram |
