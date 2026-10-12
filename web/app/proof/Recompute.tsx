@@ -4,7 +4,10 @@ import { useL } from "@/lib/i18n/client";
 import { breachMath } from "@/lib/copas/math";
 import { num, pct, usd } from "@/lib/format";
 import { Source, btn } from "@/components/ui";
+import { copasChain } from "@/lib/chains";
 import { liveEquity } from "./actions";
+
+const CHAIN = copasChain.name;
 
 type Inputs = { equity: number; units: number; peak: number; maxDD: number; slash: number; capTotal: number; cap: number; loss: number };
 const input = "num mt-1 w-full rounded-md border border-line-strong bg-bg px-2 py-1.5 text-sm focus:border-gold focus:outline-none";
@@ -34,20 +37,24 @@ export function Recompute({ initial }: { initial: Inputs }) {
     start(async () => {
       const res = await liveEquity(q);
       if ("error" in res) {
+        setV({ ...v, equity: initial.equity, units: initial.units, peak: initial.peak }); // drop a previous live read
         setLive(
           res.error === "bad-input"
             ? L("Masukkan alamat 0x… atau ID akun Perpl.", "Enter a 0x… address or Perpl account ID.")
             : res.error === "not-found"
-              ? L("Tidak ada akun Perpl untuk input ini.", "No Perpl account for this input.")
+              ? L("Bukan LeaderBook Copas dan tidak ada akun Perpl untuk input ini.", "Not a Copas LeaderBook, and no Perpl account for this input.")
               : L("RPC Monad tidak merespons. Coba lagi.", "Monad RPC did not respond. Try again."),
         );
         return;
       }
+      const invalid = res.valid ? "" : L(" Harga mark belum valid.", " Mark price not valid yet.");
+      if (res.kind === "book") {
+        setV({ ...v, equity: Math.round(res.equity * 100) / 100, units: Math.round(res.units * 100) / 100, peak: Math.round(res.peak * 1e6) / 1e6 });
+        setLive(L(`LeaderBook ${CHAIN}: unit price ${num(res.unit, 6)}, puncak ${num(res.peak, 6)}.`, `LeaderBook on ${CHAIN}: unit price ${num(res.unit, 6)}, peak ${num(res.peak, 6)}.`) + invalid);
+        return;
+      }
       setV({ ...v, equity: Math.round(res.equity * 100) / 100 });
-      setLive(
-        L(`Akun #${res.accountId}: saldo ${usd(res.balance)} + ${res.positions} posisi.`, `Account #${res.accountId}: balance ${usd(res.balance)} + ${res.positions} positions.`) +
-          (res.valid ? "" : L(" Harga mark belum valid.", " Mark price not valid yet.")),
-      );
+      setLive(L(`Akun Perpl mainnet #${res.accountId}: saldo ${usd(res.balance)} + ${res.positions} posisi.`, `Perpl mainnet account #${res.accountId}: balance ${usd(res.balance)} + ${res.positions} positions.`) + invalid);
     });
   }
 
@@ -57,7 +64,7 @@ export function Recompute({ initial }: { initial: Inputs }) {
         <h3 className="text-sm font-medium">{L("Hitung ulang", "Recompute")}</h3>
         <Source kind="rpc">{L("equity bisa dibaca live", "equity readable live")}</Source>
       </div>
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 gap-3 min-[400px]:grid-cols-2">
         {fields.map(([k, label]) => (
           <label key={k} className="block text-xs text-ink-3">
             {label}
@@ -66,15 +73,15 @@ export function Recompute({ initial }: { initial: Inputs }) {
         ))}
       </div>
       <form
-        className="mt-3 flex gap-2"
+        className="mt-3 flex flex-wrap gap-2 sm:flex-nowrap"
         onSubmit={(e) => {
           e.preventDefault();
           readLive();
         }}
       >
         <input
-          aria-label={L("Alamat atau ID akun Perpl", "Perpl address or account ID")}
-          placeholder={L("0x… atau ID akun Perpl", "0x… or Perpl account ID")}
+          aria-label={L("LeaderBook, alamat, atau ID akun Perpl", "LeaderBook, Perpl address or account ID")}
+          placeholder={L("LeaderBook 0x…, alamat, atau ID akun Perpl", "LeaderBook 0x…, address or Perpl account ID")}
           className={input + " mt-0"}
           value={q}
           onChange={(e) => setQ(e.target.value)}

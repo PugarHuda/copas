@@ -61,9 +61,9 @@ export default function BecomeLeader() {
       <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
         <div className="space-y-6">
           <Panel title={L("1. Pilih mandat", "1. Choose a mandate")}>
-            <div className="grid gap-3 sm:grid-cols-3" role="radiogroup" aria-label="Tier">
+            <div className="grid gap-3 sm:grid-cols-3" role="group" aria-label="Tier">
               {tiers.map((x) => (
-                <button key={x.k} role="radio" aria-checked={tier === x.k} onClick={() => pick(x.k)} className={`rounded-lg border p-3 text-left ${tier === x.k ? "border-gold bg-surface-2" : "border-line hover:border-line-strong"}`}>
+                <button key={x.k} aria-pressed={tier === x.k} onClick={() => pick(x.k)} className={`rounded-lg border p-3 text-left ${tier === x.k ? "border-gold bg-surface-2" : "border-line hover:border-line-strong"}`}>
                   <div className="font-medium">{x.name}</div>
                   <div className="mt-1 text-xs text-ink-3">{x.body}</div>
                 </button>
@@ -132,7 +132,10 @@ export default function BecomeLeader() {
 
           <Panel title={L("Opsional: leader AI agent", "Optional: AI agent leader")}>
             <p className="text-sm text-ink-2">{L("Tetapkan alamat agent sebagai operator. Agent bisa trading lewat trade(), tetap dibatasi mandat; jaminan tetap milikmu dan yang dipotong.", "Set an agent address as operator. It trades through trade(), bound by the mandate; the bond stays yours and is what gets slashed.")}</p>
-            <input placeholder="0x… operator" value={operator} onChange={(e) => setOperator(e.target.value)} className={input} />
+            <label htmlFor="operator" className="mt-3 block text-sm text-ink-2">
+              {L("Alamat operator", "Operator address")}
+            </label>
+            <input id="operator" placeholder="0x…" value={operator} onChange={(e) => setOperator(e.target.value)} className={input} />
             <button className={btn.ghost + " mt-3"} disabled={!lb || pending || !/^0x[0-9a-fA-F]{40}$/.test(operator)} onClick={() => lb && write("risky", { ...lb, functionName: "setOperator", args: [operator] })}>
               {L("Tetapkan operator", "Set operator")}
             </button>

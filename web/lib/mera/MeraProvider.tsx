@@ -13,6 +13,8 @@ import { sessionFromPrf } from "./derive";
 
 /** E2: prompt-free window for small actions. */
 export const SESSION_TTL_MS = 30 * 60 * 1000;
+/** A passkey prompt that neither resolves nor rejects frees the UI after this long. */
+const PASSKEY_TIMEOUT_MS = 90_000;
 
 /**
  * Action risk classes from SPEC E2.
@@ -36,6 +38,8 @@ type MeraState = {
   create: () => Promise<void>;
   signIn: () => Promise<void>;
   signOut: () => void;
+  /** Abandons a pending passkey prompt so the UI is not stuck in "working". */
+  cancel: () => void;
   /** Returns a viem account allowed to sign an action of the given risk. Re-prompts when required. */
   authorize: (risk: ActionRisk) => Promise<LocalAccount>;
   /** "Many Keys": PRF output of the same passkey under another 32-byte salt. Caller owns (and should wipe) the bytes. */
@@ -68,6 +72,14 @@ function writeHint(h: Hint) {
 
 export function toUiError(e: unknown): MeraUiError {
   const code = isMeraError(e) ? e.code : ((e as { code?: string })?.code ?? "UNKNOWN");
+  if (code === "TIMEOUT" || code === "CANCELLED")
+    return {
+      code,
+      message: {
+        id: code === "TIMEOUT" ? "Passkey tidak merespons dalam 90 detik. Coba lagi." : "Masuk dibatalkan.",
+        en: code === "TIMEOUT" ? "The passkey prompt did not respond within 90 seconds. Try again." : "Sign-in cancelled.",
+      },
+    };
   if (code === "PRF_UNAVAILABLE")
     return {
       code,
@@ -163,17 +175,31 @@ export function MeraProvider({ children }: { children: React.ReactNode }) {
     [endSession],
   );
 
+  const abortRef = useRef<((e: Error) => void) | undefined>(undefined);
   const run = useCallback(async <T,>(fn: () => Promise<T>) => {
     setError(undefined);
     setStatus("working");
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const fail = (code: string) => Object.assign(new Error(code.toLowerCase()), { code });
     try {
-      return await fn();
+      // ponytail: mera takes no AbortSignal, so this only frees the UI; the browser prompt closes on its own WebAuthn `timeout`
+      return await Promise.race([
+        fn(),
+        new Promise<never>((_, reject) => {
+          abortRef.current = reject;
+          timer = setTimeout(() => reject(fail("TIMEOUT")), PASSKEY_TIMEOUT_MS);
+        }),
+      ]);
     } catch (e) {
       setError(toUiError(e));
       setStatus(sessionRef.current ? "signed-in" : "signed-out");
       throw e;
+    } finally {
+      clearTimeout(timer);
+      abortRef.current = undefined;
     }
   }, []);
+  const cancel = useCallback(() => abortRef.current?.(Object.assign(new Error("cancelled"), { code: "CANCELLED" })), []);
 
   const create = useCallback(
     () =>
@@ -181,6 +207,7 @@ export function MeraProvider({ children }: { children: React.ReactNode }) {
         const res = await createPasskeyWithPrfOutput({
           rp: { id: rpId(), name: "Copas" },
           user: { name: `copas-${new Date().toISOString().slice(0, 10)}`, displayName: "Copas account" },
+          timeout: PASSKEY_TIMEOUT_MS,
         });
         await start(res.prfOutput, { credentialId: res.credentialId, transports: res.transports });
       }),
@@ -191,7 +218,7 @@ export function MeraProvider({ children }: { children: React.ReactNode }) {
   const signIn = useCallback(
     () =>
       run(async () => {
-        const res = await getPasskeyPrfOutput({ rpId: rpId() });
+        const res = await getPasskeyPrfOutput({ rpId: rpId(), timeout: PASSKEY_TIMEOUT_MS });
         await start(res.prfOutput, { credentialId: res.credentialId });
       }),
     [run, start],
@@ -209,7 +236,7 @@ export function MeraProvider({ children }: { children: React.ReactNode }) {
       if (risk === "small" && live) return accountRef.current!;
       // Risky (or no live session): fresh user-verified ceremony, must yield the same address.
       return run(async () => {
-        const res = await getPasskeyPrfOutput({ rpId: rpId(), credential: credRef.current });
+        const res = await getPasskeyPrfOutput({ rpId: rpId(), credential: credRef.current, timeout: PASSKEY_TIMEOUT_MS });
         return start(res.prfOutput, { credentialId: res.credentialId }, address);
       });
     },
@@ -219,7 +246,7 @@ export function MeraProvider({ children }: { children: React.ReactNode }) {
   const prf = useCallback(
     (salt: Uint8Array) =>
       run(async () => {
-        const res = await getPasskeyPrfOutput({ rpId: rpId(), credential: credRef.current, prfSalt: salt as Uint8Array<ArrayBuffer> });
+        const res = await getPasskeyPrfOutput({ rpId: rpId(), credential: credRef.current, prfSalt: salt as Uint8Array<ArrayBuffer>, timeout: PASSKEY_TIMEOUT_MS });
         setStatus(sessionRef.current ? "signed-in" : "signed-out");
         return res.prfOutput as Uint8Array;
       }),
@@ -227,7 +254,7 @@ export function MeraProvider({ children }: { children: React.ReactNode }) {
   );
 
   return (
-    <Ctx.Provider value={{ status, address, expiresAt, error, supported, create, signIn, signOut, authorize, prf }}>
+    <Ctx.Provider value={{ status, address, expiresAt, error, supported, create, signIn, signOut, cancel, authorize, prf }}>
       {children}
     </Ctx.Provider>
   );

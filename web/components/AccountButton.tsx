@@ -16,8 +16,15 @@ export function useMinutesLeft(expiresAt?: number) {
   return expiresAt ? Math.max(0, Math.ceil((expiresAt - now) / 60_000)) : 0;
 }
 
+const FAUCET_ERR: Record<string, string> = {
+  cooldown: "Already sent in the last hour. Try again later.",
+  "faucet-off": "The testnet faucet is not configured on this deployment.",
+  "bad-address": "Sign in again; no valid address to fund.",
+  network: "Network error. Try again.",
+};
+
 export function AccountButton() {
-  const { status, address, expiresAt, error, create, signIn, signOut } = useMeraSession();
+  const { status, address, expiresAt, error, create, signIn, signOut, cancel } = useMeraSession();
   const { t, lang } = useT();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -26,7 +33,7 @@ export function AccountButton() {
   const getTestFunds = async () => {
     setDrip("…");
     const r = await fetch("/api/faucet", { method: "POST", body: JSON.stringify({ address }) }).then((x) => x.json()).catch(() => ({ error: "network" }));
-    setDrip(r.error ? `✕ ${r.error}` : lang === "id" ? "✓ MON + AUSD terkirim" : "✓ MON + AUSD sent");
+    setDrip(r.error ? `✕ ${FAUCET_ERR[r.error] ?? "Faucet transaction failed. Try again later."}` : lang === "id" ? "✓ MON + AUSD terkirim" : "✓ MON + AUSD sent");
   };
 
   useEffect(() => {
@@ -69,12 +76,17 @@ export function AccountButton() {
     );
 
   return (
-    <div ref={ref} className="relative">
+    <div ref={ref} className="relative flex items-center gap-2">
       <button onClick={() => setOpen(!open)} aria-expanded={open} className={btn.primary + " py-1.5"} disabled={status === "working"}>
         {status === "working" ? t("auth.working") : t("auth.signin")}
       </button>
+      {status === "working" && (
+        <button onClick={cancel} className={btn.ghost + " py-1.5"}>
+          {lang === "id" ? "Batal" : "Cancel"}
+        </button>
+      )}
       {open && status !== "working" && (
-        <div className="absolute right-0 mt-2 w-80 rounded-lg border border-line bg-surface p-4 text-sm shadow-xl shadow-black/40">
+        <div className="absolute right-0 top-full mt-2 w-80 max-w-[calc(100vw-2rem)] rounded-lg border border-line bg-surface p-4 text-sm shadow-xl shadow-black/40">
           {status === "expired" && <p className="mb-3 text-xs text-warn">{t("auth.sessionExpired")}</p>}
           <p className="text-ink-2">
             {lang === "id"

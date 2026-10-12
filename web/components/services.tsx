@@ -18,6 +18,29 @@ async function call<T>(path: string, body?: unknown): Promise<Res<T>> {
   return { ok: r.ok, status: r.status, data };
 }
 
+/** Server errors are developer strings ("bad params", "leader has no fills in the window"); show readers what they mean. */
+export function friendlyError(e?: string) {
+  if (!e) return "The service did not answer. Try again shortly.";
+  if (/no fills/i.test(e)) return "This trader has no Perpl fills in the last 30 days, so there is nothing to replay.";
+  if (/bad params|invalid|must be/i.test(e)) return "These settings can't be simulated. Check the values and try again.";
+  if (/unreachable|timeout|HTTP 5\d\d|fetch failed|ECONN/i.test(e)) return "The analysis service is unreachable right now. Try again shortly.";
+  if (/rate|429/i.test(e)) return "Too many requests. Wait a moment and try again.";
+  return "The service could not complete this request. Try again shortly.";
+}
+
+/**
+ * LLM narration sometimes leaks feature internals: camelCase field names, unix timestamps, "severity 0.9".
+ * Rewrite them for people; the numbers themselves are untouched.
+ */
+export function humanize(text: string) {
+  return text
+    .replace(/\s*\(?\bseverity[\s:=]*\d*\.?\d+\)?/gi, "")
+    .replace(/\b1[5-9]\d{8}(\d{3})?\b/g, (ts) => new Date(Number(ts) * (ts.length === 13 ? 1 : 1000)).toISOString().slice(0, 10))
+    .replace(/\b[a-z]+(?:[A-Z][a-z0-9]*)+\b/g, (id) => id.replace(/([A-Z])/g, " $1").toLowerCase().replace(/\bpnl\b/g, "PnL").replace(/\bpct\b/g, "%"))
+    .replace(/\s{2,}/g, " ")
+    .trim();
+}
+
 const Missing = ({ what }: { what?: string | string[] }) => {
   const L = useL();
   return (
@@ -55,7 +78,7 @@ export function BacktestPanel({ perplAddress, follower, mandate }: { perplAddres
   }, [q.data, L]);
   if (!perplAddress) return <p className="text-sm text-ink-3">{L("Leader ini belum punya histori Perpl untuk diputar ulang.", "This leader has no Perpl history to replay yet.")}</p>;
   if (q.isLoading) return <div className="h-60 animate-pulse rounded bg-surface-2/60" />;
-  if (!q.data?.ok) return q.data?.status === 503 ? <Missing what={q.data.data.missing} /> : <p className="text-sm text-ink-3">{q.data?.data.error ?? L("Backtest gagal.", "Backtest failed.")}</p>;
+  if (!q.data?.ok) return q.data?.status === 503 ? <Missing what={q.data.data.missing} /> : <p className="text-sm text-ink-3">{friendlyError(q.data?.data.error)}</p>;
   const s = q.data.data.summary;
   return (
     <div>
@@ -70,7 +93,7 @@ export function BacktestPanel({ perplAddress, follower, mandate }: { perplAddres
         <summary className="cursor-pointer hover:text-ink-2">{L("Asumsi backtest", "Backtest assumptions")}</summary>
         <ul className="mt-2 list-disc space-y-1 pl-5">
           {q.data.data.assumptions.map((a) => (
-            <li key={a}>{a}</li>
+            <li key={a}>{humanize(a)}</li>
           ))}
         </ul>
       </details>
@@ -104,22 +127,22 @@ export function AnalysisPanel({ perplAddress }: { perplAddress?: string }) {
   if (!perplAddress) return <p className="text-sm text-ink-3">{L("Belum ada histori untuk dianalisis.", "No history to analyse yet.")}</p>;
   if (q.isLoading) return <div className="h-40 animate-pulse rounded bg-surface-2/60" />;
   const d = q.data?.data;
-  if (!d?.features) return <p className="text-sm text-ink-3">{d?.error ?? L("Layanan analisis tidak terjangkau.", "Analysis service unreachable.")}</p>;
+  if (!d?.features) return <p className="text-sm text-ink-3">{friendlyError(d?.error)}</p>;
   const f = d.features.style;
   const a = d.analysis;
   return (
     <div className="space-y-4 text-sm">
       <div className="flex flex-wrap gap-2">
         {a && <Pill tone={a.riskLevel === "high" ? "down" : a.riskLevel === "medium" ? "warn" : "up"}>{L("Risiko", "Risk")}: {a.riskLevel}</Pill>}
-        <Pill>{f.label}</Pill>
+        <Pill>{f.label[0].toUpperCase() + f.label.slice(1)}</Pill>
         <Pill tone={d.features.tilt.detected ? "warn" : "neutral"}>{d.features.tilt.detected ? L("Tilt terdeteksi", "Tilt detected") : L("Tanpa tilt", "No tilt")}</Pill>
         <Pill tone={d.features.drift.detected ? "warn" : "neutral"}>{d.features.drift.detected ? L("Style drift", "Style drift") : L("Gaya stabil", "Stable style")}</Pill>
       </div>
       {a ? (
         <>
-          <p className="text-ink-2">{a.styleSummary[lang]}</p>
-          {a.tilt.detected && <p className="text-warn">{a.tilt[lang]}</p>}
-          {a.drift.detected && <p className="text-warn">{a.drift[lang]}</p>}
+          <p className="text-ink-2">{humanize(a.styleSummary[lang])}</p>
+          {a.tilt.detected && <p className="text-warn">{humanize(a.tilt[lang])}</p>}
+          {a.drift.detected && <p className="text-warn">{humanize(a.drift[lang])}</p>}
         </>
       ) : (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -135,7 +158,7 @@ export function AnalysisPanel({ perplAddress }: { perplAddress?: string }) {
           {(a?.devilsAdvocate.map((x) => ({ key: x.key, text: x[lang] })) ?? d.features.reasonsNotToFollow.slice(0, 3).map((x) => ({ key: x.key, text: x.detail }))).map((x) => (
             <li key={x.key} className="flex gap-2 text-ink-2">
               <span aria-hidden className="text-warn">!</span>
-              {x.text}
+              {humanize(x.text)}
             </li>
           ))}
         </ul>
@@ -167,23 +190,29 @@ export function AlignmentBadge({ perplAddress }: { perplAddress?: string }) {
   const L = useL();
   const q = useQuery({
     queryKey: ["alignment", perplAddress],
-    queryFn: () => call<{ alignment: { score: number | null; coverage: number }; composite: { score: number } }>(`leader/${perplAddress}/alignment`),
+    queryFn: () =>
+      call<{ unavailable?: string; alignment: { score: number | null; coverage: number; poweredBy?: string | null }; composite: { score: number | null; poweredBy?: string | null } }>(`leader/${perplAddress}/alignment`),
     enabled: !!perplAddress,
     staleTime: 600_000,
   });
   if (!q.data?.ok) return null; // Nansen not configured: show nothing rather than a fake score
   const d = q.data.data;
+  // credits out (or no data) answers 200 with null scores: say so instead of showing "–"
+  if (d.composite.score == null && d.alignment.score == null) return d.unavailable ? <span className="inline-flex rounded border border-line px-2 py-1 text-xs text-ink-3">{L("Data smart money tidak tersedia", "Smart-money data unavailable")}</span> : null;
+  const by = d.alignment.poweredBy ?? d.composite.poweredBy;
   return (
     <span className="inline-flex items-center gap-2 rounded border border-line-strong px-2 py-1 text-xs">
-      <span>
-        {L("Skor", "Score")} <span className="num text-ink">{num(d.composite.score, 0)}</span>
-      </span>
+      {d.composite.score != null && (
+        <span>
+          {L("Skor", "Score")} <span className="num text-ink">{num(d.composite.score, 0)}</span>
+        </span>
+      )}
       {d.alignment.score != null && (
         <span>
           {L("searah smart money", "smart-money aligned")} <span className="num text-ink">{pct(d.alignment.score, 0)}</span>
         </span>
       )}
-      <span className="text-ink-3">Powered by Nansen</span>
+      {by && <span className="text-ink-3">Powered by {by}</span>}
     </span>
   );
 }
@@ -195,7 +224,7 @@ export function AttestedBadge({ perplAddress }: { perplAddress?: string }) {
   const [valid, setValid] = useState<boolean | null>(null);
   const q = useQuery({
     queryKey: ["attest", perplAddress],
-    queryFn: () => call<{ record: { pnl30d: string; winRateBps: number; closedTrades: number; maxDrawdown: string }; hash: Hex; signature: Hex; attester: `0x${string}`; label: string }>(`attest/${perplAddress}`),
+    queryFn: () => call<{ record: { pnl30d: string; winRateBps: number; closedTrades: number; maxDrawdown: string; complete?: boolean }; complete?: boolean; hash: Hex; signature: Hex; attester: `0x${string}`; label: string }>(`attest/${perplAddress}`),
     enabled: !!perplAddress,
     staleTime: 600_000,
   });
@@ -208,6 +237,7 @@ export function AttestedBadge({ perplAddress }: { perplAddress?: string }) {
       <span className="num text-ink-2">
         PnL 30d {usd(Number(a.record.pnl30d), { sign: true, dp: 0 })} · WR {pct(a.record.winRateBps / 100, 0)} · {a.record.closedTrades} trades
       </span>
+      {(a.record.complete ?? a.complete) === false && <span className="text-warn">{L("histori parsial", "partial history")}</span>}
       <button onClick={check} className="text-ink-3 underline-offset-2 hover:text-ink-2 hover:underline">
         {valid == null ? L("Verifikasi tanda tangan", "Verify signature") : valid ? L("Valid ✓", "Valid ✓") : L("Tidak valid", "Invalid")}
       </button>
@@ -224,9 +254,9 @@ export function SimulatePreview({ tx }: { tx?: { from: `0x${string}`; to: `0x${s
     queryFn: () => call<{ engine: string; success: boolean; error?: string; balanceChanges: { symbol?: string; diff: string; decimals?: number; address: string }[]; events: { name?: string }[]; url?: string }>("simulate", tx),
     enabled: !!tx,
   });
-  if (!tx) return <p className="text-xs text-ink-3">{L("Masuk dan tunggu kontrak di-deploy untuk melihat simulasi transaksi.", "Sign in (and wait for deployment) to preview the transaction.")}</p>;
+  if (!tx) return <p className="text-xs text-ink-3">{L("Masuk untuk melihat simulasi transaksi.", "Sign in to preview the transaction.")}</p>;
   if (q.isLoading) return <p className="text-xs text-ink-3">{L("Mensimulasikan…", "Simulating…")}</p>;
-  if (!q.data?.ok) return <Missing what={q.data?.data.missing ?? q.data?.data.error} />;
+  if (!q.data?.ok) return q.data?.status === 503 ? <Missing what={q.data.data.missing} /> : <p className="text-xs text-ink-3">{friendlyError(q.data?.data.error)}</p>;
   const d = q.data.data;
   return (
     <div className="text-xs">

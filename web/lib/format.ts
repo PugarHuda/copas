@@ -21,8 +21,19 @@ export function num(v: number | null | undefined, dp = 2, compactIt = false) {
 
 export function pct(v: number | null | undefined, dp = 2, sign = false) {
   if (v == null || !Number.isFinite(v)) return "–";
-  const s = sign && v > 0 ? "+" : v < 0 ? "−" : "";
-  return `${s}${Math.abs(v).toFixed(dp)}%`;
+  const body = Math.abs(v).toFixed(dp);
+  const s = Number(body) === 0 ? "" : sign && v > 0 ? "+" : v < 0 ? "−" : ""; // never "−0.0%"
+  return `${s}${body}%`;
+}
+
+/** Percent with as many decimals as the magnitude needs, so a small non-zero value never reads as 0% (0.01 → 0.01%, 15 → 15%). */
+export function pctAuto(v: number | null | undefined, sign = false) {
+  if (v == null || !Number.isFinite(v)) return "–";
+  const a = Math.abs(v);
+  if (a > 0 && a < 0.001) return `<0.001%`;
+  const body = a >= 10 ? Math.round(a) : Number(a.toPrecision(2));
+  const s = body === 0 ? "" : sign && v > 0 ? "+" : v < 0 ? "−" : "";
+  return `${s}${body}%`;
 }
 
 /** Price with sensible precision for the magnitude (PUMP ~0.006, BTC ~85k). */

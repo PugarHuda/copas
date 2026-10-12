@@ -27,3 +27,13 @@ assert.ok(b.breach && b.dd > 31 && b.dd < 32);
 assert.equal(b.claim, 150); // pro-rata 200, capped at loss
 assert.equal(breachMath({ equity: 100, units: 100, peak: 1.05, maxDD: 10, slash: 900, capTotal: 2250, cap: 500, loss: 150 }).claim, 0);
 console.log("breach math ok");
+
+// percent display: small values never read as 0%, and never "−0.0%"
+import { pct, pctAuto } from "../format.ts";
+assert.equal(pctAuto(0.01), "0.01%");
+assert.equal(pctAuto(15), "15%");
+assert.equal(pctAuto(0), "0%");
+assert.equal(pctAuto(0.0001), "<0.001%");
+assert.equal(pct(-0.01, 1), "0.0%");
+assert.equal(pct(-1.25, 1), "−1.3%");
+console.log("percent format ok");

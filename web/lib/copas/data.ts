@@ -41,6 +41,23 @@ export async function getLeader(book: string): Promise<Leader | null> {
   }
 }
 
+/** CopasRegistry.maxVaultDepositCNS in AUSD; null when unreadable (0 on chain = no cap). */
+export async function maxVaultDeposit(): Promise<number | null> {
+  if (!deployment?.registry) return null;
+  return client.readContract({ address: deployment.registry, abi: copasAbi.CopasRegistry as Abi, functionName: "maxVaultDepositCNS" }).then(A, () => null);
+}
+
+/** Live LeaderBook equity/unit/peak, or null when the address is not a Copas LeaderBook. Throws on RPC failure. */
+export async function leaderBookLive(book: `0x${string}`) {
+  if (!deployment?.registry) return null;
+  if (!(await client.readContract({ address: deployment.registry, abi: copasAbi.CopasRegistry as Abi, functionName: "isLeaderBook", args: [book] }))) return null;
+  const lb = lbOf(book);
+  const [eq, unit, peak] = (await client.multicall({ contracts: (["equity", "unitPrice", "peakUnitPrice"] as const).map((f) => ({ ...lb, functionName: f })), allowFailure: false })) as [[bigint, boolean], [bigint, boolean], bigint];
+  const equity = A(eq[0]);
+  const u = Number(unit[0]) / 1e18;
+  return { equity, valid: eq[1] && unit[1], unit: u, units: u ? equity / u : 0, peak: Number(peak) / 1e18 };
+}
+
 async function readLeader(book: `0x${string}`, stats: Awaited<ReturnType<typeof leaderStats>>): Promise<Leader> {
   const lb = lbOf(book);
   const fns = ["owner", "status", "bond", "mandate", "unitPrice", "peakUnitPrice", "epoch", "epochEnd", "capacity", "capTotalNext", "pool", "operator", "equity"] as const;

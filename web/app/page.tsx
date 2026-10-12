@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Suspense } from "react";
+import type { Metadata } from "next";
 import { Panel, Segmented, Source, Tabs, Empty, btn } from "@/components/ui";
 import { Seal } from "@/components/Seal";
 import { DDMeter, StatusPill, protection } from "@/components/copas";
@@ -11,6 +12,8 @@ import { Landing } from "@/components/landing/Landing";
 import { num, pct, short, usd } from "@/lib/format";
 
 type SP = Promise<{ tab?: string; p?: string; s?: string }>;
+
+export const metadata: Metadata = { title: { absolute: "Copas · Bonded copy trading on Monad" } };
 
 export default async function Home({ searchParams }: { searchParams: SP }) {
   const sp = await searchParams;
@@ -28,10 +31,10 @@ export default async function Home({ searchParams }: { searchParams: SP }) {
       <Landing stats={stats} L={L} />
       <section id="leaders" className="grid scroll-mt-20 items-end gap-8 lg:grid-cols-[1fr_auto]">
         <div className="max-w-2xl">
-          <h1 className="font-cond text-4xl font-semibold leading-[1.05] tracking-tight sm:text-5xl">{t("home.title")}</h1>
+          <h2 className="font-cond text-4xl font-semibold leading-[1.05] tracking-tight sm:text-5xl">{t("home.title")}</h2>
           <p className="mt-4 text-base leading-relaxed text-ink-2">{t("home.lede")}</p>
         </div>
-        <dl className="grid grid-cols-3 gap-6 border-l border-line pl-6 text-sm">
+        <dl className="grid grid-cols-3 gap-4 border-l border-line pl-4 text-sm sm:gap-6 sm:pl-6">
           <div>
             <dt className="text-xs text-ink-3">{L("Jaminan dipertaruhkan", "Bonds at stake")}</dt>
             <dd className="num mt-1 text-xl text-gold-2">{usd(atStake, { dp: 0 })}</dd>
@@ -124,9 +127,15 @@ function Bonded({ leaders, L, t }: { leaders: Leader[] | null; L: Lx; t: Tx }) {
                 </div>
                 <div className="text-[11px] text-ink-3">{t("lb.protectionHint")}</div>
               </div>
-              <Link href={`/follow/${l.book}`} aria-disabled={l.status !== "active"} className={`${l.status === "active" ? btn.primary : btn.ghost + " pointer-events-none opacity-50"} py-1.5`}>
-                {t("common.follow")}
-              </Link>
+              {l.status === "active" ? (
+                <Link href={`/follow/${l.book}`} className={btn.primary + " py-1.5"}>
+                  {t("common.follow")}
+                </Link>
+              ) : (
+                <button type="button" disabled className={btn.ghost + " py-1.5"} title={L("Hanya leader aktif yang bisa diikuti", "Only active leaders can be followed")}>
+                  {t("common.follow")}
+                </button>
+              )}
             </li>
           );
         })}

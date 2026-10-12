@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 
 export function Panel({ title, aside, children, className = "", pad = true }: { title?: ReactNode; aside?: ReactNode; children: ReactNode; className?: string; pad?: boolean }) {
   return (
-    <section className={`rounded-lg border border-line bg-surface ${className}`}>
+    <section className={`min-w-0 rounded-lg border border-line bg-surface ${className}`}>
       {(title || aside) && (
         <header className="flex flex-wrap items-center justify-between gap-2 border-b border-line px-4 py-3">
           {title && <h2 className="text-sm font-medium text-ink">{title}</h2>}

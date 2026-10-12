@@ -22,7 +22,12 @@ export async function GET(req: Request, { params }: { params: Promise<{ path: st
   if (!ALLOW.some((r) => r.test(path))) return NextResponse.json({ error: "path not allowed" }, { status: 404 });
   const ttl = TTL.find(([r]) => r.test(path))?.[1] ?? 30;
   const qs = new URL(req.url).search;
-  const res = await fetch(`${PERPL_API}/${path}${qs}`, { headers: { "User-Agent": "copas-analytics/0.1" }, next: { revalidate: ttl } });
+  let res: Response;
+  try {
+    res = await fetch(`${PERPL_API}/${path}${qs}`, { headers: { "User-Agent": "copas-analytics/0.1" }, next: { revalidate: ttl }, signal: AbortSignal.timeout(15_000) });
+  } catch {
+    return NextResponse.json({ error: "perpl unreachable" }, { status: 502 });
+  }
   return new NextResponse(res.body, {
     status: res.status,
     headers: { "content-type": "application/json", "cache-control": `public, s-maxage=${ttl}, stale-while-revalidate=${ttl * 4}` },

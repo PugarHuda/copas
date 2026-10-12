@@ -23,7 +23,7 @@ export function MeView({ live, chain, leader, fills, query }: { live: LiveVault 
   const router = useRouter();
   const { status, address } = useMeraSession();
   const { write, pending, error } = useCopasWrite();
-  const [amt, setAmt] = useState(10);
+  const [amt, setAmt] = useState("10");
   // the server reads the vault by ?owner=; hand it the signed-in wallet once
   useEffect(() => {
     if (address && !query) router.replace(`/me?owner=${address}`);
@@ -56,6 +56,10 @@ export function MeView({ live, chain, leader, fills, query }: { live: LiveVault 
     );
 
   const vault = { address: chain.vault, abi: copasAbi.FollowerVault as Abi };
+  // ?vault= can show anyone's vault; only its owner may sign for it
+  const isOwner = status === "signed-in" && !!address && address.toLowerCase() === chain.owner.toLowerCase();
+  const wd = amt.trim() === "" ? NaN : Number(amt);
+  const wdErr = !(wd > 0) ? L("Masukkan jumlah di atas 0.", "Enter an amount above 0.") : wd > chain.equity ? L(`Maksimal ${usd(chain.equity)} (equity vault).`, `At most ${usd(chain.equity)} (vault equity).`) : undefined;
   const pnl = live ? chain.equity - live.netDeposit : null;
   // one row per market where the vault or its leader holds a position
   const mine = new Map(chain.positions.map((p) => [p.marketId, p]));
@@ -123,7 +127,7 @@ export function MeView({ live, chain, leader, fills, query }: { live: LiveVault 
                       <td className="r">{price((me ?? ld)!.mark)}</td>
                       <td className={`r ${(me?.upnl ?? 0) >= 0 ? "text-up" : "text-down"}`}>{me ? usd(me.upnl, { sign: true }) : "–"}</td>
                       <td className="r">
-                        <button disabled={pending} onClick={() => write("small", { ...vault, functionName: "sync", args: [BigInt(id)] })} className="text-xs text-ink-3 hover:text-gold-2">
+                        <button disabled={pending} onClick={() => write("small", { ...vault, functionName: "sync", args: [BigInt(id)] })} className="text-xs text-ink-3 hover:text-gold-2 disabled:opacity-50">
                           sync
                         </button>
                       </td>
@@ -148,7 +152,7 @@ export function MeView({ live, chain, leader, fills, query }: { live: LiveVault 
                   <span className="text-ink-3">{L("Estimasi klaim maks", "Max estimated claim")}</span>
                   <span className="num text-gold-2">{usd(c.estimate)}</span>
                 </div>
-                <button disabled={pending} className={btn.primary + " w-full"} onClick={() => write("small", { ...vault, functionName: "claim", args: [c.book, BigInt(c.epoch)] })}>
+                <button disabled={pending || !isOwner} className={btn.primary + " w-full"} onClick={() => write("small", { ...vault, functionName: "claim", args: [c.book, BigInt(c.epoch)] })}>
                   {L("Klaim ke vault", "Claim to vault")}
                 </button>
                 <p className="text-xs text-ink-3">{L("klaim = min(jaminan × cap kamu / Σcap, kerugian nyata)", "claim = min(slash × your cap / Σcap, actual loss)")}</p>
@@ -169,11 +173,37 @@ export function MeView({ live, chain, leader, fills, query }: { live: LiveVault 
             <label className="text-sm text-ink-2" htmlFor="wd">
               {L("Jumlah (AUSD)", "Amount (AUSD)")}
             </label>
-            <input id="wd" type="number" min={1} max={chain.equity} value={amt} onChange={(e) => setAmt(Number(e.target.value))} className="num mt-1 w-full rounded-md border border-line-strong bg-bg px-3 py-2 text-sm" />
-            <button disabled={pending || amt <= 0} className={btn.ghost + " mt-3 w-full"} onClick={() => write("risky", { ...vault, functionName: "withdraw", args: [parseUnits(String(amt), 6)] })}>
+            <input
+              id="wd"
+              type="number"
+              inputMode="decimal"
+              min={0}
+              max={chain.equity}
+              step="any"
+              value={amt}
+              onChange={(e) => setAmt(e.target.value)}
+              aria-invalid={!!wdErr}
+              aria-describedby={wdErr ? "wd-err" : undefined}
+              disabled={!isOwner}
+              className="num mt-1 w-full rounded-md border border-line-strong bg-bg px-3 py-2 text-sm disabled:opacity-50"
+            />
+            {wdErr && isOwner && (
+              <p id="wd-err" className="mt-1 text-xs text-down">
+                {wdErr}
+              </p>
+            )}
+            <button
+              disabled={pending || !!wdErr || !isOwner}
+              className={btn.ghost + " mt-3 w-full"}
+              onClick={() => write("risky", { ...vault, functionName: "withdraw", args: [parseUnits(Math.min(wd, chain.equity).toFixed(6), 6)] })}
+            >
               {L("Tarik ke alamatku", "Withdraw to my address")}
             </button>
-            <p className="mt-2 text-xs text-ink-3">{L("Penarikan selalu meminta passkey dan hanya bisa ke pemilik vault.", "Withdrawals always ask for your passkey and only go to the vault owner.")}</p>
+            <p className="mt-2 text-xs text-ink-3">
+              {isOwner
+                ? L("Penarikan selalu meminta passkey dan hanya bisa ke pemilik vault.", "Withdrawals always ask for your passkey and only go to the vault owner.")
+                : L(`Hanya pemilik vault (${short(chain.owner)}) yang bisa menarik atau mengklaim. Masuk dengan passkey pemilik.`, `Only the vault owner (${short(chain.owner)}) can withdraw or claim. Sign in with the owner's passkey.`)}
+            </p>
           </Panel>
           {error === "contracts-not-deployed" && <p role="alert" className="text-sm text-warn">{L("Kontrak belum di-deploy; aksi ini aktif setelah deploy.", "Contracts are not deployed yet; this action goes live after deployment.")}</p>}
           {error && error !== "contracts-not-deployed" && <p role="alert" className="text-sm text-down">{error}</p>}
@@ -200,7 +230,10 @@ export function MeView({ live, chain, leader, fills, query }: { live: LiveVault 
                   <tr key={f.tx + f.market}>
                     <td className="text-ink-3">{ago(f.t)}</td>
                     <td>
-                      {f.market} <span className={f.target >= f.from ? "text-up" : "text-down"}>{f.target >= f.from ? "B" : "S"}</span>
+                      {f.market}{" "}
+                      <span className={f.target > 0 ? "text-up" : f.target < 0 ? "text-down" : "text-ink-3"} title={L("Sisi posisimu setelah copy", "Your side after the copy")}>
+                        {f.target > 0 ? "L" : f.target < 0 ? "S" : L("tutup", "flat")}
+                      </span>
                     </td>
                     <td className="r text-ink-3">{num(f.leaderLot, 4)}</td>
                     <td className="r">

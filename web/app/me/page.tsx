@@ -1,6 +1,9 @@
 import { copasVault } from "@/lib/copas/indexer";
 import { getLeader, recentSynced, vaultState } from "@/lib/copas/data";
+import type { Metadata } from "next";
 import { MeView } from "./MeView";
+
+export const metadata: Metadata = { title: "My vault" };
 
 type SP = Promise<{ owner?: string; vault?: string }>;
 

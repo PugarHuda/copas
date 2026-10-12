@@ -2,7 +2,7 @@
 import { useCallback, useState } from "react";
 import { createPublicClient, createWalletClient, http, type Abi } from "viem";
 import { copasChain } from "../chains";
-import { useMeraSession, type ActionRisk } from "../mera/MeraProvider";
+import { toUiError, useMeraSession, type ActionRisk } from "../mera/MeraProvider";
 import { isDeployed } from "./contracts";
 
 export const copasPublic = createPublicClient({ chain: copasChain, transport: http() });
@@ -35,7 +35,8 @@ export function useCopasWrite() {
         await copasPublic.waitForTransactionReceipt({ hash: h });
         return h;
       } catch (e) {
-        setError(e instanceof Error ? e.message.split("\n")[0] : String(e));
+        const code = (e as { code?: unknown })?.code;
+        setError(code === "TIMEOUT" || code === "CANCELLED" ? toUiError(e).message.en : e instanceof Error ? e.message.split("\n")[0] : String(e));
       } finally {
         setPending(false);
       }

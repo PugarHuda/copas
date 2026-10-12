@@ -11,7 +11,6 @@ const ALLOW: [string, RegExp][] = [
   ["GET", /^attest\/0x[0-9a-fA-F]{40}$/],
   ["GET", /^discover$/],
   ["POST", /^simulate$/],
-  ["POST", /^kimi\/verify$/],
 ];
 
 async function handle(req: Request, params: Promise<{ path: string[] }>) {

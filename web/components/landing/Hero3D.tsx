@@ -21,7 +21,10 @@ function sphereTexture(label: string, red: boolean) {
       g.arc(x, y, 3.2, 0, 7);
       g.fill();
     }
-  g.font = "600 150px 'Barlow Condensed', 'Arial Narrow', sans-serif";
+  // fit the label inside the visible front of the sphere (~1/3 of the wrapped texture width)
+  let px = 150;
+  do g.font = `600 ${px}px 'Barlow Condensed', 'Arial Narrow', sans-serif`;
+  while (g.measureText(label).width > c.width * 0.3 && (px -= 6) > 40);
   g.textAlign = "center";
   g.textBaseline = "middle";
   g.fillStyle = red ? "#ffffff" : "#e3241b";
@@ -53,7 +56,7 @@ export function Hero3D() {
     const key = new THREE.DirectionalLight(0xffffff, 2.2);
     key.position.set(4, 6, 8);
     scene.add(key);
-    const rim = new THREE.PointLight(0xff2a1a, 60, 30);
+    const rim = new THREE.PointLight(0xff2a1a, 22, 30);
     rim.position.set(-5, -2, 4);
     scene.add(rim);
 
@@ -67,7 +70,7 @@ export function Hero3D() {
       const r = 2.2 + (i % 3) * 0.9;
       const s = 0.75 + ((i * 37) % 10) / 22;
       m.scale.setScalar(s);
-      m.userData = { base: new THREE.Vector3(Math.cos(a) * r - 1.2, Math.sin(a) * r * 0.62 + 0.4, ((i * 53) % 7) - 3.5), phase: i * 1.7, label };
+      m.userData = { base: new THREE.Vector3(Math.cos(a) * r * 0.9 - 2.2, Math.sin(a) * r * 0.55 + 0.9, ((i * 53) % 7) - 3.5), phase: i * 1.7, label };
       m.position.copy(m.userData.base);
       m.rotation.y = -Math.PI / 2 + (i % 2 ? 0.4 : -0.3);
       group.add(m);

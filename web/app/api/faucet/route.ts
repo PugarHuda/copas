@@ -16,8 +16,9 @@ const last = new Map<string, number>();
 export async function POST(req: Request) {
   const key = process.env.TESTNET_FAUCET_KEY as `0x${string}` | undefined;
   if (!key) return NextResponse.json({ error: "faucet-off" }, { status: 503 });
-  const { address } = (await req.json().catch(() => ({}))) as { address?: string };
-  if (!address || !isAddress(address)) return NextResponse.json({ error: "bad-address" }, { status: 400 });
+  const body: unknown = await req.json().catch(() => null);
+  const address = body && typeof body === "object" ? (body as { address?: unknown }).address : undefined;
+  if (typeof address !== "string" || !isAddress(address)) return NextResponse.json({ error: "bad-address" }, { status: 400 });
   const a = address.toLowerCase() as `0x${string}`;
   if (Date.now() - (last.get(a) ?? 0) < 3_600_000) return NextResponse.json({ error: "cooldown" }, { status: 429 });
   last.set(a, Date.now());

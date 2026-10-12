@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { Panel, Source, Stat, StatRow, Empty, btn, Pill } from "@/components/ui";
 import { Seal } from "@/components/Seal";
@@ -10,7 +11,7 @@ import type { Leader } from "@/lib/copas/contracts";
 import type { Position } from "@/lib/perpl/onchain";
 import { walletPeriods, walletSnapshot } from "@/lib/perpl/analytics";
 import { getT } from "@/lib/i18n/server";
-import { ago, isAddress, num, pct, price, short, usd } from "@/lib/format";
+import { ago, isAddress, num, pct, pctAuto, price, short, usd } from "@/lib/format";
 import { copasChain, explorerAddr, explorerTx } from "@/lib/chains";
 import { StrategyFeed } from "@/components/StrategyFeed";
 import { AlignmentBadge, AnalysisPanel, AttestedBadge, BacktestPanel } from "@/components/services";
@@ -20,12 +21,14 @@ type Lx = (a: string, b: string) => string;
 
 export async function generateMetadata({ params }: { params: P }): Promise<Metadata> {
   const { addr } = await params;
+  if (!isAddress(addr)) return { title: "Not found" };
   const leader = await getLeader(addr);
   return { title: leader?.name ?? `Shadow ${short(addr)}` };
 }
 
 export default async function LeaderPage({ params }: { params: P }) {
   const { addr } = await params;
+  if (!isAddress(addr)) notFound();
   const { t, lang } = await getT();
   const L: Lx = (a, b) => (lang === "id" ? a : b);
   const leader = await getLeader(addr);
@@ -33,8 +36,7 @@ export default async function LeaderPage({ params }: { params: P }) {
     const [cps, positions] = await Promise.all([leaderCheckpoints(leader.book), perplPositions(leader.book).catch(() => null)]);
     return <Bonded l={leader} cps={cps} positions={positions} L={L} statusLabel={t(`status.${leader.status}`)} />;
   }
-  if (isAddress(addr)) return <ShadowProfile addr={addr.toLowerCase()} L={L} />;
-  return <Empty>{L("Leader tidak ditemukan.", "Leader not found.")}</Empty>;
+  return <ShadowProfile addr={addr.toLowerCase()} L={L} />;
 }
 
 function Bonded({ l, cps, positions: read, L, statusLabel }: { l: Leader; cps: LiveCheckpoint[] | null; positions: Position[] | null; L: Lx; statusLabel: string }) {
@@ -47,7 +49,7 @@ function Bonded({ l, cps, positions: read, L, statusLabel }: { l: Leader; cps: L
   const outside = positions.filter((p) => !l.markets.includes(p.market));
   const hoursLeft = Math.max(0, (l.epochEnd - Date.now()) / 3_600_000);
   const mandate: { label: string; promise: string; now: string; ok: boolean }[] = [
-    { label: L("Drawdown maks per epoch", "Max drawdown per epoch"), promise: pct(l.maxDD, 0), now: pct(l.liveDD, 1), ok: l.liveDD <= l.maxDD },
+    { label: L("Drawdown maks per epoch", "Max drawdown per epoch"), promise: pctAuto(l.maxDD), now: pctAuto(l.liveDD), ok: l.liveDD <= l.maxDD },
     { label: L("Leverage maks", "Max leverage"), promise: `${l.maxLeverage}x`, now: `${num(effLev, 1)}x`, ok: effLev <= l.maxLeverage },
     { label: L("Market yang diizinkan", "Allowed markets"), promise: l.markets.join(", "), now: outside.length ? outside.map((p) => p.market).join(", ") : L("semua di dalam mandat", "all inside mandate"), ok: !outside.length },
     { label: L("Notional maks", "Max notional"), promise: usd(l.maxNotional, { dp: 0 }), now: usd(gross, { dp: 0 }), ok: gross <= l.maxNotional },
@@ -59,18 +61,18 @@ function Bonded({ l, cps, positions: read, L, statusLabel }: { l: Leader; cps: L
         <Seal bond={l.bond + l.underwritten} maxDD={l.maxDD} breached={l.status === "breached"} size="lg" label={L("Jaminan AUSD", "AUSD bond")} />
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <h1 className="font-cond text-3xl font-semibold sm:text-4xl">{l.name}</h1>
+            <h1 className="break-all font-cond text-3xl font-semibold sm:text-4xl">{l.name}</h1>
             <StatusPill status={l.status} label={statusLabel} />
             {l.agent && <Pill tone="gold">AI agent{l.agent.erc8004Id ? ` · ERC-8004 #${l.agent.erc8004Id}` : ""}</Pill>}
           </div>
           <div className="mt-2 grid gap-1 text-xs text-ink-3">
-            <span>
+            <span className="break-all">
               LeaderBook{" "}
               <a className="num hover:text-ink-2" href={explorerAddr(l.book, copasChain.id)} target="_blank" rel="noreferrer">
                 {l.book}
               </a>
             </span>
-            <span>
+            <span className="break-all">
               {L("Pemilik", "Owner")} <span className="num">{l.owner}</span>
             </span>
             {l.agent && <span>{l.agent.model}</span>}
@@ -80,19 +82,30 @@ function Bonded({ l, cps, positions: read, L, statusLabel }: { l: Leader; cps: L
             <AlignmentBadge perplAddress={l.perplAccount} />
           </div>
           <p className="mt-3 max-w-2xl text-sm text-ink-2">
-            {L(
-              `${l.name} mempertaruhkan ${usd(l.bond, { dp: 0 })} miliknya sendiri${l.underwritten ? ` plus ${usd(l.underwritten, { dp: 0 })} dari penjamin` : ""}. Bila unit price turun lebih dari ${l.maxDD}% dari puncak epoch, jaminan dipotong dan dibayarkan ke follower.`,
-              `${l.name} stakes ${usd(l.bond, { dp: 0 })} of their own${l.underwritten ? ` plus ${usd(l.underwritten, { dp: 0 })} from underwriters` : ""}. If the unit price falls more than ${l.maxDD}% below the epoch peak, the bond is slashed and paid to followers.`,
-            )}
+            {l.status === "breached"
+              ? L(
+                  `${l.name} melanggar mandat di epoch ${l.epoch}: unit price turun lebih dari ${l.maxDD}% dari puncak epoch, jadi jaminannya dipotong dan dibayarkan ke follower. Sisa jaminan: ${usd(l.bond, { dp: 0 })}.`,
+                  `${l.name} broke its mandate in epoch ${l.epoch}: the unit price fell more than ${l.maxDD}% below the epoch peak, so the bond was slashed and paid to followers. Bond left: ${usd(l.bond, { dp: 0 })}.`,
+                )
+              : L(
+                  `${l.name} mempertaruhkan ${usd(l.bond, { dp: 0 })} miliknya sendiri${l.underwritten ? ` plus ${usd(l.underwritten, { dp: 0 })} dari penjamin` : ""}. Bila unit price turun lebih dari ${l.maxDD}% dari puncak epoch, jaminan dipotong dan dibayarkan ke follower.`,
+                  `${l.name} stakes ${usd(l.bond, { dp: 0 })} of their own${l.underwritten ? ` plus ${usd(l.underwritten, { dp: 0 })} from underwriters` : ""}. If the unit price falls more than ${l.maxDD}% below the epoch peak, the bond is slashed and paid to followers.`,
+                )}
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Link href={`/market/${l.book}`} className={btn.ghost}>
             {L("Pasar DOWN", "DOWN market")}
           </Link>
-          <Link href={`/follow/${l.book}`} aria-disabled={l.status !== "active"} className={l.status === "active" ? btn.primary : btn.ghost + " pointer-events-none opacity-50"}>
-            {L("Ikuti leader ini", "Follow this leader")}
-          </Link>
+          {l.status === "active" ? (
+            <Link href={`/follow/${l.book}`} className={btn.primary}>
+              {L("Ikuti leader ini", "Follow this leader")}
+            </Link>
+          ) : (
+            <button type="button" disabled className={btn.ghost} title={L("Hanya leader aktif yang bisa diikuti", "Only active leaders can be followed")}>
+              {L("Ikuti leader ini", "Follow this leader")}
+            </button>
+          )}
         </div>
       </div>
 
@@ -157,6 +170,7 @@ function Bonded({ l, cps, positions: read, L, statusLabel }: { l: Leader; cps: L
           {!read ? (
             <Empty>{L("RPC Monad tidak merespons. Coba lagi sebentar.", "The Monad RPC did not respond. Try again shortly.")}</Empty>
           ) : positions.length ? (
+            <div className="overflow-x-auto">
             <table className="data">
               <thead>
                 <tr>
@@ -183,6 +197,7 @@ function Bonded({ l, cps, positions: read, L, statusLabel }: { l: Leader; cps: L
                 ))}
               </tbody>
             </table>
+            </div>
           ) : (
             <Empty>{L("Tidak ada posisi terbuka.", "No open positions.")}</Empty>
           )}
@@ -285,6 +300,7 @@ async function ShadowProfile({ addr, L }: { addr: string; L: Lx }) {
       </Panel>
       <Panel title={L("Posisi terbuka", "Open positions")} pad={false} aside={<Source kind="live">getPosition</Source>}>
         {snap?.positions.length ? (
+          <div className="overflow-x-auto">
           <table className="data">
             <thead>
               <tr>
@@ -309,6 +325,7 @@ async function ShadowProfile({ addr, L }: { addr: string; L: Lx }) {
               ))}
             </tbody>
           </table>
+          </div>
         ) : (
           <Empty>{snap ? L("Tidak ada posisi terbuka.", "No open positions.") : L("Tidak ada akun Perpl.", "No Perpl account.")}</Empty>
         )}

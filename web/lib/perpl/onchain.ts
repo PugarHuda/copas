@@ -1,5 +1,5 @@
 import "server-only";
-import { createPublicClient, http } from "viem";
+import { BaseError, ContractFunctionRevertedError, createPublicClient, http } from "viem";
 import { monad, PERPL } from "../chains";
 import { perplExchangeAbi } from "./abi";
 import type { Market } from "./api";
@@ -173,14 +173,22 @@ async function snapshot(markets: Market[], acct: { accountId: bigint; balanceCNS
   };
 }
 
+/** The exchange reverts for an unknown address/id: that is "no account", not an RPC failure. */
+const noAccount = (e: unknown) => {
+  if (e instanceof BaseError && e.walk((x) => x instanceof ContractFunctionRevertedError)) return null;
+  throw e;
+};
+
 export async function accountByAddr(markets: Market[], addr: `0x${string}`, blockNumber?: bigint) {
-  const a = await rpc.readContract({ ...ex, functionName: "getAccountByAddr", args: [addr], blockNumber });
+  const a = await rpc.readContract({ ...ex, functionName: "getAccountByAddr", args: [addr], blockNumber }).catch(noAccount);
+  if (!a) return null;
   if (a.accountId === 0n) return null;
   return snapshot(markets, a, blockNumber);
 }
 
 export async function accountById(markets: Market[], id: number, blockNumber?: bigint) {
-  const a = await rpc.readContract({ ...ex, functionName: "getAccountById", args: [BigInt(id)], blockNumber });
+  const a = await rpc.readContract({ ...ex, functionName: "getAccountById", args: [BigInt(id)], blockNumber }).catch(noAccount);
+  if (!a) return null;
   if (a.accountId === 0n) return null;
   return snapshot(markets, a, blockNumber);
 }

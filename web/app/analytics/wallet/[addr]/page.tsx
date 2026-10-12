@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Suspense } from "react";
+import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { Panel, Source, Stat, StatRow, Empty, Bar } from "@/components/ui";
 import { TimeChart } from "@/components/TimeChart";
@@ -14,18 +15,18 @@ import { WalletSearch, WatchButton } from "../../_c/client";
 
 type P = Promise<{ addr: string }>;
 type Lx = (a: string, b: string) => string;
+const isAccountId = (s: string) => /^\d{1,9}$/.test(s);
 
 export async function generateMetadata({ params }: { params: P }): Promise<Metadata> {
   const { addr } = await params;
-  return { title: `Wallet ${isAddress(addr) ? short(addr) : "#" + addr}` };
+  return { title: isAddress(addr) ? `Wallet ${short(addr)}` : isAccountId(addr) ? `Account #${addr}` : "Not found" };
 }
 
 export default async function WalletPage({ params }: { params: P }) {
   const { addr } = await params;
+  if (!isAddress(addr) && !isAccountId(addr)) notFound();
   const { lang } = await getT();
   const L: Lx = (a, b) => (lang === "id" ? a : b);
-  if (!isAddress(addr) && !/^\d{1,7}$/.test(addr))
-    return <Empty>{L("Alamat tidak valid. Masukkan alamat 0x 40 karakter atau ID akun Perpl.", "Not a valid address. Enter a 40-character 0x address or a Perpl account ID.")}</Empty>;
 
   const snap = await walletSnapshot(addr.toLowerCase()).catch(() => undefined);
   if (snap === undefined) return <Empty>{L("RPC Monad tidak merespons. Muat ulang sebentar lagi.", "The Monad RPC did not respond. Reload in a moment.")}</Empty>;
@@ -36,7 +37,7 @@ export default async function WalletPage({ params }: { params: P }) {
           {L("Kembali ke analitik Perpl", "Back to Perpl analytics")}
         </Link>
         <Panel>
-          <Empty>{L("Wallet ini belum punya akun exchange Perpl.", "This wallet has no Perpl exchange account.")}</Empty>
+          <Empty>{isAccountId(addr) ? L(`Akun #${addr} tidak ditemukan di Perpl.`, `Account #${addr} not found on Perpl.`) : L("Wallet ini belum punya akun exchange Perpl.", "This wallet has no Perpl exchange account.")}</Empty>
           <div className="flex justify-center pb-4">
             <WalletSearch compact />
           </div>
@@ -55,7 +56,7 @@ export default async function WalletPage({ params }: { params: P }) {
           </Link>
           <h1 className="num mt-1 break-all font-cond text-2xl font-semibold sm:text-3xl">{short(address)}</h1>
           <div className="mt-1 flex flex-wrap gap-x-4 text-xs text-ink-3">
-            <span className="num">{address}</span>
+            <span className="num break-all">{address}</span>
             <span>
               {L("Akun", "Account")} #{snap.accountId}
             </span>
@@ -198,6 +199,7 @@ async function Periods({ address, L }: { address: string; L: Lx }) {
   const rows = await walletPeriods(address);
   const names: Record<string, string> = { day: "24h", week: "7d", "2weeks": "14d", month: "30d", all: L("Semua", "All") };
   return (
+    <div className="overflow-x-auto">
     <table className="data">
       <thead>
         <tr>
@@ -220,6 +222,13 @@ async function Periods({ address, L }: { address: string; L: Lx }) {
         ))}
       </tbody>
     </table>
+    <p className="px-4 py-3 text-xs text-ink-3">
+      {L(
+        "PnL ini angka leaderboard Perpl sendiri (setelah fee, termasuk posisi terbuka). PnL terealisasi di analitik trade hanya trade tertutup, sebelum fee, jadi keduanya bisa berbeda.",
+        "This is Perpl's own leaderboard PnL (after fees, including open positions). Realized PnL under trade analytics counts closed trades only, before fees, so the two can differ.",
+      )}
+    </p>
+    </div>
   );
 }
 
@@ -232,11 +241,13 @@ async function Equity({ accountId, L }: { accountId: number; L: Lx }) {
   // Flow-adjusted: remove deposits/withdrawals made after the first sample, so a withdrawal is not a drawdown.
   const t0 = pts[0].t;
   const adj = pts.map((p) => p.equity - flows.filter((f) => f.t > t0 && f.t <= p.t).reduce((a, f) => a + f.amount, 0));
+  // equity at or below zero after removing flows means the flow history is incomplete: no honest drawdown exists
+  const broken = adj.some((v) => v <= 0);
   let peak = -Infinity;
   let dd = 0;
   for (const v of adj) {
     peak = Math.max(peak, v);
-    if (peak > 0) dd = Math.max(dd, Math.min(1, (peak - v) / peak));
+    if (peak > 0) dd = Math.max(dd, (peak - v) / peak);
   }
   const first = pts[0].equity;
   const last = pts[pts.length - 1].equity;
@@ -244,7 +255,12 @@ async function Equity({ accountId, L }: { accountId: number; L: Lx }) {
     <>
       <div className="mb-3 grid grid-cols-3 gap-4">
         <Stat label={envio ? L("Perubahan sejak awal", "Change since start") : L("Perubahan 5 hari", "5-day change")} value={usd(last - first, { sign: true, compact: true })} tone={last >= first ? "text-up" : "text-down"} />
-        <Stat label={L("Drawdown maks (tanpa arus dana)", "Max drawdown (flow-adjusted)")} value={pct(dd * 100, 2)} tone={dd > 0.1 ? "text-down" : ""} />
+        <Stat
+          label={L("Drawdown maks (tanpa arus dana)", "Max drawdown (flow-adjusted)")}
+          value={broken ? "–" : pct(dd * 100, 2)}
+          tone={!broken && dd > 0.1 ? "text-down" : ""}
+          sub={broken ? L("arus dana tidak lengkap", "flow history incomplete") : undefined}
+        />
         <Stat label={L("Equity puncak", "Peak equity")} value={usd(Math.max(...pts.map((p) => p.equity)), { compact: true })} />
       </div>
       <TimeChart ariaLabel="Equity" height={180} series={[{ name: "Equity", kind: "area", color: "#3987e5", data: pts.map((p) => ({ t: p.t, v: p.equity })) }]} />
@@ -280,7 +296,7 @@ async function Trades({ accountId, snap, L }: { accountId: number; snap: Account
         ) : (
           <div className="grid gap-6 lg:grid-cols-3">
             <div className="grid grid-cols-2 content-start gap-x-6 gap-y-5 sm:grid-cols-3 lg:col-span-2">
-              <Stat label={L("PnL terealisasi", "Realized PnL")} value={usd(s.realized, { sign: true })} tone={s.realized >= 0 ? "text-up" : "text-down"} sub={`${s.trades} trades`} />
+              <Stat label={L("PnL terealisasi", "Realized PnL")} value={usd(s.realized, { sign: true })} tone={s.realized >= 0 ? "text-up" : "text-down"} sub={`${s.trades.toLocaleString("en-US")} trades · ${L("sebelum fee", "before fees")}`} />
               <Stat label="Win rate" value={pct(s.winRate, 1)} sub={`${s.wins}W / ${s.losses}L`} />
               <Stat label="Profit factor" value={s.profitFactor == null ? "–" : Number.isFinite(s.profitFactor) ? num(s.profitFactor, 2) : "∞"} />
               <Stat label={L("Drawdown maks (realized)", "Max drawdown (realized)")} value={usd(s.maxDrawdown)} tone={s.maxDrawdown > 0 ? "text-down" : ""} />

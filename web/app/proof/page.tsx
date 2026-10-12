@@ -5,7 +5,7 @@ import { deny } from "@/lib/copas/generated/deny";
 import { deployment } from "@/lib/copas/contracts";
 import { copasBreaches } from "@/lib/copas/indexer";
 import { breachInputs, getLeaders } from "@/lib/copas/data";
-import { PERPL, copasChain, explorerAddr, explorerTx, monad } from "@/lib/chains";
+import { PERPL, copasChain, explorerAddr, explorerTx } from "@/lib/chains";
 import { getT } from "@/lib/i18n/server";
 import { num, pct, short, usd } from "@/lib/format";
 import { Recompute } from "./Recompute";
@@ -38,6 +38,7 @@ export default async function Proof() {
         )}
       />
       <Panel title={L("Alamat kontrak", "Contract addresses")} pad={false}>
+        <div className="overflow-x-auto">
         <table className="data">
           <tbody>
             {addrs.map(([name, a, chain]) => (
@@ -46,7 +47,7 @@ export default async function Proof() {
                 <td className="text-ink-3">{chain === 143 ? "Monad" : "Monad testnet"}</td>
                 <td className="num">
                   {a ? (
-                    <a href={explorerAddr(a, chain)} target="_blank" rel="noreferrer" className="hover:text-gold-2">
+                    <a href={explorerAddr(a, chain)} target="_blank" rel="noreferrer" className="whitespace-normal break-all hover:text-gold-2">
                       {a}
                     </a>
                   ) : (
@@ -57,6 +58,7 @@ export default async function Proof() {
             ))}
           </tbody>
         </table>
+        </div>
       </Panel>
 
       <Panel title={L("Breach dan potongan jaminan", "Breaches and slashes")} aside={<Source kind="indexer">LeaderBook.Breached + Claimed</Source>} pad={false}>
@@ -65,6 +67,7 @@ export default async function Proof() {
         ) : !live.length ? (
           <p className="px-4 py-8 text-center text-sm text-ink-3">{L("Belum ada breach. Semua leader masih dalam mandat.", "No breaches yet. Every leader is inside its mandate.")}</p>
         ) : (
+        <div className="overflow-x-auto">
         <table className="data">
           <thead>
             <tr>
@@ -103,6 +106,7 @@ export default async function Proof() {
             ))}
           </tbody>
         </table>
+        </div>
         )}
       </Panel>
 
@@ -158,6 +162,7 @@ export default async function Proof() {
       <div className="grid gap-6 lg:grid-cols-2">
         <Panel title={L("Log DENY policy Privy", "Privy policy DENY log")} aside={deny && <Source kind="live">Privy · {deny.chainId}</Source>} pad={false}>
           {deny ? (
+            <div className="overflow-x-auto">
             <table className="data">
               <tbody>
                 <tr>
@@ -168,6 +173,7 @@ export default async function Proof() {
                 </tr>
               </tbody>
             </table>
+            </div>
           ) : (
             <Empty>{L("Jalankan pnpm privy:deny-demo di keeper.", "Run pnpm privy:deny-demo in keeper.")}</Empty>
           )}
@@ -179,7 +185,11 @@ export default async function Proof() {
         <Link href="/analytics" className="underline">
           /analytics
         </Link>
-        . {short(PERPL[monad.id].exchange)}
+        . {L("Copas memakai Perpl Exchange", "Copas trades on Perpl Exchange")}{" "}
+        <a className="num underline" href={explorerAddr(PERPL[copasChain.id].exchange, copasChain.id)} target="_blank" rel="noreferrer">
+          {short(PERPL[copasChain.id].exchange)}
+        </a>{" "}
+        ({copasChain.name}).
       </p>
     </div>
   );

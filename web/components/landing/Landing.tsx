@@ -27,7 +27,7 @@ export function Landing({ stats, L }: { stats: Stats; L: Lx }) {
         "One passkey, no seed phrase. Your vault can only move toward ratio × the leader's position, inside your limits.",
       ),
       k: `${fmt(stats.followerAum)} AUSD`,
-      kl: L("kapasitas follower terdaftar", "follower capacity registered"),
+      kl: L("cap copy yang didaftarkan follower", "copy caps committed by followers"),
     },
     {
       n: "03",
@@ -37,16 +37,16 @@ export function Landing({ stats, L }: { stats: Stats; L: Lx }) {
         "Equity is read straight from Perpl state, no oracle. A breach slashes the bond to followers automatically.",
       ),
       k: String(stats.breached),
-      kl: L("leader pernah dipotong", "leaders slashed so far"),
+      kl: L("leader pernah dipotong", stats.breached === 1 ? "leader slashed so far" : "leaders slashed so far"),
     },
   ];
 
   return (
-    <div className="-mx-4 -mt-8 mb-10 space-y-3 sm:-mx-6">
+    <div className="-mx-4 -mt-5 mb-10 space-y-3 sm:-mx-6">
       {/* hero: paper screen in a black bezel */}
       <section className="relative mx-2 overflow-hidden rounded-[22px] border-[6px] border-black bg-paper text-[#121212] sm:mx-3" style={{ height: "min(78vh, 760px)" }}>
         <Hero3D />
-        <div className="pointer-events-none absolute inset-x-0 top-0 flex justify-between p-4 sm:p-6">
+        <div className="pointer-events-none absolute inset-x-0 top-0 z-10 flex justify-between p-4 sm:p-6">
           <p className="micro font-medium">
             {L("Copy trading berjaminan", "Bonded copy trading")}
             <br />
@@ -58,11 +58,11 @@ export function Landing({ stats, L }: { stats: Stats; L: Lx }) {
             {L("untuk risiko", "approach to risk")}
           </p>
         </div>
-        <div className="absolute bottom-4 left-4 flex items-center gap-2 sm:bottom-6 sm:left-6">
+        <div className="absolute bottom-4 left-4 z-10 flex items-center gap-2 sm:bottom-6 sm:left-6">
           <Link href="#leaders" className="micro rounded-full bg-[#121212] px-3 py-2 font-medium text-white hover:bg-black">
             {L("Lihat leader", "See leaders")} ↓
           </Link>
-          <span className="micro hidden sm:inline">{L("Testnet live", "Live on testnet")} · {stats.leaders} {L("leader", "leaders")}</span>
+          <span className="micro hidden sm:inline">{L("Testnet live", "Live on testnet")} · {stats.leaders} {L("leader", stats.leaders === 1 ? "leader" : "leaders")}</span>
         </div>
         <h1 className="display pointer-events-none absolute bottom-1 right-3 text-[22vw] leading-[0.78] tracking-[-0.03em] text-[#1a1a1a] sm:right-6 sm:text-[17vw] lg:text-[220px]">copas</h1>
       </section>

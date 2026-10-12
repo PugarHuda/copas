@@ -7,6 +7,7 @@ import { Panel, Pill, btn } from "@/components/ui";
 
 // sessionStorage survives the localStorage wipe + reload, so the test can compare addresses afterwards.
 const EXPECT = "copas.stateless.expect";
+const CLEARED = "copas.cleared";
 
 export function SettingsClient() {
   const { t, lang } = useT();
@@ -14,11 +15,14 @@ export function SettingsClient() {
   const { status, address, expiresAt, error, supported, create, signIn, signOut } = useMeraSession();
   const left = useMinutesLeft(status === "signed-in" ? expiresAt : undefined);
   const [expect, setExpect] = useState<string | null>(null);
+  const [cleared, setCleared] = useState(false);
   const quiet = (p: Promise<void>) => p.catch(() => undefined);
 
   useEffect(() => {
     try {
       setExpect(sessionStorage.getItem(EXPECT));
+      setCleared(!!sessionStorage.getItem(CLEARED));
+      sessionStorage.removeItem(CLEARED);
     } catch {
       /* storage blocked */
     }
@@ -27,6 +31,7 @@ export function SettingsClient() {
   function clearLocal() {
     try {
       if (address) sessionStorage.setItem(EXPECT, address);
+      sessionStorage.setItem(CLEARED, "1");
       Object.keys(localStorage)
         .filter((k) => k.startsWith("copas."))
         .forEach((k) => localStorage.removeItem(k));
@@ -110,6 +115,11 @@ export function SettingsClient() {
         <button className={btn.ghost + " mt-4"} onClick={clearLocal}>
           {t("settings.clear")}
         </button>
+        {cleared && (
+          <p role="status" className="mt-2 text-xs text-up">
+            ✓ {L("Data lokal Copas dihapus dan kamu sudah keluar.", "Local Copas data cleared and you are signed out.")}
+          </p>
+        )}
       </Panel>
 
     </div>

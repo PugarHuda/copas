@@ -29,6 +29,26 @@ export async function envioQuery<T>(query: string, variables: Record<string, unk
   return j.data as T;
 }
 
+/** Rows per request: the hosted Hasura silently caps every query at 1000 rows. */
+const PAGE = 1000;
+
+/**
+ * Every row of `entity` matching `where`, paged by offset. The hosted schema has no `<Entity>_aggregate`,
+ * so counts and sums must see all rows. ponytail: stops at `max` rows (20 requests); a server-side aggregate if that is ever hit.
+ */
+async function envioAll<T>(entity: string, where: string, fields: string, vars: Record<string, unknown> = {}, decl = "", max = 20_000): Promise<T[]> {
+  const out: T[] = [];
+  for (let offset = 0; offset < max; offset += PAGE) {
+    const d = await envioQuery<Record<string, T[]>>(`query($chain: Int!, $offset: Int!${decl}) { ${entity}(${where}, limit: ${PAGE}, offset: $offset) { ${fields} } }`, { ...vars, offset });
+    out.push(...d[entity]);
+    if (d[entity].length < PAGE) break;
+  }
+  return out;
+}
+
+/** The indexer names Perpl's current SOL market "SOL_v2" (the API calls it SOL); show one name. */
+const sym = (m: { symbol: string } | null) => (m ? m.symbol.replace(/_v\d+$/, "") : "?");
+
 // A cloud indexer still backfilling would show stale analytics; use it only once it is near head.
 // ponytail: per-instance 60s memo, fine for a dashboard
 let fresh: { at: number; ok: Promise<boolean> } | undefined;
@@ -62,15 +82,17 @@ type ClosedRow = {
 
 /** Every closed round trip for one account (ClosedTrade), newest first. */
 export async function indexerWalletTrades(accountId: number): Promise<Trade[]> {
-  const d = await envioQuery<{ ClosedTrade: ClosedRow[] }>(
-    `query($chain: Int!, $acc: String!) { ClosedTrade(where: { chainId: { _eq: $chain }, account_id: { _eq: $acc } }, order_by: { closedAt: desc }) {
-      side reason entryPricePNS exitPricePNS maxNotionalCNS pnlCNS openedAt closedAt closeTx market { symbol priceDecimals } } }`,
+  const rows = await envioAll<ClosedRow>(
+    "ClosedTrade",
+    `where: { chainId: { _eq: $chain }, account_id: { _eq: $acc } }, order_by: [{ closedAt: desc }, { id: asc }]`,
+    `side reason entryPricePNS exitPricePNS maxNotionalCNS pnlCNS openedAt closedAt closeTx market { symbol priceDecimals }`,
     { acc: String(accountId) },
+    ", $acc: String!",
   );
-  return d.ClosedTrade.map((r) => {
+  return rows.map((r) => {
     const px = (x: string) => (r.market ? Number(x) / 10 ** r.market.priceDecimals : null);
     return {
-      market: r.market?.symbol ?? "?",
+      market: sym(r.market),
       side: r.side === "SHORT" ? "short" : "long",
       openedAt: r.openedAt * 1000,
       closedAt: r.closedAt * 1000,
@@ -89,11 +111,14 @@ const FLOW_FIELDS = `kind amountCNS timestamp block txHash account { accountId a
 
 /** All deposits/withdrawals of one account, newest first; amount signed (+deposit). */
 export async function indexerWalletFlows(accountId: number) {
-  const d = await envioQuery<{ CollateralFlow: FlowRow[] }>(
-    `query($chain: Int!, $acc: String!) { CollateralFlow(where: { chainId: { _eq: $chain }, account_id: { _eq: $acc }, kind: { _in: [DEPOSIT, WITHDRAWAL] } }, order_by: { timestamp: desc }) { ${FLOW_FIELDS} } }`,
+  const rows = await envioAll<FlowRow>(
+    "CollateralFlow",
+    `where: { chainId: { _eq: $chain }, account_id: { _eq: $acc }, kind: { _in: [DEPOSIT, WITHDRAWAL] } }, order_by: [{ timestamp: desc }, { id: asc }]`,
+    FLOW_FIELDS,
     { acc: String(accountId) },
+    ", $acc: String!",
   );
-  return d.CollateralFlow.map((f) => ({ t: f.timestamp * 1000, amount: f.kind === "DEPOSIT" ? cns(f.amountCNS) : -cns(f.amountCNS), tx: f.txHash }));
+  return rows.map((f) => ({ t: f.timestamp * 1000, amount: f.kind === "DEPOSIT" ? cns(f.amountCNS) : -cns(f.amountCNS), tx: f.txHash }));
 }
 
 /**
@@ -101,14 +126,11 @@ export async function indexerWalletFlows(accountId: number) {
  * and CollateralFlow. ponytail: excludes unrealized PnL; the live snapshot covers open positions.
  */
 export async function indexerWalletEquity(accountId: number) {
-  const [d, flows] = await Promise.all([
-    envioQuery<{ AccountDaily: { date: number; cumNetPnlCNS: string }[] }>(
-      `query($chain: Int!, $acc: String!) { AccountDaily(where: { chainId: { _eq: $chain }, account_id: { _eq: $acc } }, order_by: { date: asc }) { date cumNetPnlCNS } }`,
-      { acc: String(accountId) },
-    ),
+  const [days_, flows] = await Promise.all([
+    envioAll<{ date: number; cumNetPnlCNS: string }>("AccountDaily", `where: { chainId: { _eq: $chain }, account_id: { _eq: $acc } }, order_by: { date: asc }`, "date cumNetPnlCNS", { acc: String(accountId) }, ", $acc: String!"),
     indexerWalletFlows(accountId),
   ]);
-  const pnlByDay = new Map(d.AccountDaily.map((r) => [r.date * 1000, cns(r.cumNetPnlCNS)]));
+  const pnlByDay = new Map(days_.map((r) => [r.date * 1000, cns(r.cumNetPnlCNS)]));
   const days = [...new Set([...pnlByDay.keys(), ...flows.map((f) => Math.floor(f.t / DAY) * DAY)])].sort((a, b) => a - b);
   let pnl = 0;
   return days.map((t) => {
@@ -135,25 +157,28 @@ type LiqRow = {
 
 /** Same shape as analytics.flows(), over the whole indexed history (days = null). */
 export async function indexerFlows() {
-  const d = await envioQuery<{
-    ProtocolDaily: { date: number; depositsCNS: string; withdrawalsCNS: string; liquidations: number; liquidatedNotionalCNS: string }[];
-    CollateralFlow: FlowRow[];
-    Liquidation: LiqRow[];
-  }>(
-    `query($chain: Int!) {
-      ProtocolDaily(where: { chainId: { _eq: $chain } }, order_by: { date: asc }) { date depositsCNS withdrawalsCNS liquidations liquidatedNotionalCNS }
-      CollateralFlow(where: { chainId: { _eq: $chain }, kind: { _in: [DEPOSIT, WITHDRAWAL] } }, order_by: { timestamp: desc }, limit: 40) { ${FLOW_FIELDS} }
-      Liquidation(where: { chainId: { _eq: $chain } }, order_by: { timestamp: desc }, limit: 5000) {
-        side liqPricePNS notionalCNS pnlCNS fundingCNS timestamp block txHash market { symbol priceDecimals } account { accountId address } }
-    }`,
-  );
-  const daily = d.ProtocolDaily.map((r) => ({ t: r.date * 1000, deposits: cns(r.depositsCNS), withdrawals: cns(r.withdrawalsCNS), liqCount: r.liquidations, liqNotional: cns(r.liquidatedNotionalCNS) }));
-  const liqs = d.Liquidation.map((l) => ({
+  const [d, protocolDaily, liqRows] = await Promise.all([
+    envioQuery<{ CollateralFlow: FlowRow[] }>(
+      `query($chain: Int!) { CollateralFlow(where: { chainId: { _eq: $chain }, kind: { _in: [DEPOSIT, WITHDRAWAL] } }, order_by: { timestamp: desc }, limit: 40) { ${FLOW_FIELDS} } }`,
+    ),
+    envioAll<{ date: number; depositsCNS: string; withdrawalsCNS: string; liquidations: number; liquidatedNotionalCNS: string }>(
+      "ProtocolDaily",
+      `where: { chainId: { _eq: $chain } }, order_by: { date: asc }`,
+      "date depositsCNS withdrawalsCNS liquidations liquidatedNotionalCNS",
+    ),
+    envioAll<LiqRow>(
+      "Liquidation",
+      `where: { chainId: { _eq: $chain } }, order_by: [{ timestamp: desc }, { id: asc }]`,
+      "side liqPricePNS notionalCNS pnlCNS fundingCNS timestamp block txHash market { symbol priceDecimals } account { accountId address }",
+    ),
+  ]);
+  const daily = protocolDaily.map((r) => ({ t: r.date * 1000, deposits: cns(r.depositsCNS), withdrawals: cns(r.withdrawalsCNS), liqCount: r.liquidations, liqNotional: cns(r.liquidatedNotionalCNS) }));
+  const liqs = liqRows.map((l) => ({
     t: l.timestamp * 1000,
     block: l.block,
     tx: l.txHash,
     accountId: Number(l.account?.accountId ?? 0),
-    market: l.market?.symbol ?? "?",
+    market: sym(l.market),
     side: (l.side === "SHORT" ? "short" : "long") as "long" | "short",
     price: l.market ? Number(l.liqPricePNS) / 10 ** l.market.priceDecimals : 0,
     notional: cns(l.notionalCNS),
@@ -178,7 +203,7 @@ export async function indexerFlows() {
     all: [] as (readonly [number, number, number, string])[], // per-wallet flows: indexerWalletFlows
     recentFlows,
     recentLiqs: liqs.slice(0, 40),
-    liqsAll: liqs,
+    liqsAll: liqs.map(({ t, side, notional }) => ({ t, side, notional })), // slim: the whole result sits in unstable_cache (2MB cap)
   };
 }
 
