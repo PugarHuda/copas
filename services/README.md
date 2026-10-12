@@ -111,9 +111,9 @@ See [NANSEN.md](./NANSEN.md) for every endpoint, data category, payment mode and
 (production: the attester `0x6dbB…2aa1`). The Monad facilitator `https://x402-facilitator.molandak.org` verifies the
 EIP-3009 authorization and settles it, paying the gas. Payer script:
 `X402_PAYER_KEY=0x.. pnpm exec tsx scripts/x402-pay.ts [base] [leader]` prints the `payment-response` settlement tx.
-Live check, 12 Oct: production answers 402 with the requirement, and a paid retry from an unfunded key reached the
-facilitator's verify step and came back `insufficient_funds`. **No payment has settled yet**: none of our keys hold
-testnet USDC (it only comes from faucet.circle.com, which needs a browser).
+Live, 12 Oct: a real payment settled against production, tx `0x5d9c18d9819552d7979f5fc6819b2ead3a4da01471056ac5463729864e20e1f5`, submitted by the facilitator
+`0x7f6a…Db86` (0.01 USDC from the deployer to the attester). Testnet USDC for the payer came from selling 0.8 MON on
+Kuru's testnet MON/USDC book `0x1f57a841540fe23c2989387c18f2cb1335cbae92` (`placeAndExecuteMarketSell`, native MON).
 
 ## Tests
 `test/services.test.ts` (35 tests) runs against `test/fixtures`. One test calls the live facilitator's `/supported`
