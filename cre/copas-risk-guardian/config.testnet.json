@@ -2,8 +2,8 @@
   "schedule": "0 */5 * * * *",
   "chainName": "monad-testnet",
   "isTestnet": true,
-  "registry": "0x0000000000000000000000000000000000000000",
-  "consumer": "0x0000000000000000000000000000000000000000",
+  "registry": "0xA8BA57c7Af1d9A28660653E0439A180c86D03e3d",
+  "consumer": "0xBc28c947e51572e55eeb0f988a068C7A0f4ec7b0",
   "exchange": "0x1964C32f0bE608E7D29302AFF5E61268E72080cc",
   "multicall": "0xcA11bde05977b3631167028862bE2a173976CA11",
   "maxLeaders": 16,
@@ -12,15 +12,29 @@
   "maxDivergenceBps": 100,
   "priceUrl": "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,monad&vs_currencies=usd",
   "markets": [
-    { "symbol": "BTC", "perpId": 16, "priceDecimals": 1, "priceId": "bitcoin" },
-    { "symbol": "MON", "perpId": 64, "priceDecimals": 5, "priceId": "monad" },
-    { "symbol": "ETH", "perpId": 32, "priceDecimals": 2, "priceId": "ethereum" }
+    {
+      "symbol": "BTC",
+      "perpId": 16,
+      "priceDecimals": 1,
+      "priceId": "bitcoin"
+    },
+    {
+      "symbol": "MON",
+      "perpId": 64,
+      "priceDecimals": 5,
+      "priceId": "monad"
+    },
+    {
+      "symbol": "ETH",
+      "perpId": 32,
+      "priceDecimals": 2,
+      "priceId": "ethereum"
+    }
   ],
   "llm": {
-    "url": "https://api.moonshot.ai/v1/chat/completions",
-    "model": "kimi-k3",
-    "reasoningEffort": "high",
+    "url": "https://openrouter.ai/api/v1/chat/completions",
+    "model": "nvidia/nemotron-3-super-120b-a12b:free",
     "timeout": "150s",
-    "secretId": "KIMI_API_KEY"
+    "secretId": "LLM_API_KEY"
   }
 }

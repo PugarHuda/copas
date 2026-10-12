@@ -4,7 +4,7 @@
 //   1. EVM read  (Monad): CopasRegistry.leaderCount/leaderBooks + LeaderBook.status/equity/mandate/peak/last
 //                         + Perpl Exchange mark prices — batched through Multicall3 to stay inside 15 reads.
 //   2. HTTP      : public CEX/aggregator prices (CoinGecko) → sanity flag when Perpl mark diverges > X bps.
-//   3. HTTP      : Kimi K3 (OpenAI-compatible) with a strict JSON schema → per-leader riskLevel, median across nodes.
+//   3. HTTP      : OpenRouter free model (OpenAI-compatible) with a strict JSON schema → per-leader riskLevel, median across nodes.
 //   4. EVM write : DON-signed report → KeystoneForwarder → CopasRiskConsumer.onReport, which stores RiskNote
 //                  and calls the permissionless LeaderBook.checkpoint() for leaders with risk >= 2 or dd >= 80%.
 import {
@@ -75,7 +75,7 @@ const configSchema = z.object({
 	llm: z.object({
 		url: z.string(),
 		model: z.string(),
-		reasoningEffort: z.enum(['low', 'high', 'max']),
+		reasoningEffort: z.enum(['low', 'high', 'max']).optional(),
 		timeout: z.string(), // protobuf duration, e.g. "150s"
 		secretId: z.string(),
 	}),
@@ -236,7 +236,7 @@ const askLlm = (
 ): Record<string, number> => {
 	const body = {
 		model: llm.model,
-		reasoning_effort: llm.reasoningEffort, // kimi-k3: temperature is fixed at 1.0 and must be omitted
+		...(llm.reasoningEffort ? { reasoning_effort: llm.reasoningEffort } : {}),
 		messages: [
 			{ role: 'system', content: prompt.system },
 			{ role: 'user', content: prompt.user },

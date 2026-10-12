@@ -12,16 +12,35 @@
   "maxDivergenceBps": 100,
   "priceUrl": "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,solana,monad&vs_currencies=usd",
   "markets": [
-    { "symbol": "BTC", "perpId": 1, "priceDecimals": 1, "priceId": "bitcoin" },
-    { "symbol": "MON", "perpId": 10, "priceDecimals": 6, "priceId": "monad" },
-    { "symbol": "ETH", "perpId": 20, "priceDecimals": 2, "priceId": "ethereum" },
-    { "symbol": "SOL", "perpId": 31, "priceDecimals": 3, "priceId": "solana" }
+    {
+      "symbol": "BTC",
+      "perpId": 1,
+      "priceDecimals": 1,
+      "priceId": "bitcoin"
+    },
+    {
+      "symbol": "MON",
+      "perpId": 10,
+      "priceDecimals": 6,
+      "priceId": "monad"
+    },
+    {
+      "symbol": "ETH",
+      "perpId": 20,
+      "priceDecimals": 2,
+      "priceId": "ethereum"
+    },
+    {
+      "symbol": "SOL",
+      "perpId": 31,
+      "priceDecimals": 3,
+      "priceId": "solana"
+    }
   ],
   "llm": {
-    "url": "https://api.moonshot.ai/v1/chat/completions",
-    "model": "kimi-k3",
-    "reasoningEffort": "high",
+    "url": "https://openrouter.ai/api/v1/chat/completions",
+    "model": "nvidia/nemotron-3-super-120b-a12b:free",
     "timeout": "150s",
-    "secretId": "KIMI_API_KEY"
+    "secretId": "LLM_API_KEY"
   }
 }

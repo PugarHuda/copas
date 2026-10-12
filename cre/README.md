@@ -1,6 +1,6 @@
 # Copas × Chainlink CRE: `copas-risk-guardian`
 
-A CRE workflow that watches every bonded Copas leader on Monad. Every 5 minutes it checks Perpl mark prices against an external price source, has Kimi K3 score each leader's risk, and writes a DON-signed report onchain. That report makes CRE an **independent checkpoint caller**: if a leader is close to breaking its mandate, CRE calls `LeaderBook.checkpoint()`. If the mandate is actually broken, that call slashes the bond and pays it out to followers, even when no keeper, follower or Copas server is online. It works like the "Automated Liquidation Protection" pattern, applied to copy-trading followers.
+A CRE workflow that watches every bonded Copas leader on Monad. Every 5 minutes it checks Perpl mark prices against an external price source, has an LLM (OpenRouter free model) score each leader's risk, and writes a DON-signed report onchain. That report makes CRE an **independent checkpoint caller**: if a leader is close to breaking its mandate, CRE calls `LeaderBook.checkpoint()`. If the mandate is actually broken, that call slashes the bond and pays it out to followers, even when no keeper, follower or Copas server is online. It works like the "Automated Liquidation Protection" pattern, applied to copy-trading followers.
 
 ```
            ┌──────────────── CRE DON (cron "0 */5 * * * *") ─────────────────┐
@@ -8,7 +8,7 @@ A CRE workflow that watches every bonded Copas leader on Monad. Every 5 minutes 
  (Multicall3)│            LeaderBook.status/equity/mandate/peak/lastUnitPrice │
            │            Perpl Exchange getPosition(perpId,1) → mark price     │
  CoinGecko►│ 2 HTTP      reference prices → divergence flag (> maxDivergenceBps)│  median per field
- Kimi K3 ─►│ 3 HTTP      strict json_schema {index,riskLevel,ddToLimitPct,note}│  median per field
+ LLM ─────►│ 3 HTTP      strict json_schema {index,riskLevel,ddToLimitPct,note}│  median per field
            │ 4 report    abi.encode(Note[]) signed by the DON                 │
            └───────────────────────────────┬──────────────────────────────────┘
                                            ▼ KeystoneForwarder (MockKeystoneForwarder in simulation)
@@ -30,12 +30,12 @@ A CRE workflow that watches every bonded Copas leader on Monad. Every 5 minutes 
 | [`contracts/test/CopasRiskConsumer.t.sol`](contracts/test/CopasRiskConsumer.t.sol) | Foundry tests: forwarder-only, flag rule, unknown leaders skipped, reverting leader isolated, author check |
 | [`project.yaml`](project.yaml), [`copas-risk-guardian/workflow.yaml`](copas-risk-guardian/workflow.yaml) | Targets `mainnet-settings` (`monad-mainnet`) and `testnet-settings` (`monad-testnet`) |
 | [`copas-risk-guardian/config.mainnet.json`](copas-risk-guardian/config.mainnet.json), [`config.testnet.json`](copas-risk-guardian/config.testnet.json) | Addresses, markets, thresholds, LLM settings |
-| [`secrets.yaml`](secrets.yaml), [`.env.example`](.env.example) | `KIMI_API_KEY` secret mapping (Vault DON when deployed, `.env` in simulation) |
+| [`secrets.yaml`](secrets.yaml), [`.env.example`](.env.example) | `LLM_API_KEY` (OpenRouter) secret mapping (Vault DON when deployed, `.env` in simulation) |
 
 ## How this fits the bounty ("Best workflow with CRE")
 
-- **CRE is the orchestration layer.** One workflow combines a blockchain (Monad reads and writes), an external API (CoinGecko) and an LLM (Kimi K3). The workflow decides what runs, in what order, and what lands onchain. No Copas backend is involved.
-- **Consensus over AI output.** Kimi must answer with a strict `json_schema`. Each node's answer is parsed into fixed numeric fields (`r<i>`, `d<i>`), and the DON takes the **median per field**. Free-text notes never go into consensus. Instead, `noteHash` is the keccak of a deterministic note string that every node builds identically.
+- **CRE is the orchestration layer.** One workflow combines a blockchain (Monad reads and writes), an external API (CoinGecko) and an LLM (an LLM (OpenRouter)). The workflow decides what runs, in what order, and what lands onchain. No Copas backend is involved.
+- **Consensus over AI output.** The LLM (OpenRouter free model) must answer with a strict `json_schema`. Each node's answer is parsed into fixed numeric fields (`r<i>`, `d<i>`), and the DON takes the **median per field**. Free-text notes never go into consensus. Instead, `noteHash` is the keccak of a deterministic note string that every node builds identically.
 - **AI explains, rules execute** (SPEC §1.5). The LLM score can only *trigger* `checkpoint()`, and anyone can already call that function. The slash itself is decided by the contract from Perpl state. The `ddToLimitPct` written onchain is computed deterministically from LeaderBook state; the LLM's own estimate is only logged as a cross-check. If the key or the API fails, the workflow falls back to a deterministic score.
 - **Safety in the consumer:** forwarder check, optional workflow-owner check, registry allowlist (no arbitrary calls), and `try/catch` per leader.
 - **Within quotas:** at most 2 HTTP calls per run (limit 15); EVM reads are batched through Multicall3 in chunks of 16 calls (2–4 reads, limit 15, each under the 5 KB payload limit; measured at 1.1 KB request / 2.2 KB response for the mainnet marks); 1 secret.
@@ -46,7 +46,7 @@ Prerequisites: Bun ≥ 1.2.21 (`npm i -g bun`), the CRE CLI (`cre_windows_amd64.
 
 ```bash
 cd copas/cre
-cp .env.example .env                      # add KIMI_API_KEY_VAR=sk-... for the LLM step
+cp .env.example .env                      # add LLM_API_KEY_VAR=sk-or-... (OpenRouter) for the LLM step
 (cd copas-risk-guardian && bun install)   # also installs the Javy plugin (cre-setup)
 cre login
 cre workflow simulate copas-risk-guardian -T mainnet-settings --non-interactive --trigger-index 0
