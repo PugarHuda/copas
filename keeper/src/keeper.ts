@@ -4,10 +4,10 @@ import { decodeFunctionResult, encodeFunctionData, getAddress, parseEventLogs, z
 import { ABI, cfg, log, type Deployments } from './config.js';
 import { client } from './chain.js';
 import type { Signer } from './signer.js';
-import { alert, alertsSent, recentAlerts } from './alerts.js';
+import { alert, alertsSent, recentAlerts, sendChannel } from './alerts.js';
 import { feedbackCall } from './erc8004.js';
 import {
-  BREACH_REASON, STATUS, chunkRanges, ddAlert, leaderForAccount, leaderTickAction, vaultSkipReason, needsUnwind, shouldCheckpoint, shouldRoll, vaultsToSync,
+  BREACH_REASON, CHANNEL_EVENTS, STATUS, channelMessage, chunkRanges, ddAlert, leaderForAccount, leaderTickAction, vaultSkipReason, needsUnwind, shouldCheckpoint, shouldRoll, vaultsToSync,
   type Leader, type Vault,
 } from './logic.js';
 
@@ -25,6 +25,9 @@ export const EVENTS: AbiEvent[] = [
   ...pick(ABI.vault, ['Followed', 'Unfollowed', 'StopLoss']),
 ];
 const VAULT_CREATED = pick(ABI.registry, ['VaultCreated'])[0];
+const CHANNEL = [...pick(ABI.registry, ['LeaderCreated']), ...pick(ABI.leader, CHANNEL_EVENTS.filter((e) => e !== 'LeaderCreated'))];
+/** ponytail: a tick more than this many blocks behind (~1h at 0.4 s) skips the gap instead of replaying it into the channel. */
+const CHANNEL_MAX_LAG = 10_000n;
 
 type DecodedLog = Log<bigint, number, false> & { eventName: string; args: Record<string, any> };
 type Job = {
@@ -44,6 +47,7 @@ export class Keeper {
   markets: bigint[] = [];
   cursor = 0n; // last block whose logs are processed
   vaultCursor = 0n; // last block scanned for VaultCreated
+  alertCursor = 0n; // last block announced to the Telegram channel (tick mode)
   head = 0n;
   feedbackDone = new Set<string>();
   private ddWarned = new Set<string>();
@@ -72,6 +76,7 @@ export class Keeper {
     try {
       const s = JSON.parse(readFileSync(this.stateFile, 'utf8'));
       this.vaultCursor = BigInt(s.vaultCursor ?? 0);
+      this.alertCursor = BigInt(s.alertCursor ?? 0);
       for (const v of s.vaults ?? []) this.vaults.set(lc(v), { address: getAddress(v), leader: null, following: false, paused: false, accountId: 0n });
       for (const k of s.feedbackDone ?? []) this.feedbackDone.add(k);
     } catch { /* first run */ }
@@ -79,7 +84,7 @@ export class Keeper {
   private save() {
     mkdirSync(cfg.dataDir, { recursive: true });
     writeFileSync(this.stateFile, JSON.stringify({
-      cursor: this.cursor.toString(), vaultCursor: this.vaultCursor.toString(),
+      cursor: this.cursor.toString(), vaultCursor: this.vaultCursor.toString(), alertCursor: this.alertCursor.toString(),
       vaults: [...this.vaults.values()].map((v) => v.address), feedbackDone: [...this.feedbackDone],
     }, null, 2));
   }
@@ -337,7 +342,7 @@ export class Keeper {
   }
 
   // ---------------------------------------------------------------- main loop
-  private async getLogsChunked(from: bigint, to: bigint, events: AbiEvent[], address?: Address, parallel = 1) {
+  private async getLogsChunked(from: bigint, to: bigint, events: AbiEvent[], address?: Address | Address[], parallel = 1) {
     const ranges = chunkRanges(from, to, cfg.logChunk);
     const out: DecodedLog[] = [];
     for (let i = 0; i < ranges.length; i += parallel) {
@@ -453,12 +458,46 @@ export class Keeper {
     await this.drain();
     for (const v of this.vaults.values()) if (!vaultSkipReason(v)) for (const perpId of this.markets) this.sync(v, perpId);
     await this.drain();
+    await this.announce();
     this.save();
 
     const failed = this.journal.filter((j) => j.outcome === 'failed').length;
     log('info', 'tick done', { ms: Date.now() - t0, sent: this.journal.filter((j) => j.outcome === 'sent').length, failed, journal: this.journal });
     this.writeSummary(blk.number, blk.timestamp, decisions, Date.now() - t0);
     return failed ? 1 : 0;
+  }
+
+  /**
+   * Post LeaderCreated / Breached / EpochRolled / Claimed / FollowerRegistered since the last tick to TELEGRAM_CHAT_ID.
+   * Without the env (or on the first run) the cursor just moves to head, so enabling it later never replays history.
+   * The cursor only advances past a range once all its posts went out; a Telegram outage retries next tick. Never throws.
+   */
+  async announce() {
+    const head = await client.getBlockNumber();
+    const from = this.alertCursor + 1n;
+    if (!cfg.telegramToken || !cfg.telegramChatId || !this.alertCursor || head - this.alertCursor > CHANNEL_MAX_LAG) {
+      if (cfg.telegramToken && cfg.telegramChatId && this.alertCursor) log('warn', 'channel alerts: gap too large, skipping', { from, head });
+      this.alertCursor = head;
+      return;
+    }
+    if (from > head) return;
+    const ex = cfg.chainId === 143 ? 'https://monadexplorer.com' : 'https://testnet.monadexplorer.com';
+    let logs: DecodedLog[];
+    try {
+      logs = await this.getLogsChunked(from, head, CHANNEL, [this.dep.registry, ...[...this.leaders.values()].map((l) => l.address)], 4);
+    } catch (e) { return log('warn', 'channel alerts: getLogs failed, retrying next tick', { from, head, err: String(e) }); }
+    logs.sort((a, b) => Number(a.blockNumber - b.blockNumber) || a.logIndex - b.logIndex);
+    for (const lg of logs) {
+      const text = channelMessage(lg, ex);
+      if (!text) continue;
+      try { await sendChannel(text); log('info', 'channel alert sent', { ev: lg.eventName, tx: lg.transactionHash }); }
+      catch (e) {
+        // resume from this block next tick (earlier posts in the same block may repeat, later ones are not lost)
+        this.alertCursor = BigInt(lg.blockNumber) - 1n > this.alertCursor ? BigInt(lg.blockNumber) - 1n : this.alertCursor;
+        return log('warn', 'channel alert failed, retrying next tick', { ev: lg.eventName, err: String(e) });
+      }
+    }
+    this.alertCursor = head;
   }
 
   private writeSummary(block: bigint, ts: bigint, decisions: { what: string; decision: string }[], ms: number) {

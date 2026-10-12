@@ -35,7 +35,17 @@ Node 22+ is required because the service uses `process.loadEnvFile`. If the depl
 
 The exit code is 1 if any tx failed. `KEEPER_DRY_RUN=1` simulates everything but sends nothing. The decisions per leader and vault live in `leaderTickAction` / `vaultSkipReason` in `src/logic.ts`, which are unit-tested.
 
-`.github/workflows/keeper.yml` runs the tick every 5 minutes (GitHub's cron is best effort, so expect 5 to 15 minutes in practice) and on manual dispatch, with the Privy signer and gas sponsorship. Its secrets are `PRIVY_APP_ID`, `PRIVY_APP_SECRET`, `PRIVY_AUTHORIZATION_KEY` and `PRIVY_WALLET_ID`. `data/` is carried between runs with `actions/cache`. Each run's **job summary** lists every tx sent (with explorer links), every skipped job with the reason, and the decision for each leader and vault: see the [keeper workflow runs](https://github.com/PugarHuda/copas/actions/workflows/keeper.yml). Alerts, the HTTP endpoints and the Alchemy webhook need the long-running `pnpm start`.
+`.github/workflows/keeper.yml` runs the tick every 5 minutes (GitHub's cron is best effort, so expect 5 to 15 minutes in practice) and on manual dispatch, with the Privy signer and gas sponsorship. Its secrets are `PRIVY_APP_ID`, `PRIVY_APP_SECRET`, `PRIVY_AUTHORIZATION_KEY` and `PRIVY_WALLET_ID`. `data/` is carried between runs with `actions/cache`. Each run's **job summary** lists every tx sent (with explorer links), every skipped job with the reason, and the decision for each leader and vault: see the [keeper workflow runs](https://github.com/PugarHuda/copas/actions/workflows/keeper.yml). The HTTP endpoints, the Alchemy webhook and the per-user `/watch` bot need the long-running `pnpm start`; the tick posts to one Telegram channel instead (below).
+
+#### Telegram channel alerts from the tick (1-minute setup)
+
+At the end of each tick the keeper reads the Copas logs since the last tick (`alertCursor` in `data/state-<chainId>.json`) and posts one message per event to a channel: **new leader** (`LeaderCreated`), **new follower** (`FollowerRegistered`), **epoch rolled** (`EpochRolled`), **breach** (`Breached`, with the slashed pot) and **slash claimed** (`Claimed`), each with an explorer link.
+
+1. In Telegram, message [@BotFather](https://t.me/BotFather), send `/newbot`, pick a name, and copy the token.
+2. Create a channel (public, e.g. `@copas_alerts`, or private), open its settings → Administrators → add the bot with "Post messages".
+3. In the GitHub repo: Settings → Secrets and variables → Actions → add `TELEGRAM_BOT_TOKEN` (the token) and `TELEGRAM_CHAT_ID` (`@copas_alerts`, or the `-100…` id of a private channel: forward a channel post to [@userinfobot](https://t.me/userinfobot) to read it).
+
+Without the two secrets the tick skips alerts and just moves the cursor, so turning them on later does not replay history. The first tick with them set only records the cursor; posts start from the next one. If the tick fell more than 10,000 blocks (~1 h) behind, the gap is skipped rather than flooded into the channel. A failed post is retried on the next tick. Locally: put both in `.env` and run `pnpm tick`.
 
 ### Signer modes
 

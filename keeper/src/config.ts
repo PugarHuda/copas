@@ -79,6 +79,7 @@ export const cfg = {
   enableSettle: flag('ENABLE_BREACH_SETTLE', true),
   enable8004: flag('ENABLE_8004_FEEDBACK', false),
   telegramToken: env('TELEGRAM_BOT_TOKEN', ''),
+  telegramChatId: env('TELEGRAM_CHAT_ID', ''), // channel the hosted tick posts to
   alchemyKey: env('ALCHEMY_WEBHOOK_SIGNING_KEY', ''),
   httpPort: Number(env('PORT', '8787')),
   dataDir: resolve(ROOT, env('DATA_DIR', 'data')),

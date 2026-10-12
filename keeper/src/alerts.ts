@@ -51,6 +51,23 @@ function command(chat: string, text: string): string {
   }
 }
 
+/**
+ * Post to the public alerts channel (TELEGRAM_CHAT_ID, e.g. @copas_alerts or -100…). Used by the hosted tick, which has no
+ * long-running bot to collect /start subscribers. Returns false when the env is not set. Throws on a Telegram error.
+ */
+export async function sendChannel(text: string, token = cfg.telegramToken, chatId = cfg.telegramChatId): Promise<boolean> {
+  if (!token || !chatId) return false;
+  const r = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ chat_id: chatId, text, disable_web_page_preview: true }),
+    signal: AbortSignal.timeout(10_000),
+  });
+  const j: any = await r.json().catch(() => ({}));
+  if (!j.ok) throw new Error(`telegram sendMessage: ${j.description ?? r.status}`);
+  return true;
+}
+
 /** Long-polls getUpdates for subscription commands. */
 export async function runTelegramBot() {
   if (!cfg.telegramToken) return log('info', 'telegram disabled (no TELEGRAM_BOT_TOKEN)');

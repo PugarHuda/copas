@@ -49,6 +49,9 @@ jobs:
           PRIVY_APP_SECRET: ${{ secrets.PRIVY_APP_SECRET }}
           PRIVY_AUTHORIZATION_KEY: ${{ secrets.PRIVY_AUTHORIZATION_KEY }}
           PRIVY_WALLET_ID: ${{ secrets.PRIVY_WALLET_ID }}
+          # optional: Telegram channel alerts (keeper/README.md). Unset = the tick skips alerts.
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
       - uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         if: always()
         with:
