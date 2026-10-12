@@ -41,7 +41,8 @@ describe('quote prices (price precision 1e4, tick 10)', () => {
     expect(quotePrices(0.3333, 10_000, 10, 0.04)).toEqual({ bid: 3130, ask: 3540 });
   });
   it('stays inside (0, 1)', () => {
-    expect(quotePrices(0.01, 10_000, 10, 0.04)).toEqual({ bid: 10, ask: 300 });
+    expect(quotePrices(0.02, 10_000, 10, 0.04)).toEqual({ bid: 100, ask: 400 }); // low p: bid at p/2, not at the floor
+    expect(quotePrices(0.001, 10_000, 10, 0.04)).toEqual({ bid: 10, ask: 210 });
     expect(quotePrices(0.99, 10_000, 10, 0.04)).toEqual({ bid: 9700, ask: 9990 });
   });
 });

@@ -102,8 +102,8 @@ export async function marketMake(dep: Deployments, leaders: Leader[], now: bigin
     (await read<bigint>(token, erc20Abi, 'allowance', [me, spender])) >= amount ||
     send('approve', token, encodeFunctionData({ abi: erc20Abi, functionName: 'approve', args: [spender, maxUint256] }));
 
-  const mon = await client.getBalance({ address: me });
-  if (mon < 10n ** 17n) return out.decisions.push({ what: `market maker ${me}`, decision: `off: ${Number(mon) / 1e18} MON, needs gas` });
+  const mon = await client.getBalance({ address: me }); // below 0.03 MON stop; 0.03-0.4 still cancels, re-quotes and redeems
+  if (mon < 3n * 10n ** 16n) return out.decisions.push({ what: `market maker ${me}`, decision: `off: ${Number(mon) / 1e18} MON, needs gas` });
   let ausd = await bal(dep.ausd);
   if (ausd < BigInt(MIN_AUSD * U) && (await send('faucet', AUSD_FAUCET, encodeFunctionData({ abi: faucetAbi, functionName: 'requestFunds', args: [me] })))) ausd = await bal(dep.ausd);
   const margin = await read<Address>(KURU_ROUTER, routerAbi, 'marginAccountAddress');

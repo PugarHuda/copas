@@ -20,7 +20,7 @@ export const MM_DEFAULTS: MmParams = {
   pFloor: 0.02,
   pCap: 0.98,
   spread: 0.04,
-  requote: 0.01,
+  requote: 0.005,
   quoteSize: 50,
   mintSize: 100,
   maxMintPerSeries: 300,
@@ -70,11 +70,11 @@ export function breachProbability(x: BreachInput, m: MmParams = MM_DEFAULTS): nu
   return Math.min(m.pCap, Math.max(m.pFloor, p));
 }
 
-/** Bid/ask around p in Kuru price units (pricePrecision per 1 AUSD), on the tick grid, inside (0, 1). */
+/** Bid/ask around p in Kuru price units (pricePrecision per 1 AUSD), on the tick grid, inside (0, 1). The bid never drops below p/2. */
 export function quotePrices(p: number, pricePrecision: number, tickSize: number, spread: number) {
   const ticks = (v: number) => v * pricePrecision / tickSize;
   const lo = tickSize, hi = pricePrecision - tickSize;
-  const bid = Math.min(hi - tickSize, Math.max(lo, Math.floor(ticks(p - spread / 2) + 1e-9) * tickSize));
+  const bid = Math.min(hi - tickSize, Math.max(lo, Math.floor(ticks(p - Math.min(spread / 2, p / 2)) + 1e-9) * tickSize));
   const ask = Math.max(bid + tickSize, Math.min(hi, Math.ceil(ticks(p + spread / 2) - 1e-9) * tickSize));
   return { bid, ask };
 }
