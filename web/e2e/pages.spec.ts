@@ -77,19 +77,21 @@ test.describe("/proof", () => {
   });
 });
 
-test("/market shows the Kuru top of book", async ({ page }) => {
+test("/market shows the Kuru L2 book", async ({ page }) => {
   await gotoUntil(page, `/market/${ACTIVE}`, (p) => p.getByText(/DOWN · 0xda69…3d90 · epoch \d+/i));
   const book = page.locator("table").filter({ hasText: "Price (AUSD)" });
   await expect(book.locator("tbody tr").first()).toBeVisible();
   // The UP/DOWN series is per epoch; the epoch-2 book on Kuru was 0.05 / 0.12. A newer epoch may have no series yet.
   if (await book.getByText("Best ask").count()) {
-    const ask = parseNum(await book.locator("tr", { hasText: "Best ask" }).locator("td").last().innerText());
-    const bid = parseNum(await book.locator("tr", { hasText: "Best bid" }).locator("td").last().innerText());
+    const ask = parseNum(await book.locator("tr", { hasText: "Best ask" }).locator("td").nth(1).innerText());
+    const bid = parseNum(await book.locator("tr", { hasText: "Best bid" }).locator("td").nth(1).innerText());
     if (await page.getByText(/· epoch 2$/i).count()) [bid, ask].forEach((v, i) => expect(v).toBe([0.05, 0.12][i]));
     expect(bid).toBeGreaterThan(0);
     expect(ask).toBeGreaterThan(bid);
     expect(ask).toBeLessThan(1);
     await expect(page.getByText("Breach odds (DOWN price)").locator("..")).toContainText(/\d+%/);
+    await expect(page.getByText(/L2 depth from Kuru OrderBook.getL2Book, block \d+/)).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Trade DOWN on Kuru" })).toBeVisible();
   } else {
     await expect(book).toContainText(/No UP\/DOWN series minted for this epoch yet\.|No Kuru orders yet\./);
   }

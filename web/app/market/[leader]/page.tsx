@@ -6,8 +6,13 @@ import { DDMeter } from "@/components/copas";
 import { getDownMarket, getLeader } from "@/lib/copas/data";
 import { getT } from "@/lib/i18n/server";
 import { num, pct, usd } from "@/lib/format";
-import { copasChain, explorerAddr } from "@/lib/chains";
+import { copasChain, explorerAddr, explorerTx, rpcTransport } from "@/lib/chains";
+import { readDepth, readFills } from "@/lib/copas/kuru";
+import { createPublicClient } from "viem";
 import { MintRedeem } from "./MintRedeem";
+import { KuruTrade } from "./KuruTrade";
+
+const kuruClient = createPublicClient({ chain: copasChain, transport: rpcTransport(copasChain) });
 
 export const metadata: Metadata = { title: "DOWN market" };
 
@@ -24,10 +29,14 @@ export default async function MarketPage({ params }: { params: Promise<{ leader:
     epoch: live?.epoch ?? l.epoch,
     downPrice: px || null,
     supply: live?.supply ?? 0,
-    // ponytail: top of book only (bestBidAsk, no size); full depth needs Kuru's L2 reader
     ask: live?.ask || null,
     bid: live?.bid || null,
   };
+  const [depth, fills] = live?.market
+    ? await Promise.all([readDepth(kuruClient, live.market).catch(() => null), readFills(live.market, copasChain.id).catch(() => null)])
+    : [null, null];
+  // asks shown high to low so the spread sits in the middle of the table
+  const rows = depth ? [...depth.asks.slice(0, 8).reverse().map((x, i, a) => ({ ...x, side: "ask" as const, best: i === a.length - 1 })), ...depth.bids.slice(0, 8).map((x, i) => ({ ...x, side: "bid" as const, best: i === 0 }))] : [];
   return (
     <div className="space-y-6">
       <div>
@@ -63,31 +72,27 @@ export default async function MarketPage({ params }: { params: Promise<{ leader:
               <tr>
                 <th>{L("Sisi", "Side")}</th>
                 <th className="r">{L("Harga (AUSD)", "Price (AUSD)")}</th>
+                <th className="r">{L("Ukuran (DOWN)", "Size (DOWN)")}</th>
               </tr>
             </thead>
             <tbody>
-              {b.ask != null && (
-                <tr>
-                  <td className="text-down">{L("Ask terbaik", "Best ask")}</td>
-                  <td className="r">{num(b.ask, 2)}</td>
+              {rows.map((r, i) => (
+                <tr key={i}>
+                  <td className={r.side === "ask" ? "text-down" : "text-up"}>{r.best ? (r.side === "ask" ? L("Ask terbaik", "Best ask") : L("Bid terbaik", "Best bid")) : r.side === "ask" ? "Ask" : "Bid"}</td>
+                  <td className="r">{num(r.price, 3)}</td>
+                  <td className="r">{num(r.size, 2)}</td>
                 </tr>
-              )}
-              {b.ask == null && b.bid == null && (
+              ))}
+              {!rows.length && (
                 <tr>
-                  <td colSpan={2} className="text-center text-ink-3">
+                  <td colSpan={3} className="text-center text-ink-3">
                     {live ? L("Belum ada order di Kuru.", "No Kuru orders yet.") : L("Belum ada seri UP/DOWN yang dicetak untuk epoch ini.", "No UP/DOWN series minted for this epoch yet.")}
                   </td>
                 </tr>
               )}
-              {b.bid != null && (
-                <tr>
-                  <td className="text-up">{L("Bid terbaik", "Best bid")}</td>
-                  <td className="r">{num(b.bid, 2)}</td>
-                </tr>
-              )}
             </tbody>
           </table>
-          <p className="px-4 py-3 text-xs text-ink-3">{L("Hanya puncak order book (bestBidAsk Kuru); kedalaman tidak ditampilkan.", "Top of book only (Kuru bestBidAsk); depth is not shown.")}</p>
+          {depth && <p className="px-4 py-3 text-xs text-ink-3">{L(`Kedalaman L2 dari OrderBook.getL2Book Kuru, blok ${depth.block}.`, `L2 depth from Kuru OrderBook.getL2Book, block ${depth.block}.`)}</p>}
         </Panel>
         <Panel title={L("Mint dan tebus", "Mint and redeem")}>
           <MintRedeem book={l.book} epoch={b.epoch} settled={!!live?.settled} />
@@ -97,6 +102,55 @@ export default async function MarketPage({ params }: { params: Promise<{ leader:
           <p className="mt-3 text-xs text-ink-3">{L(`Mainnet: hanya mint/tebus (listing Kuru mainnet permissioned). Testnet: DOWN diperdagangkan di Kuru. Biaya 1 pasangan = ${usd(1)}.`, `Mainnet: mint/redeem only (Kuru mainnet listing is permissioned). Testnet: DOWN trades on Kuru. One pair costs ${usd(1)}.`)}</p>
         </Panel>
       </div>
+      {live?.market && depth && !live.settled && (
+        <div className="grid gap-6 lg:grid-cols-2">
+          <Panel title={L("Trading DOWN di Kuru", "Trade DOWN on Kuru")} aside={<Source kind="live">Kuru OrderBook</Source>}>
+            <KuruTrade market={live.market} down={live.down} depth={depth} chainId={copasChain.id} />
+            <p className="mt-3 text-xs text-ink-3">
+              {L(
+                "Order market IOC langsung dari wallet passkey (approve lalu placeAndExecuteMarketBuy/Sell). Beli DOWN = lindung nilai bila leader melanggar; jual DOWN hasil mint = taruhan leader menepati mandat.",
+                "IOC market order straight from your passkey wallet (approve, then placeAndExecuteMarketBuy/Sell). Buying DOWN hedges a breach; selling minted DOWN bets the leader keeps the mandate.",
+              )}
+            </p>
+          </Panel>
+          {fills && (
+            <Panel title={L("Fill terakhir (Kuru)", "Recent fills (Kuru)")} pad={false} aside={<Source kind="live">Envio HyperSync</Source>}>
+              <table className="data">
+                <thead>
+                  <tr>
+                    <th>{L("Taker", "Taker")}</th>
+                    <th className="r">{L("Harga", "Price")}</th>
+                    <th className="r">DOWN</th>
+                    <th className="r">Tx</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {fills.map((f) => (
+                    <tr key={f.tx + f.size}>
+                      <td className={f.takerSide === "buy" ? "text-up" : "text-down"}>
+                        {f.takerSide === "buy" ? L("beli", "buy") : L("jual", "sell")}
+                        {f.maker.toLowerCase() === f.taker.toLowerCase() && <span className="ml-1 text-ink-3">({L("market maker sendiri", "market maker self-fill")})</span>}
+                      </td>
+                      <td className="r">{num(f.price, 3)}</td>
+                      <td className="r">{num(f.size, 2)}</td>
+                      <td className="r">
+                        <a className="underline" href={explorerTx(f.tx, copasChain.id)} target="_blank" rel="noreferrer">
+                          {f.tx.slice(0, 8)}…
+                        </a>
+                      </td>
+                    </tr>
+                  ))}
+                  {!fills.length && (
+                    <tr>
+                      <td colSpan={4} className="text-center text-ink-3">{L("Belum ada fill di book ini.", "No fills on this book yet.")}</td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </Panel>
+          )}
+        </div>
+      )}
     </div>
   );
 }

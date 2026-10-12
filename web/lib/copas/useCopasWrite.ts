@@ -32,7 +32,7 @@ export function useCopasWrite() {
         const wallet = createWalletClient({ account, chain: copasChain, transport: rpcTransport(copasChain) });
         const h = await wallet.writeContract({ ...call, args: call.args ?? [] } as never);
         setHash(h);
-        await copasPublic.waitForTransactionReceipt({ hash: h });
+        if ((await copasPublic.waitForTransactionReceipt({ hash: h })).status !== "success") throw new Error(`transaction reverted: ${h}`);
         return h;
       } catch (e) {
         const code = (e as { code?: unknown })?.code;
