@@ -4,7 +4,7 @@ import { getCandles, getContext, getFundingAll, getLeaderboard, getTicker, cns, 
 import { accountByAddr, accountById, addressesFor, allPositions, equityCurve, exchangeInfo, perpInfos, tvlCurve, type Position } from "./onchain";
 import { BLOCKS_PER_DAY, accountWord, dataWord, decode, ev, scan, timeline } from "./logs";
 import { computeTradeStats, type Trade } from "./stats";
-import { indexerConfigured, indexerUrl, indexerFlows, indexerTvlCurve, indexerWalletEquity, indexerWalletFlows, indexerWalletTrades } from "./indexer";
+import { indexerFresh, indexerUrl, indexerFlows, indexerTvlCurve, indexerWalletEquity, indexerWalletFlows, indexerWalletTrades } from "./indexer";
 
 const DAY = 86_400_000;
 /** Cache-key part so toggling the indexer env never serves entries built from the other source. */
@@ -208,7 +208,7 @@ export const FLOW_DAYS = Number(process.env.FLOWS_SCAN_DAYS || 7);
 /** Deposits, withdrawals and liquidations: full history from the indexer (days = null), else the last `days` days of logs. */
 export const flows = unstable_cache(
   async (days: number) => {
-    if (indexerConfigured()) {
+    if (await indexerFresh()) {
       const f = await indexerFlows().catch(() => null);
       if (f) return { source: "envio" as const, ...f };
     }
@@ -288,7 +288,7 @@ const rpcFlows = unstable_cache(
 
 export const tvlHistory = unstable_cache(
   async () => {
-    if (indexerConfigured()) {
+    if (await indexerFresh()) {
       const pts = await indexerTvlCurve().catch(() => null);
       if (pts?.length) return { source: "envio" as const, pts };
     }
@@ -325,7 +325,7 @@ export const walletSnapshot = unstable_cache(
 
 export const walletEquityCurve = unstable_cache(
   async (accountId: number) => {
-    if (indexerConfigured()) {
+    if (await indexerFresh()) {
       const pts = await indexerWalletEquity(accountId).catch(() => null);
       if (pts) return { source: "envio" as const, pts };
     }
@@ -343,7 +343,7 @@ export const TRADE_WINDOW_HOURS = Number(process.env.TRADE_SCAN_HOURS || 6);
 
 export const walletTrades = unstable_cache(
   async (accountId: number) => {
-    if (indexerConfigured()) {
+    if (await indexerFresh()) {
       const trades = await indexerWalletTrades(accountId).catch(() => null);
       if (trades) {
         // ponytail: stats use every trade; list and curve are thinned so the entry stays under unstable_cache's 2MB cap
@@ -420,7 +420,7 @@ async function rpcWalletTrades(accountId: number, ms: Market[], hours: number): 
 }
 
 export async function walletFlows(accountId: number) {
-  if (indexerConfigured()) {
+  if (await indexerFresh()) {
     const rows = await indexerWalletFlows(accountId).catch(() => null);
     if (rows) return { source: "envio" as const, rows };
   }

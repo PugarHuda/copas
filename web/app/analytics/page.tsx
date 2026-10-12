@@ -5,7 +5,7 @@ import { Panel, PageHead, Segmented, Source, Stat, StatRow, Empty } from "@/comp
 import { TimeChart } from "@/components/TimeChart";
 import { FLOW_DAYS, activeUsers, flows, fundingHistory, markets, protocolSnapshot, tvlHistory, volumeHistory } from "@/lib/perpl/analytics";
 import { getLeaderboard } from "@/lib/perpl/api";
-import { indexerConfigured, indexerSyncedAt } from "@/lib/perpl/indexer";
+import { indexerFresh, indexerSyncedAt } from "@/lib/perpl/indexer";
 import { ago, num, pct, price, short, usd } from "@/lib/format";
 import { explorerTx } from "@/lib/chains";
 import { getT } from "@/lib/i18n/server";
@@ -25,7 +25,7 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: SP
   const { t, lang } = await getT();
   const L = (a: string, b: string) => (lang === "id" ? a : b);
   const vt = ["30d", "90d", "all"].includes(sp.vt ?? "") ? sp.vt! : "90d";
-  const idx = indexerConfigured();
+  const idx = await indexerFresh();
   // fw = window in days for flows/liquidations; 0 = full indexed history (indexer only)
   const fw = sp.fw === "1" ? 1 : idx ? (["7", "30"].includes(sp.fw ?? "") ? Number(sp.fw) : 0) : FLOW_DAYS;
   const q = (k: string, v: string) => `/analytics?${new URLSearchParams({ vt, fw: String(fw), [k]: v })}`;

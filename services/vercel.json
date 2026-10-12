@@ -1,0 +1,6 @@
+{
+  "framework": null,
+  "buildCommand": "pnpm build",
+  "outputDirectory": "public",
+  "rewrites": [{ "source": "/(.*)", "destination": "/api" }]
+}

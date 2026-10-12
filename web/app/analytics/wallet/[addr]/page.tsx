@@ -9,7 +9,7 @@ import type { TradeStats } from "@/lib/perpl/stats";
 import { ago, isAddress, num, pct, price, short, usd } from "@/lib/format";
 import { explorerAddr, explorerTx } from "@/lib/chains";
 import { getT } from "@/lib/i18n/server";
-import { indexerConfigured } from "@/lib/perpl/indexer";
+import { indexerFresh } from "@/lib/perpl/indexer";
 import { WalletSearch, WatchButton } from "../../_c/client";
 
 type P = Promise<{ addr: string }>;
@@ -45,7 +45,7 @@ export default async function WalletPage({ params }: { params: P }) {
     );
 
   const address = snap.address.toLowerCase();
-  const idx = indexerConfigured();
+  const idx = await indexerFresh();
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-4">

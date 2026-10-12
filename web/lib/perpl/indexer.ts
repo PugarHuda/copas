@@ -29,6 +29,16 @@ export async function envioQuery<T>(query: string, variables: Record<string, unk
   return j.data as T;
 }
 
+// A cloud indexer still backfilling would show stale analytics; use it only once it is near head.
+// ponytail: per-instance 60s memo, fine for a dashboard
+let fresh: { at: number; ok: Promise<boolean> } | undefined;
+export function indexerFresh(maxLagMs = DAY): Promise<boolean> {
+  if (!indexerConfigured()) return Promise.resolve(false);
+  if (!fresh || Date.now() - fresh.at > 60_000)
+    fresh = { at: Date.now(), ok: indexerSyncedAt().then((t) => Date.now() - t < maxLagMs).catch(() => false) };
+  return fresh.ok;
+}
+
 /** Timestamp (ms) of the last mainnet event the indexer has processed. */
 export async function indexerSyncedAt(): Promise<number> {
   const d = await envioQuery<{ Protocol: { lastUpdatedAt: number }[] }>(`query($chain: Int!) { Protocol(where: { chainId: { _eq: $chain } }) { lastUpdatedAt } }`);
