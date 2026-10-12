@@ -18,7 +18,7 @@ test.describe("follow an active leader", () => {
     const dep = page.getByLabel("Deposit (AUSD)");
     await dep.fill("-5");
     await expect(dep).toHaveAttribute("aria-invalid", "true");
-    await expect(page.locator("#f-deposit-err")).toHaveText(/Enter at least \d+ AUSD\./);
+    await expect(page.locator("#f-deposit-err")).toHaveText(/Enter at least \d+ AUSD: the first deposit opens/);
     await expect(summary(page).locator("div", { hasText: /^Deposit/ }).locator("dd")).toHaveText("–");
     await expectSaneSummary(page);
   });
