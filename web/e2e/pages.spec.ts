@@ -64,8 +64,11 @@ test.describe("/proof", () => {
     const box = page.locator("div").filter({ has: page.getByRole("heading", { name: "Recompute" }) }).filter({ has: page.getByRole("button", { name: "Read equity" }) }).last();
     await expect(box.locator("dd").nth(2)).toHaveText("breach"); // prefilled from the breach above
     await box.getByLabel("LeaderBook, Perpl address or account ID").fill(ACTIVE);
-    await box.getByRole("button", { name: "Read equity" }).click();
-    await expect(box.getByRole("status")).toHaveText(/LeaderBook on Monad Testnet: unit price \d\.\d{6}, peak \d\.\d{6}\./);
+    // the read goes to the public RPC; on "did not respond. Try again." do what the message says
+    await expect(async () => {
+      await box.getByRole("button", { name: "Read equity" }).click();
+      await expect(box.getByRole("status")).toHaveText(/LeaderBook on Monad Testnet: unit price \d\.\d{6}, peak \d\.\d{6}\./, { timeout: 10_000 });
+    }).toPass({ timeout: 60_000 });
     expect(parseNum(await box.locator("dd").first().innerText())).toBeGreaterThan(0);
 
     await box.getByLabel("LeaderBook, Perpl address or account ID").fill("not-an-address");
