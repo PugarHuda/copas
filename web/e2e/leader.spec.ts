@@ -31,7 +31,11 @@ for (const [label, book] of [
     });
 
     test("positions and checkpoints panels have real rows", async ({ page }) => {
-      await gotoUntil(page, `/leader/${book}`, (p) => panel(p, "Leader positions").locator("tbody tr").or(panel(p, "Leader positions").getByText("No open positions.")));
+      // positions come from the RPC, checkpoints from the indexer; either can blip, so reload until both answered
+      await gotoUntil(page, `/leader/${book}`, (p) => [
+        panel(p, "Leader positions").locator("tbody tr").or(panel(p, "Leader positions").getByText("No open positions.")),
+        panel(p, "Checkpoints and breaches").locator("tbody tr"),
+      ]);
       const positions = panel(page, "Leader positions");
       await expect(positions.locator("tbody tr").or(positions.getByText("No open positions.")).first()).toBeVisible();
       for (const r of await positions.locator("tbody tr").all()) await expect(r.locator("td").first()).toHaveText(/^(BTC|ETH|SOL|MON)$/);

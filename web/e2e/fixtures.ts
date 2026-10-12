@@ -83,9 +83,9 @@ export const STATUS_LABEL = { active: "Active", unbonded: "Unbonded", breached: 
  * Server pages read the public Monad testnet RPC, which rate-limits now and then; the app then renders an honest
  * "did not respond, try again" state. Reload (as a user would) until `ready` shows.
  */
-export async function gotoUntil(page: Page, url: string, ready: (p: Page) => Locator) {
+export async function gotoUntil(page: Page, url: string, ready: (p: Page) => Locator | Locator[]) {
   await expect(async () => {
     await page.goto(url);
-    await expect(ready(page).first()).toBeVisible({ timeout: 5_000 });
+    for (const l of [ready(page)].flat()) await expect(l.first()).toBeVisible({ timeout: 5_000 });
   }).toPass({ timeout: 75_000 });
 }
