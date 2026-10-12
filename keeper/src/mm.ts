@@ -4,12 +4,12 @@
 // breach probability from src/mmLogic.ts. Finished/breached series: cancel, withdraw, redeem the winning side.
 // Signs with MM_PRIVATE_KEY, a plain local key: the Privy keeper wallet's policy forbids AUSD on purpose.
 import {
-  createWalletClient, encodeFunctionData, erc20Abi, http, maxUint256, parseAbi, zeroAddress,
+  createWalletClient, encodeFunctionData, erc20Abi, maxUint256, parseAbi, zeroAddress,
   type Abi, type Address, type Hex,
 } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { ABI, cfg, log, type Deployments } from './config.js';
-import { chain, client } from './chain.js';
+import { chain, client, rpcTransport } from './chain.js';
 import { STATUS, type Leader } from './logic.js';
 import { MM_DEFAULTS, breachProbability, epochsToQuote, mintAmount, planQuotes, quotePrices, type MmParams, type Order } from './mmLogic.js';
 
@@ -72,7 +72,7 @@ export async function marketMake(dep: Deployments, leaders: Leader[], now: bigin
   if (cfg.chainId !== 10143) return out.decisions.push({ what: 'market maker', decision: 'off: Kuru listing is permissioned on mainnet' });
   const account = privateKeyToAccount(key as Hex);
   const me = account.address;
-  const wallet = createWalletClient({ account, chain, transport: http(cfg.rpcUrl) });
+  const wallet = createWalletClient({ account, chain, transport: rpcTransport() });
   const read = <T>(address: Address, abi: Abi | readonly unknown[], functionName: string, args: unknown[] = []) =>
     client.readContract({ address, abi: abi as Abi, functionName, args }) as Promise<T>;
   const bal = (token: Address, who: Address = me) => read<bigint>(token, erc20Abi, 'balanceOf', [who]);
