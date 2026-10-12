@@ -74,3 +74,13 @@ We follow Nansen's MCP Data Redistribution Guidelines:
   "no data" and lowers `coverage`. It never counts as agreement or disagreement.
 - Smart-money spot flow on Monad is a proxy for the direction of a perps position. It is context, not a signal
   to trade.
+
+## Live status (12 Oct 2026)
+
+- Production runs in API-key mode. The key's 100 credits are used up, so every Nansen call answers `403 insufficient_credits`.
+  `/discover` still ranks Perpl traders by performance and risk (no smart-money flag, `poweredBy: null`), and
+  `/alignment` returns `score: null` with `unavailable: "nansen-credits"`. No Nansen-derived number is shown.
+- x402 needs no credits, but Nansen's 402 only lists **mainnet** networks: Base, Monad (`eip155:143`), Solana,
+  XLayer and BSC. There is no testnet option and no free endpoint. To turn it on, fund a fresh key with about
+  1 USDC on Monad mainnet (`0x7547…b603`), then on the `copas-services` project set `X402_PRIVATE_KEY=<key>` and
+  `NANSEN_PAYMENT_MODE=x402` and redeploy. One `/discover?limit=10` costs $0.15 to $0.20 and `/alignment` costs $0.05.

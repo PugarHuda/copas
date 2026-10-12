@@ -5,7 +5,9 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { attest, buildTrackRecord, signTrackRecord, verifyAttestation } from "../src/attest.js";
 import { backtest } from "../src/backtest.js";
 import { computeFeatures } from "../src/features.js";
-import { analyzeLeader, guardAnalysis, humanize, kimiCost } from "../src/kimi.js";
+import { analyzeLeader, guardAnalysis, humanize, kimiCost, signReceipt } from "../src/kimi.js";
+import { keccak256, toBytes, verifyMessage } from "viem";
+import { canonicalJson } from "../src/util.js";
 import { type Hex, decodeFunctionData, encodeFunctionResult, multicall3Abi } from "viem";
 import { type Fill, PERPL_ABI, closedTrades, getLeaderData, normalizePlumbRow } from "../src/leaderData.js";
 import { alignmentScore, clearNetflowCache, compositeScore, discoverLeaders, exposureByMarket, fetchMonadNetflow, monadPriceUsd, nansenClient } from "../src/nansen.js";
@@ -471,5 +473,25 @@ describe("activity: fills and open positions without a closed trade", () => {
     expect(a.analysis.weeklySummary.en).toMatch(/^No closed trades yet/);
     expect(a.analysis.riskLevel).toBe("medium");
     expect((await app.request(`/leader/${LB}/stats?days=abc`)).status).toBe(400);
+  });
+});
+
+describe("D1 receipt + D4 x402 seller", () => {
+  it("signs an EIP-191 receipt over the analysis hashes that verifies against the signer", async () => {
+    const payload = { leader: LEADER, model: "m:free", generationId: "gen-1", inputHash: "0x01", outputHash: "0x02", at: NOW };
+    const r = await signReceipt(TEST_PK, payload);
+    expect(r.hash).toBe(keccak256(toBytes(canonicalJson(payload))));
+    expect(await verifyMessage({ address: r.signer, message: { raw: r.hash }, signature: r.signature })).toBe(true);
+  });
+  it("answers 402 with a Monad testnet USDC requirement when X402_PAY_TO is set", async () => {
+    process.env.X402_PAY_TO = "0x57A9fCEEdeB87A0561481Dd24E0489bFECb96523";
+    try {
+      const r = await createApp().request(`/x402/report/${LEADER}`);
+      expect(r.status).toBe(402);
+      const req = JSON.parse(Buffer.from(r.headers.get("payment-required")!, "base64").toString());
+      expect(req.accepts[0]).toMatchObject({ scheme: "exact", network: "eip155:10143", amount: "10000", asset: "0x534b2f3A21130d7a60830c2Df862319e593943A3", extra: { name: "USDC", version: "2" } });
+    } finally {
+      delete process.env.X402_PAY_TO;
+    }
   });
 });

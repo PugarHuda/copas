@@ -6,6 +6,8 @@
 import { createHash, randomUUID } from "node:crypto";
 import { appendFileSync, mkdirSync } from "node:fs";
 import { dirname } from "node:path";
+import { keccak256, toBytes } from "viem";
+import { privateKeyToAccount } from "viem/accounts";
 import type { Features } from "./features.js";
 import { type Fetch, canonicalJson, env, requireEnv, round } from "./util.js";
 
@@ -35,10 +37,18 @@ export interface KimiSignature {
   model: string;
   signature: string;
 }
+/** OpenRouter has no response signing: the service signs a receipt over the hashes with ATTESTER_PRIVATE_KEY (EIP-191). */
+export interface AnalysisReceipt {
+  kind: "eip191-receipt";
+  payload: { leader: string; model: string; generationId: string | null; inputHash: string; outputHash: string; at: number };
+  hash: `0x${string}`;
+  signature: `0x${string}`;
+  signer: `0x${string}`;
+}
 export interface AnalysisResult {
   analysis: Analysis;
   features: Features;
-  signature: KimiSignature | null;
+  signature: KimiSignature | AnalysisReceipt | null;
   signatureValid: boolean | null;
   nonce: string;
   verifyUrl: string;
@@ -195,18 +205,23 @@ export async function analyzeLeader(
   const analysis = guardAnalysis(raw, features);
   const { usage, costUsd: kimiUsd } = kimiCost(body.usage ?? {});
   const costUsd = or ? 0 : kimiUsd;
-  const signatureValid = signature ? await verifyKimiSignature(signature, f).catch(() => null) : null;
+  const inputHash = sha256(input);
+  const outputHash = sha256(canonicalJson(analysis));
+  const ak = or ? env("ATTESTER_PRIVATE_KEY") : undefined;
+  const receipt = ak ? await signReceipt(ak as `0x${string}`, { leader: address, model, generationId: body.id ? String(body.id) : null, inputHash, outputHash, at: opts.now ?? Math.floor(Date.now() / 1000) }) : null;
+  const signatureValid = receipt ? true : signature ? await verifyKimiSignature(signature, f).catch(() => null) : null;
   const out: AnalysisResult = {
     analysis,
     features,
-    signature,
+    signature: receipt ?? signature,
     signatureValid,
     nonce,
-    verifyUrl: `${kimiBase()}/signatures/verify`,
+    // receipt: check with viem verifyMessage({ address: signer, message: { raw: hash }, signature }) after re-hashing payload
+    verifyUrl: or ? "" : `${kimiBase()}/signatures/verify`,
     usage,
     costUsd,
-    inputHash: sha256(input),
-    outputHash: sha256(canonicalJson(analysis)),
+    inputHash,
+    outputHash,
     model,
   };
   const logPath = opts.logPath ?? env("KIMI_LOG_PATH") ?? "data/kimi-log.jsonl";
@@ -216,4 +231,11 @@ export async function analyzeLeader(
     JSON.stringify({ at: opts.now ?? Math.floor(Date.now() / 1000), leader: address, model, nonce, signature, signatureValid, inputHash: out.inputHash, outputHash: out.outputHash, usage, costUsd }) + "\n",
   );
   return out;
+}
+
+/** keccak256 of the canonical payload, signed EIP-191 (same scheme as attest.ts). */
+export async function signReceipt(pk: `0x${string}`, payload: AnalysisReceipt["payload"]): Promise<AnalysisReceipt> {
+  const account = privateKeyToAccount(pk);
+  const hash = keccak256(toBytes(canonicalJson(payload)));
+  return { kind: "eip191-receipt", payload, hash, signature: await account.signMessage({ message: { raw: hash } }), signer: account.address };
 }

@@ -97,7 +97,7 @@ export async function simulate(tx: SimTx, opts: { fetch?: Fetch } = {}): Promise
     engine: "eth_simulateV1",
     success: r.status === "success",
     error: r.status === "failure" ? ((r.error as any)?.shortMessage ?? r.error?.message)?.split("\n")[0] : undefined,
-    gasUsed: Number(r.gasUsed),
+    // eth_simulateV1 on Monad reports the call gas limit, not gas used, so no gasUsed here
     balanceChanges: assetChanges
       .filter((a) => a.value.diff !== 0n)
       .map((a) => ({ address: tx.from, token: a.token.address, symbol: a.token.symbol, decimals: a.token.decimals, diff: a.value.diff.toString() })),

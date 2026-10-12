@@ -1,7 +1,8 @@
 # @copas/services
 
-AI & data services for Copas: leader data, backtest, Kimi risk analyst, Nansen discovery, Tenderly simulation and
-track-record attestation. It works as a TypeScript library (`import { backtest } from "@copas/services"`) and
+AI & data services for Copas: leader data, backtest, LLM risk analyst (OpenRouter free models; Kimi K3 path kept),
+Nansen discovery, transaction simulation, track-record attestation, and an x402 pay-per-call report.
+**Hosted:** https://copas-services.vercel.app (project `copas-services`, `vercel deploy --prod --yes` from this folder). It works as a TypeScript library (`import { backtest } from "@copas/services"`) and
 as a small Hono HTTP server.
 
 AI explains and never executes (SPEC §1 principle 5). Every number comes from deterministic code. Kimi only
@@ -25,12 +26,12 @@ route handlers (server only, because the module reads env keys).
 |---|---|---|---|
 | `GET /leader/:addr/stats?days=30[&fills=1]` | leaderData | none | official 30d row, capital estimate, closed trades, realized equity curve, stats |
 | `POST /leader/:addr/backtest` body `{follower?, mandate?, opts?, days?}` | backtest (C3) | none | follower equity curve, max DD, fees, slippage, epochs breached, compensation, assumptions |
-| `GET /leader/:addr/analysis` | features + kimi (D1, D3) | `KIMI_API_KEY` | `{analysis, features, signature, signatureValid, nonce, verifyUrl, costUsd, inputHash, outputHash}` |
+| `GET /leader/:addr/analysis` | features + kimi.ts (D1, D3) | `OPENROUTER_API_KEY` (or `KIMI_API_KEY`) | `{analysis, features, signature, signatureValid, nonce, verifyUrl, costUsd, inputHash, outputHash, model}`. On OpenRouter `signature` is an EIP-191 receipt signed by `ATTESTER_PRIVATE_KEY` over `{leader, model, generationId, inputHash, outputHash, at}` |
 | `GET /leader/:addr/alignment?days=7` | nansen (D2) | `NANSEN_API_KEY` or `X402_PRIVATE_KEY` | alignment score, composite score, cost ledger |
 | `GET /discover?limit=10` | nansen (D2, D4) | same | candidate leaders with composite scores, cost ledger |
 | `POST /simulate` body `{from,to,data,value?,chainId?}` | simulate (C4) | Tenderly optional | balance changes and decoded events |
 | `GET /attest/:addr` | attest (A7) | `ATTESTER_PRIVATE_KEY` | record, canonical JSON, keccak hash, EIP-191 signature, attester |
-| `POST /kimi/verify` body `{nonce,timestamp,model,signature}` | kimi | `KIMI_API_KEY` | `{valid}` |
+| `GET /x402/report/:addr` | x402seller (D4) | `X402_PAY_TO` | 402 until paid 0.01 testnet USDC on Monad (`eip155:10143`, USDC `0x534b…43A3`), settled by the Monad facilitator `x402-facilitator.molandak.org`; then `{attestation, analysis, paidWith}` |
 
 When a key is missing, the route returns `503 {error, missing}`. `/analysis` also returns the deterministic
 `features` in that case, so the UI can still show the numbers.
@@ -59,11 +60,19 @@ IOC price band, notional cap, margin, stop-loss pause, performance fee on HWM at
 3.45 bp on each side. Slippage = half-spread + 1–3 blocks × drift. Every result carries an `assumptions[]`
 list that the UI must show.
 
-### 3. Kimi risk analyst (`features.ts`, `kimi.ts`, D1, D3)
+### 3. LLM risk analyst and challenger (`features.ts`, `kimi.ts`, D1, D3)
 - `computeFeatures` (pure code): style label, tilt (size-ups ≥ 1.5× after a loss, re-entry within 1h, daily
   frequency spikes > mean + 2σ), style drift (last 7d vs history: market-mix TVD, leverage, size, frequency, new
   markets), weekly summary, and ranked candidates for "reasons not to follow". Each candidate has a metric and a value.
-- `analyzeLeader`: `kimi-k3`, `reasoning_effort:"high"`, `response_format: json_object`, no `temperature`.
+- **Production runs on OpenRouter free models** (`OPENROUTER_API_KEY`; `LLM_MODEL` = comma list used as a fallback
+  chain, default `google/gemma-4-31b-it:free,nvidia/nemotron-3-super-120b-a12b:free`), cost $0. OpenRouter signs
+  nothing, so the service signs a receipt: `keccak256(canonicalJson({leader, model, generationId, inputHash,
+  outputHash, at}))`, EIP-191 by `ATTESTER_PRIVATE_KEY` (same signer as `/attest`). Verify with
+  `viem.verifyMessage({address: signer, message:{raw: hash}, signature})`. Text is English only (`id` = `en`).
+  The free tier allows 50 requests a day per OpenRouter account; past that the route answers 502 `openrouter 429`
+  until 00:00 UTC (the CDN keeps already-analysed leaders for 1 h).
+- D3 "challenger" = `devilsAdvocate`: 3 reasons not to follow, picked from the deterministic candidate ranking.
+- Kimi path (kept, not used in production): `kimi-k3`, `reasoning_effort:"high"`, `response_format: json_object`, no `temperature`.
   Each call sends `X-Msh-Request-Nonce: <uuid>` and reads `Msh-Request-Timestamp` / `Msh-Request-Signature`.
   The signature is verified right away at `POST /v1/signatures/verify`. All text fields are bilingual `{en, id}`.
   Cost = (uncached input × $3 + cached × $0.30 + output × $15) / 1M.
@@ -78,12 +87,13 @@ See [NANSEN.md](./NANSEN.md) for every endpoint, data category, payment mode and
 ### 5. Simulation (`simulate.ts`, C4)
 - With `TENDERLY_ACCESS_KEY` / `TENDERLY_ACCOUNT` / `TENDERLY_PROJECT` set, it uses the Tenderly Simulation API
   (`network_id` 143 or 10143; Tenderly's public network list includes both).
-- Otherwise it calls **`eth_simulateV1`** on `rpc.monad.xyz` through viem `simulateCalls({traceAssetChanges:true})`.
+- Production has no Tenderly account configured, so the live engine is the fallback below.
+- Otherwise it calls **`eth_simulateV1`** on `rpc.monad.xyz` (`testnet-rpc.monad.xyz` for `chainId: 10143`) through viem `simulateCalls({traceAssetChanges:true})`.
   This returns ERC-20/native balance diffs of `from` plus events decoded with `copas/abis/*.json`.
 - Tested live: an AUSD transfer from an EOA returned the diff and a decoded `Transfer` event.
 - Monad limits on the fallback:
   - The sender must be an EOA ("sender not eoa").
-  - `gasUsed` shows the gas limit, because Monad charges by gas limit.
+  - No `gasUsed`: Monad's `eth_simulateV1` reports the call gas limit, not gas used.
 
 ### 6. Track-record attestation (`attest.ts`, A7)
 - `buildTrackRecord` builds the record: PnL 30d (official leaderboard), all-time realized net PnL over fetched
@@ -95,8 +105,19 @@ See [NANSEN.md](./NANSEN.md) for every endpoint, data category, payment mode and
   `viem.verifyMessage({address: attester, message:{raw: hash}, signature})`.
 - The label "offchain attested" is part of the response.
 
+### 7. x402 pay-per-call report (`x402seller.ts`, D4 seller side)
+`GET /x402/report/:addr` sits behind `@x402/hono` `paymentMiddleware`: 0.01 testnet USDC on Monad testnet
+(`eip155:10143`, USDC `0x534b2f3A21130d7a60830c2Df862319e593943A3`, EIP-712 domain `USDC`/`2`), paid to `X402_PAY_TO`
+(production: the attester `0x6dbB…2aa1`). The Monad facilitator `https://x402-facilitator.molandak.org` verifies the
+EIP-3009 authorization and settles it, paying the gas. Payer script:
+`X402_PAYER_KEY=0x.. pnpm exec tsx scripts/x402-pay.ts [base] [leader]` prints the `payment-response` settlement tx.
+Live check, 12 Oct: production answers 402 with the requirement, and a paid retry from an unfunded key reached the
+facilitator's verify step and came back `insufficient_funds`. **No payment has settled yet**: none of our keys hold
+testnet USDC (it only comes from faucet.circle.com, which needs a browser).
+
 ## Tests
-`test/services.test.ts` (24 tests) runs against `test/fixtures`:
+`test/services.test.ts` (35 tests) runs against `test/fixtures`. One test calls the live facilitator's `/supported`
+(x402 seller 402 shape); everything else is offline:
 - Real recordings: Perpl leaderboard, plumb fills of leader `0xedcd…409b`, plumb wallet, live Nansen 402.
 - Synthetic files, marked `_note`, shaped from the official schemas: Nansen 200s, Kimi completion, Tenderly.
 - Real `@x402/fetch` payment flow against the recorded 402. It checks the `PAYMENT-SIGNATURE` V2 payload on
@@ -105,6 +126,7 @@ See [NANSEN.md](./NANSEN.md) for every endpoint, data category, payment mode and
 - Determinism and claim invariants on the real leader.
 - Envio GraphQL source.
 - 503s, and LLM guard overrides.
+- EIP-191 analysis receipt verifies against its signer.
 
 Not covered by tests: the `eth_simulateV1` fallback (checked live only) and real Kimi/Nansen responses (no keys
 yet). Run `pnpm fixtures` after adding keys to extend the recordings.

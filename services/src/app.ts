@@ -7,6 +7,7 @@ import { analyzeLeader } from "./kimi.js";
 import { type LeaderData, fetchEnvioAccounts, fetchLeaderboard, getLeaderData } from "./leaderData.js";
 import { NansenUnavailable, alignmentScore, compositeScore, discoverLeaders, exposureByMarket, fetchMonadNetflow, nansenClient } from "./nansen.js";
 import { simulate } from "./simulate.js";
+import { x402Seller } from "./x402seller.js";
 import { type Fetch, ServiceUnavailable, env, isAddress } from "./util.js";
 
 export const DEFAULT_FOLLOWER: FollowerParams = { depositCNS: 100, ratioBps: 200, maxNotionalCNS: 300, maxLeverageHdths: 500, maxChaseBps: 100, priceBandBps: 50, stopLossBps: 0 };
@@ -53,7 +54,18 @@ export function createApp(deps: { fetch?: Fetch; now?: () => number } = {}) {
     return c.json({ error: e.message }, 502);
   });
 
-  app.get("/", (c) => c.json({ service: "@copas/services", routes: ["/leader/:addr/stats", "POST /leader/:addr/backtest", "/leader/:addr/analysis", "/leader/:addr/alignment", "/discover", "POST /simulate", "/attest/:addr"] }));
+  // D4 seller side: agents pay per call in Monad testnet USDC, settled by the Monad x402 facilitator (X402_PAY_TO turns it on)
+  const seller = x402Seller();
+  if (seller) {
+    app.use("/x402/*", seller.middleware);
+    app.get("/x402/report/:addr", async (c) => {
+      const a = addr(c.req.param("addr"));
+      const [attestation, analysis] = await Promise.all([attest(a, { fetch: f, now: now() }), runAnalysis(a, 30).catch((e) => ({ error: (e as Error).message }))]);
+      return c.json({ attestation, analysis, paidWith: seller.terms });
+    });
+  }
+
+  app.get("/", (c) => c.json({ service: "@copas/services", routes: ["/leader/:addr/stats", "POST /leader/:addr/backtest", "/leader/:addr/analysis", "/leader/:addr/alignment", "/discover", "POST /simulate", "/attest/:addr", ...(seller ? ["GET /x402/report/:addr (x402, Monad testnet USDC)"] : [])] }));
 
   app.get("/leader/:addr/stats", async (c) => {
     const d = await leader(c.req.param("addr"), Number(c.req.query("days") ?? 30));
