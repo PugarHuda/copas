@@ -167,6 +167,34 @@ describe("features + Kimi (D1, D3)", () => {
   });
 });
 
+describe("GitHub Models fallback", () => {
+  it("retries on GitHub Models when OpenRouter answers 429, and names the model", async () => {
+    process.env.OPENROUTER_API_KEY = "or";
+    process.env.GITHUB_MODELS_TOKEN = "gh";
+    process.env.ATTESTER_PRIVATE_KEY = TEST_PK;
+    try {
+      const logPath = join(mkdtempSync(join(tmpdir(), "gh-")), "log.jsonl");
+      const d = await getLeaderData(LEADER, { days: 90, now: NOW, fetch: stubFetch });
+      const feats = computeFeatures(d.fills, d.closedTrades, d.stats, { now: NOW, capital: d.capitalEstimate });
+      const hosts: string[] = [];
+      const spy: typeof fetch = async (u, init) => {
+        const url = String(u);
+        if (!url.endsWith("/chat/completions")) return stubFetch(u, init);
+        hosts.push(new URL(url).host);
+        if (url.includes("openrouter")) return new Response("free-models-per-day", { status: 429 });
+        return Response.json({ id: "gh-1", model: "gpt-4.1-mini", choices: [{ message: { content: "{}" } }], usage: {} });
+      };
+      const r = await analyzeLeader(LEADER, feats, { fetch: spy, logPath, now: NOW });
+      expect(hosts).toEqual(["openrouter.ai", "models.github.ai"]);
+      expect(r.model).toBe("github:gpt-4.1-mini");
+      expect(r.signature).toMatchObject({ kind: "eip191-receipt" });
+    } finally {
+      delete process.env.OPENROUTER_API_KEY;
+      delete process.env.GITHUB_MODELS_TOKEN;
+    }
+  });
+});
+
 describe("Nansen (D2, D4)", () => {
   it("reads the Monad USDC price from a live 402", () => {
     expect(nansen402.status).toBe(402);

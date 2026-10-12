@@ -16,6 +16,9 @@ export const KIMI_MODEL = "kimi-k3";
 // OPENROUTER_API_KEY switches the analyst to OpenRouter free models (no Kimi request signature, $0 cost).
 const OPENROUTER = "https://openrouter.ai/api/v1";
 const OR_MODELS = () => (env("LLM_MODEL") ?? "google/gemma-4-31b-it:free,nvidia/nemotron-3-super-120b-a12b:free").split(",");
+// GITHUB_MODELS_TOKEN (fine-grained PAT, Models: read) = free fallback when OpenRouter's free quota answers 429.
+const GH_MODELS = "https://models.github.ai/inference";
+const GH_MODEL = () => env("GITHUB_MODEL") ?? "openai/gpt-4.1-mini";
 export const llmProvider = () => (env("OPENROUTER_API_KEY") ? "openrouter" : "kimi");
 export const KIMI_PRICE = { input: 3, cachedInput: 0.3, output: 15 }; // USD per 1M tokens (platform.kimi.ai/docs/pricing/chat-k3)
 
@@ -179,7 +182,7 @@ export async function analyzeLeader(
     { role: "system", content: SYSTEM },
     { role: "user", content: input },
   ];
-  const res = await f(`${or ? OPENROUTER : kimiBase()}/chat/completions`, {
+  let res = await f(`${or ? OPENROUTER : kimiBase()}/chat/completions`, {
     method: "POST",
     headers: { authorization: `Bearer ${key}`, "content-type": "application/json", "X-Msh-Request-Nonce": nonce, ...(or ? { "X-Title": "Copas" } : {}) },
     // Kimi: no temperature/top_p (K3 locks them). OpenRouter: `models` = fallback chain across free models.
@@ -189,12 +192,22 @@ export async function analyzeLeader(
         : { model: KIMI_MODEL, reasoning_effort: "high", response_format: { type: "json_object" }, messages },
     ),
   });
+  const gh = or && !res.ok ? env("GITHUB_MODELS_TOKEN") : undefined;
+  if (gh) {
+    const why = `openrouter ${res.status}`;
+    res = await f(`${GH_MODELS}/chat/completions`, {
+      method: "POST",
+      headers: { authorization: `Bearer ${gh}`, "content-type": "application/json" },
+      body: JSON.stringify({ model: GH_MODEL(), response_format: { type: "json_object" }, messages }),
+    });
+    if (!res.ok) throw new Error(`${why}; github models ${res.status}: ${(await res.text()).slice(0, 300)}`);
+  }
   if (!res.ok) throw new Error(`${or ? "openrouter" : "kimi"} ${res.status}: ${(await res.text()).slice(0, 300)}`);
   const ts = res.headers.get("msh-request-timestamp");
   const sg = res.headers.get("msh-request-signature");
   const signature = ts && sg ? { nonce, timestamp: Number(ts), model: KIMI_MODEL, signature: sg } : null;
   const body = (await res.json()) as any;
-  const model = or ? String(body.model ?? OR_MODELS()[0]) : KIMI_MODEL;
+  const model = gh ? `github:${String(body.model ?? GH_MODEL())}` : or ? String(body.model ?? OR_MODELS()[0]) : KIMI_MODEL;
   const content = String(body.choices?.[0]?.message?.content ?? "{}");
   let raw: unknown = {};
   try {
