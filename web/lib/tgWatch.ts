@@ -1,4 +1,4 @@
-import { del, get, put } from "@vercel/blob";
+import { del, get, list, put } from "@vercel/blob";
 
 /**
  * Per-chat Telegram watch lists for @copas_monad_bot, one private Vercel Blob per chat (`tg/watch/<chatId>.json`).
@@ -24,4 +24,20 @@ export async function setWatch(chat: number | string, addrs: string[]) {
     addRandomSuffix: false,
     contentType: "application/json",
   });
+}
+
+/** Every chat's watch list (chatId -> lowercase addresses). Same read the keeper does each tick. */
+export async function allWatches(): Promise<Map<string, string[]>> {
+  const out = new Map<string, string[]>();
+  let cursor: string | undefined;
+  do {
+    const page = await list({ prefix: WATCH_PREFIX, cursor });
+    await Promise.all(page.blobs.map(async (b) => {
+      const chat = b.pathname.slice(WATCH_PREFIX.length, -".json".length);
+      const addrs = await getWatch(chat);
+      if (addrs.length) out.set(chat, addrs.map((a) => a.toLowerCase()));
+    }));
+    cursor = page.hasMore ? page.cursor : undefined;
+  } while (cursor);
+  return out;
 }

@@ -315,11 +315,28 @@ async function resolveTarget(arg: string): Promise<{ addr: string; label: string
   return ok ? { addr: a, label: `vault ${short(a)}` } : null;
 }
 
+/**
+ * With Alchemy Notify configured, every watched address joins the Address Activity webhook, so transfers on it reach
+ * /api/alchemy (and the watchers) within seconds instead of the next keeper tick. Unwatched addresses stay listed.
+ */
+async function alchemyAdd(addr: string) {
+  const token = process.env.ALCHEMY_AUTH_TOKEN;
+  const id = process.env.ALCHEMY_WEBHOOK_ID;
+  if (!token || !id) return;
+  await fetch("https://dashboard.alchemy.com/api/update-webhook-addresses", {
+    method: "PATCH",
+    headers: { "x-alchemy-token": token, "content-type": "application/json" },
+    body: JSON.stringify({ webhook_id: id, addresses_to_add: [addr], addresses_to_remove: [] }),
+    signal: AbortSignal.timeout(10_000),
+  }).catch(() => undefined);
+}
+
 async function addWatch(chatId: number, addr: string) {
   const cur = await getWatch(chatId);
   if (cur.includes(addr)) return "already";
   if (cur.length >= MAX_WATCH) return "full";
   await setWatch(chatId, [...cur, addr]);
+  await alchemyAdd(addr);
   return "added";
 }
 

@@ -5,9 +5,8 @@ import { expect, test } from "@playwright/test";
  * E1 create + stateless sign-in rebuilds the same address, E4 the private identity is a different address from the
  * same passkey and switching back returns the main one.
  */
-test.skip(({ browserName }, info) => browserName !== "chromium" || info.project.name !== "desktop", "CDP WebAuthn: desktop Chromium only");
-
-test("passkey account: create, private identity, stateless sign-in", async ({ page, context }) => {
+test("passkey account: create, private identity, stateless sign-in", async ({ page, context, browserName }, info) => {
+  test.skip(browserName !== "chromium" || info.project.name !== "desktop", "CDP WebAuthn: desktop Chromium only");
   const cdp = await context.newCDPSession(page);
   await cdp.send("WebAuthn.enable");
   const { authenticatorId } = await cdp.send("WebAuthn.addVirtualAuthenticator", {

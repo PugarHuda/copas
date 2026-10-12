@@ -132,12 +132,11 @@ pFloor is the jump risk the diffusion term cannot see. Gas is the real cost: a n
 
 ## Alerts (G4)
 
-**Telegram:** set `TELEGRAM_BOT_TOKEN` (get one from @BotFather). Users send the bot:
-- `/start` for all alerts
-- `/watch <leaderBook|vault>` to narrow them
-- `/unwatch <addr>`, `/list`, `/stop`
+**Telegram (@copas_monad_bot).** The bot itself runs as a webhook in the web app (`web/app/api/telegram`). A chat subscribes there:
+- `/watch <leader | #n | 0xvault>` (or the 🔔 Watch button on a leader card, which subscribes the person who tapped it, in their DM)
+- `/unwatch <addr | all>`, `/watching`
 
-Subscribers are stored in `data/subscribers.json`.
+Watch lists are stored by the web app in a private Vercel Blob store, one blob per chat (`tg/watch/<chatId>.json`, `web/lib/tgWatch.ts`). The keeper reads them with `BLOB_READ_WRITE_TOKEN` (a GitHub secret for the hosted tick). Each tick, every card it posts to `TELEGRAM_CHAT_ID` also goes as a DM to each chat watching that leader or vault: breach, epoch roll, unbond request, new follower, claim paid, new leader. In long-running mode (`pnpm start`) the text alerts below go to the same watchers.
 
 The keeper sends these alerts:
 - leader opened, closed or was liquidated on a position
@@ -147,24 +146,26 @@ The keeper sends these alerts:
 - leader requested unbond
 - follower stop-loss
 
-### Alchemy Notify: `POST /webhooks/alchemy`
 
-The endpoint checks that `x-alchemy-signature` equals the hex HMAC-SHA256 of the raw body, keyed with `ALCHEMY_WEBHOOK_SIGNING_KEY`. If it doesn't match, it returns 401. For each tx hash in the payload, it fetches the receipt, decodes the Copas and Perpl logs, and passes them to the same handler the poller uses. Logs are de-duplicated by `txHash:logIndex`, so an event that arrives both ways alerts once.
 
-To create the webhook in the dashboard, go to *Data → Webhooks → Address Activity* and pick Monad Mainnet or Monad Testnet. Or use the API:
+**Self-hosted keeper** (`pnpm start`, `POST /webhooks/alchemy`): the endpoint checks that `x-alchemy-signature` equals the hex HMAC-SHA256 of the raw body, keyed with `ALCHEMY_WEBHOOK_SIGNING_KEY`. If it doesn't match, it returns 401. For each tx hash in the payload, it fetches the receipt, decodes the Copas and Perpl logs, and passes them to the same handler the poller uses. Logs are de-duplicated by `txHash:logIndex`, so an event that arrives both ways alerts once.
+
+**Hosted path (web app).** The deployed receiver is `POST https://copas-mocha.vercel.app/api/alchemy` (`web/app/api/alchemy/route.ts`): same signature check, then every transfer on an address some chat `/watch`-es goes to that chat as a Telegram DM within seconds. When `ALCHEMY_AUTH_TOKEN` and `ALCHEMY_WEBHOOK_ID` are set on the web app, each new `/watch` also adds the address to the webhook (`PATCH /api/update-webhook-addresses`), so the webhook follows what people watch. Setup needs an Alchemy account, which is a browser signup:
+
+1. Sign up at https://dashboard.alchemy.com/signup.
+2. Open https://dashboard.alchemy.com/apps/latest/webhooks, copy the **Auth Token** at the top, and create an **Address Activity** webhook: network Monad Testnet, URL `https://copas-mocha.vercel.app/api/alchemy`, address the registry `0xA8BA57c7Af1d9A28660653E0439A180c86D03e3d`.
+3. From the webhook's page copy its **signing key** and its id (`wh_…`), then from the repo root:
+   `vercel env add ALCHEMY_WEBHOOK_SIGNING_KEY production`, `vercel env add ALCHEMY_AUTH_TOKEN production`, `vercel env add ALCHEMY_WEBHOOK_ID production`, and `vercel deploy --prod`.
+
+Or create it with the API once you have the token:
 
 ```bash
-curl -X POST https://dashboard.alchemy.com/api/create-webhook \
-  -H "X-Alchemy-Token: $ALCHEMY_AUTH_TOKEN" -H "content-type: application/json" \
-  -d '{"network":"MONAD_TESTNET","webhook_type":"ADDRESS_ACTIVITY",
-       "webhook_url":"https://<keeper-host>/webhooks/alchemy",
-       "addresses":["<registry>","<breachMarket>","<leaderBook...>","<vault...>"]}'
-# add new leaderBooks/vaults later:
-# PATCH https://dashboard.alchemy.com/api/update-webhook-addresses
-#   {"webhook_id":"wh_...","addresses_to_add":["0x..."],"addresses_to_remove":[]}
+curl -X POST https://dashboard.alchemy.com/api/create-webhook   -H "X-Alchemy-Token: $ALCHEMY_AUTH_TOKEN" -H "content-type: application/json"   -d '{"network":"MONAD_TESTNET","webhook_type":"ADDRESS_ACTIVITY",
+       "webhook_url":"https://copas-mocha.vercel.app/api/alchemy",
+       "addresses":["0xA8BA57c7Af1d9A28660653E0439A180c86D03e3d"]}'
 ```
 
-Use `MONAD_MAINNET` for chain 143. Copy the webhook's *signing key* into `ALCHEMY_WEBHOOK_SIGNING_KEY`. Address-activity webhooks only fire on value or token transfers that touch the listed addresses: deposits, claims and slashes. The poller covers every other event. The webhook is just an extra low-latency path.
+Use `MONAD_MAINNET` for chain 143. Address-activity webhooks only fire on value or token transfers that touch the listed addresses: deposits, withdrawals, bonds, claims and slashes. The keeper tick covers every other event. Without the env vars `/api/alchemy` answers 503 and nothing else changes.
 
 ## HTTP (port `PORT`, CORS open for the web app)
 

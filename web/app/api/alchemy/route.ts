@@ -1,0 +1,51 @@
+import { NextResponse } from "next/server";
+import { allWatches } from "@/lib/tgWatch";
+import { copasChain, explorerTx } from "@/lib/chains";
+import { short } from "@/lib/format";
+import { verifyAlchemy as verify } from "@/lib/alchemy";
+
+/**
+ * Alchemy Notify (Address Activity) receiver: the low-latency path for token flows on watched Copas addresses
+ * (vault deposits and withdrawals, bonds posted, slash payouts). The keeper's 5-minute tick covers every other event.
+ * Signature: `x-alchemy-signature` = hex HMAC-SHA256(raw body, ALCHEMY_WEBHOOK_SIGNING_KEY). Set up: keeper/README.md.
+ */
+export const dynamic = "force-dynamic";
+
+type Activity = { fromAddress?: string; toAddress?: string; hash?: string; value?: number | null; asset?: string | null; category?: string };
+type Payload = { type?: string; event?: { network?: string; activity?: Activity[] } };
+
+export async function POST(req: Request) {
+  const key = process.env.ALCHEMY_WEBHOOK_SIGNING_KEY;
+  if (!key) return NextResponse.json({ error: "ALCHEMY_WEBHOOK_SIGNING_KEY not set" }, { status: 503 });
+  const body = await req.text();
+  if (!verify(body, req.headers.get("x-alchemy-signature"), key)) return NextResponse.json({ error: "bad signature" }, { status: 401 });
+  const p = JSON.parse(body) as Payload;
+  const acts = p.type === "ADDRESS_ACTIVITY" ? (p.event?.activity ?? []) : [];
+  const token = process.env.TELEGRAM_BOT_TOKEN;
+  if (!acts.length || !token) return NextResponse.json({ ok: true, sent: 0 });
+
+  const watches = await allWatches();
+  let sent = 0;
+  for (const a of acts) {
+    const touched = [a.fromAddress, a.toAddress].filter(Boolean).map((x) => x!.toLowerCase());
+    const chats = [...watches].filter(([, w]) => w.some((x) => touched.includes(x))).map(([c]) => c);
+    if (!chats.length) continue;
+    const amount = a.value != null ? `${a.value.toLocaleString("en-US", { maximumFractionDigits: 6 })} ${a.asset ?? ""}`.trim() : (a.asset ?? "a transfer");
+    const text = [
+      `<b>Transfer on a watched address</b> (Alchemy Notify, ${p.event?.network ?? "Monad"})`,
+      `${amount}: <code>${short(a.fromAddress ?? "?")}</code> → <code>${short(a.toAddress ?? "?")}</code>`,
+      a.hash ? `<a href="${explorerTx(a.hash, copasChain.id)}">View tx on explorer</a>` : "",
+    ].filter(Boolean).join("\n");
+    for (const chat_id of chats) {
+      const r = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ chat_id, text, parse_mode: "HTML", link_preview_options: { is_disabled: true } }),
+        signal: AbortSignal.timeout(15_000),
+      }).catch(() => null);
+      if (r?.ok) sent++;
+    }
+  }
+  // 200 even if a DM failed: a non-2xx makes Alchemy retry the whole batch
+  return NextResponse.json({ ok: true, sent });
+}
