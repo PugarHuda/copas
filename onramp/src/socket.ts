@@ -1,4 +1,4 @@
-// Socket / Bungee V3 deposit address: USDT on BSC -> AUSD on Monad (verified live; fixtures test/fixtures/socket-*).
+// Socket / Bungee V3 deposit address: USDT on BSC (or USDC/ETH on Base, Arbitrum, Ethereum) -> AUSD on Monad (verified live; fixtures test/fixtures/socket-*).
 //   GET  /v3/swap/quote?userOps=deposit&...           routes[], each with quoteId + activationRequired
 //   POST /v3/swap/quote/{quoteId}/activate            only for preview routes (activationRequired: true)
 //   GET  /v3/swap/status?quoteId=                     PENDING | IN_PROGRESS | COMPLETED | FAILED | EXPIRED | REFUNDED
@@ -8,6 +8,9 @@ import { fetchJson, type FetchFn } from './http.js';
 
 export const SOCKET_URL = 'https://public-backend.socket.tech/v3/swap';
 export const BSC_USDT = '0x55d398326f99059ff775485246999027b3197955' as Address;
+export const NATIVE = '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee';
+/** Origin chains Socket deposit routes into Monad AUSD were verified for (12 Oct 2026). Solana is not EVM: Aurora only. */
+export const CHAIN_IDS: Record<string, number | undefined> = { base: 8453, arb: 42161, eth: 1, bsc: 56 };
 
 type Token = { chainId: number; address: string; symbol: string; decimals: number };
 export type SocketRoute = {
@@ -40,7 +43,7 @@ export async function depositAddress(
     userAddress: a.receiver,
     refundAddress: a.refundAddress, // required for every deposit route
   });
-  const q = await fetchJson<Envelope<{ routes: SocketRoute[] }>>(`${SOCKET_URL}/quote?${qs}`, {}, { ...o, timeoutMs: SLOW });
+  const q = await fetchJson<Envelope<{ routes: SocketRoute[]; input?: { valueInUsd?: number } }>>(`${SOCKET_URL}/quote?${qs}`, {}, { ...o, timeoutMs: SLOW });
   const routes = q.result.routes ?? [];
   // Routes come best-first. Prefer one that is already active (has a deposit address), else activate the best.
   let route = routes.find((r) => !r.activationRequired && r.deposit?.depositAddress) ?? routes[0];
@@ -69,6 +72,9 @@ export async function depositAddress(
     estimatedTimeSec: route.estimatedTime,
     expiresAt: route.expiresAt,
     bridge: route.routeDetails?.bridgeDetails?.protocol?.name ?? null,
+    /** Socket's own USD valuation of what goes in and comes out (fees + slippage = the difference). */
+    inputUsd: q.result.input?.valueInUsd ?? null,
+    outputUsd: route.output.valueInUsd ?? null,
     /** Ready-made ERC-20 transfer for wallets that are connected on the origin chain. */
     txData: route.txData?.object ?? null,
   };

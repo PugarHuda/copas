@@ -168,8 +168,18 @@ export function createApp(o: AppOpts = {}) {
   app.post('/socket/deposit-address', async (c) => {
     const b = await body(c);
     const receiver = evm(b.receiver, 'receiver');
+    // Any EVM source in SOURCES (default USDT on BSC); Socket bridges straight into AUSD.
+    const src = oneclick.findSource(String(b.source ?? 'bsc:USDT'));
+    const originChainId = src && socket.CHAIN_IDS[src.chain];
+    need(originChainId, `unknown source for Socket; use one of ${SOURCES.filter((s) => socket.CHAIN_IDS[s.chain]).map((s) => `${s.chain}:${s.symbol}`).join(', ')}`);
     const r = await socket.depositAddress(
-      { receiver, refundAddress: b.refundAddress ? evm(b.refundAddress, 'refundAddress') : receiver, amount: atomic(b.amount, 'amount') },
+      {
+        receiver,
+        refundAddress: b.refundAddress ? evm(b.refundAddress, 'refundAddress') : receiver,
+        amount: atomic(b.amount, 'amount'),
+        originChainId,
+        inputToken: src!.contractAddress ?? socket.NATIVE,
+      },
       f,
     );
     return c.json({ ...r, statusId: r.quoteId });

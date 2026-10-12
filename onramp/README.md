@@ -3,11 +3,13 @@
 Funding services for Copas: get money from any chain into a user's `FollowerVault` (AUSD on Monad).
 It is a library plus a small Hono server, and `copas/web` calls it.
 
+**Hosted:** https://copas-onramp.vercel.app (Vercel project `copas-onramp`, deployed from this folder with `vercel deploy --prod --yes`; `api/index.js` wraps the Hono app, nothing is CDN-cached). The web app reaches it server-side through `/api/onramp/*` (`ONRAMP_URL`), and the follow ticket's "Fund from any chain" panel uses it. Only `CORS_ORIGIN` is set there: no Aurora key (public 1Click host, +25 bps), Connect off, no Kuru referrer.
+
 | Spec | What | Module |
 |---|---|---|
 | F1 | Aurora Intents: any chain to USDC on Monad, through a 1Click deposit address. An Intents Connect recipe sits behind a flag. | `src/aurora/oneclick.ts`, `src/aurora/connect.ts` |
 | F3 | Kuru Flow: USDC/MON to AUSD (JWT, 1 req/s limiter, referrer), optionally followed by the vault deposit | `src/kuru/flow.ts` |
-| F2 | Socket V3 deposit address: USDT on BSC to AUSD on Monad | `src/socket.ts` |
+| F2 | Socket V3 deposit address: USDT on BSC, or USDC/ETH on Base, Arbitrum and Ethereum, to AUSD on Monad | `src/socket.ts` |
 | B2 | Kuru V1 market for BreachMarket DOWN tokens on testnet | `scripts/kuru-down-market.ts`, `src/kuru/market.ts` |
 
 ```bash
@@ -31,7 +33,7 @@ Amounts are atomic-unit strings. Requests are validated (EVM addresses, positive
 | `POST /aurora/connect/plan` | `{wallet, vault, expectedUsdc, intermediary?, reserveBps?}` | recipe params (needs `AURORA_CONNECT=1`) |
 | `POST /aurora/connect/api/v1/executions/:wallet[/steps]` | SDK body | key proxy for the two create calls only |
 | `POST /kuru/quote` | `{userAddress, tokenIn:"USDC"\|"MON"\|0x.., amount, vault?}` | `{output, minOut, txs[]}` |
-| `POST /socket/deposit-address` | `{receiver, amount, refundAddress?}` | `{quoteId, depositAddress, token, amount, output, bridge, txData, statusId}` |
+| `POST /socket/deposit-address` | `{receiver, amount, refundAddress?, source?}` (`source` = `bsc:USDT` default, or `base\|arb\|eth:USDC\|ETH`) | `{quoteId, depositAddress, token, amount, output, bridge, inputUsd, outputUsd, txData, statusId}` |
 | `GET /socket/status/:quoteId` | | `{status, terminal, originTx, destinationTx, refund}` |
 
 ## F1: deposit-and-follow (Aurora)
@@ -109,3 +111,8 @@ pnpm kuru:down-market market  --market 0x.. --side sell --amount 5
 | Kuru Flow | generate-token and quote for USDC→AUSD and MON→AUSD with a referrer: live on 3 Oct and 11 Oct |
 | Socket V3 | Deposit quote and status: live on 3 Oct and again on 11 Oct (route `rfq-vault-executor`, about 5 s) |
 | Kuru V1 testnet | `deployProxy` with the default params simulates OK from a random address on 11 Oct, using testnet USDC `0x534b…43A3` as a 6-decimal stand-in for DOWN |
+| **Re-check, 12 Oct 2026** | All three upstreams live again, by curl and then through the hosted server: |
+| 1Click (public host) | `POST /v0/quote` dry, 10 USDC to USDC on Monad: **201** from Base (out 9.977792, min 9.878014, 37 s) and Arbitrum (out 9.977372, 27 s). Monad liquidity is back. From BSC USDT it answers `400 Temporary swap limits: minimum swap amount is $1,000`, and it rejects `0x…dEaD` as a recipient (`400 recipient is not valid`). |
+| Socket V3 | `GET /v3/swap/quote?userOps=deposit` **200** in about 5 s. 10 USDT (BSC) to AUSD: `rfq-vault-executor`, out 9.938763, 3 s, active deposit address. Also verified into AUSD on Monad: Base/Arbitrum/Ethereum USDC (`relay`, about 9.95 out, 6 s, active) and Base ETH (`rfq-vault-executor`, active). |
+| Kuru Flow | `generate-token` **200**, `quote` MON to AUSD **200** (1 MON = 0.026230 AUSD). Mainnet only: asking for Monad testnet AUSD (`0xa901…22dc`) answers `calculation_failed: no candidate paths available between tokens`, and no testnet host answers. There is no free testnet swap path, and the deployer key holds 0 MON on mainnet, so no swap was executed. |
+| Hosted server | https://copas-onramp.vercel.app: `/health` 200, `/aurora/quote` (Base USDC) 200, `/kuru/quote` (MON) 200 with txs, `/socket/deposit-address` (Base USDC) 200 with a deposit address, `/socket/status/:id` 200 `PENDING`, `/aurora/deposit-address` 200 (per-quote address, deadline 3 days out) and `/aurora/status/:addr` 200 `awaiting_deposit`. |

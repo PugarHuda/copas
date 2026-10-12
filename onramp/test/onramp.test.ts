@@ -151,6 +151,14 @@ describe('HTTP routes', () => {
     expect(calls[0]!.url).toContain('refundAddress=' + USER);
   });
 
+  it('POST /socket/deposit-address maps source to origin chain + token', async () => {
+    const { app, calls } = mk([['/v3/swap/quote?', fx('socket-quote-deposit-bsc-usdt')]]);
+    await app.request('/socket/deposit-address', post({ receiver: USER, amount: '1', source: 'base:ETH' }));
+    expect(calls[0]!.url).toContain('originChainId=8453');
+    expect(calls[0]!.url).toContain('inputToken=0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee');
+    expect((await app.request('/socket/deposit-address', post({ receiver: USER, amount: '1', source: 'sol:USDC' }))).status).toBe(400);
+  });
+
   it('GET /socket/status/:id', async () => {
     const { app } = mk([['/v3/swap/status?quoteId=', fx('socket-status-pending')]]);
     const j = await (await app.request('/socket/status/0x31ef')).json();
