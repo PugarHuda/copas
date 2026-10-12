@@ -1,7 +1,9 @@
 // Read-only views shared by several commands. Every number is returned as a display string (no bigint in output).
-import type { Address } from "viem";
-import { BREACH_REASON, fmtAusd, type FollowParams, LEADER_STATUS, marketsFromMask, protectionRatioBps, type RegistryMarket, describeParams, symbolOf } from "./core.ts";
+import { type Address, erc721Abi } from "viem";
+import { agentNameFromUri, BREACH_REASON, fmtAusd, type FollowParams, LEADER_STATUS, marketsFromMask, protectionRatioBps, type RegistryMarket, describeParams, symbolOf } from "./core.ts";
 import { readParams, type Session } from "./host.ts";
+
+const ZERO = "0x0000000000000000000000000000000000000000";
 
 type Mandate = { maxDDbps: number; maxLeverageHdths: number; feeBps: number; epochLen: bigint; maxNotionalCNS: bigint; marketsMask: bigint };
 type Breach = { reason: number; atBlock: bigint; pot: bigint; capTotal: bigint; claimed: bigint; swept: boolean };
@@ -9,29 +11,35 @@ type Breach = { reason: number; atBlock: bigint; pot: bigint; capTotal: bigint; 
 const fmtUnit = (u: bigint) => (Number(u) / 1e18).toFixed(4);
 
 export async function leaderSummary(s: Session, lb: Address, markets: RegistryMarket[]) {
-  const r = <T>(fn: string, args?: unknown[]) => s.read<T>(lb, "LeaderBook", fn, args);
-  const [owner, status, bond, m, epoch, [u, uValid], [eq], protection, capacity, aum, peak] = await Promise.all([
-    r<Address>("owner"),
-    r<number>("status"),
-    r<bigint>("bond"),
-    r<Mandate>("mandate"),
-    r<bigint>("epoch"),
-    r<readonly [bigint, boolean]>("unitPrice"),
-    r<readonly [bigint, boolean]>("equity"),
-    r<bigint>("protection"),
-    r<bigint>("capacity"),
-    r<bigint>("capTotalNext"),
-    r<bigint>("peakUnitPrice"),
+  const fns = ["owner", "status", "bond", "mandate", "epoch", "unitPrice", "equity", "protection", "capacity", "capTotalNext", "peakUnitPrice", "pool", "operator"];
+  const [owner, status, bond, m, epoch, [u, uValid], [eq], protection, capacity, aum, peak, pool, operator] = await s.many<
+    [Address, number, bigint, Mandate, bigint, readonly [bigint, boolean], readonly [bigint, boolean], bigint, bigint, bigint, bigint, Address, Address]
+  >(fns.map((fn) => ({ address: lb, name: "LeaderBook", fn })));
+  const hasPool = pool !== ZERO;
+  const [underwritten, agentId] = await s.many<[bigint, bigint]>([
+    hasPool ? { address: pool, name: "UnderwriterPool", fn: "assets" } : { address: lb, name: "LeaderBook", fn: "feeEscrow" },
+    s.dep.agentRegistry ? { address: s.dep.agentRegistry, name: "AgentLeaderRegistry", fn: "agentOf", args: [lb] } : { address: lb, name: "LeaderBook", fn: "feeEscrow" },
   ]);
+  let agent: { erc8004Id: string; name: string | null; operator: Address } | null = null;
+  if (s.dep.agentRegistry && agentId > 0n) {
+    const uri = s.dep.identity8004
+      ? await s.client.readContract({ address: s.dep.identity8004, abi: erc721Abi, functionName: "tokenURI", args: [agentId] }).catch(() => "")
+      : "";
+    agent = { erc8004Id: agentId.toString(), name: agentNameFromUri(uri) ?? null, operator };
+  }
   const ddBps = peak > 0n && u < peak ? Number(((peak - u) * 10_000n) / peak) : 0;
   return {
     leader: lb,
     owner,
     status: LEADER_STATUS[Number(status)] ?? `#${status}`,
+    agent,
+    operator,
     bond: fmtAusd(bond),
+    underwriterPool: hasPool ? pool : null,
+    underwritten: fmtAusd(hasPool ? underwritten : 0n),
     protection: fmtAusd(protection),
     followerAum: fmtAusd(aum),
-    protectionCoverage: `${(protectionRatioBps(protection, aum) / 100).toFixed(2)}% (bond / AUM)`,
+    protectionCoverage: `${(protectionRatioBps(protection, aum) / 100).toFixed(2)}% ((bond + fee escrow + underwriters) / AUM)`,
     capacityLeft: fmtAusd(capacity > aum ? capacity - aum : 0n),
     equity: fmtAusd(eq),
     epoch: epoch.toString(),
@@ -71,17 +79,10 @@ type PositionInfo = { positionType: number; depositCNS: bigint; pricePNS: bigint
 
 export async function vaultStatus(s: Session, vault: Address, markets: RegistryMarket[]) {
   const r = <T>(fn: string, args?: unknown[]) => s.read<T>(vault, "FollowerVault", fn, args);
-  const [owner, accountId, leader, following, paused, [eq, eqValid], epochSeen, hwm, referrer] = await Promise.all([
-    r<Address>("owner"),
-    r<bigint>("accountId"),
-    r<Address>("leader"),
-    r<boolean>("following"),
-    r<boolean>("paused"),
-    r<readonly [bigint, boolean]>("equity"),
-    r<bigint>("epochSeen"),
-    r<bigint>("highWaterMark"),
-    r<Address>("referrer"),
-  ]);
+  const fns = ["owner", "accountId", "leader", "following", "paused", "equity", "epochSeen", "highWaterMark", "referrer"];
+  const [owner, accountId, leader, following, paused, [eq, eqValid], epochSeen, hwm, referrer] = await s.many<
+    [Address, bigint, Address, boolean, boolean, readonly [bigint, boolean], bigint, bigint, Address]
+  >(fns.map((fn) => ({ address: vault, name: "FollowerVault", fn })));
   const hasLeader = leader !== "0x0000000000000000000000000000000000000000";
   const params: FollowParams | null = hasLeader ? await readParams(s, vault) : null;
   const [start, flow] = await Promise.all([r<bigint>("startEquity", [epochSeen]), r<bigint>("netFlow", [epochSeen])]);
@@ -92,9 +93,9 @@ export async function vaultStatus(s: Session, vault: Address, markets: RegistryM
     accountId === 0n
       ? []
       : (
-          await Promise.all(
-            markets.map(async (m) => {
-              const [p, mark, ok] = await s.read<readonly [PositionInfo, bigint, boolean]>(s.dep.exchange, "PerplExchange", "getPosition", [BigInt(m.perpId), accountId]);
+          await s.many<(readonly [PositionInfo, bigint, boolean])[]>(markets.map((m) => ({ address: s.dep.exchange, name: "PerplExchange", fn: "getPosition", args: [BigInt(m.perpId), accountId] })))
+        ).map(([p, mark, ok], i) => {
+              const m = markets[i];
               if (p.lotLNS === 0n) return null;
               const scale = (v: bigint, d: number) => (Number(v) / 10 ** d).toString();
               return {
@@ -106,9 +107,8 @@ export async function vaultStatus(s: Session, vault: Address, markets: RegistryM
                 margin: fmtAusd(p.depositCNS),
                 pnl: `${p.pnlCNS < 0n ? "-" : ""}${fmtAusd(p.pnlCNS < 0n ? -p.pnlCNS : p.pnlCNS)}`,
               };
-            }),
-          )
-        ).filter((x) => x !== null);
+            })
+            .filter((x) => x !== null);
 
   const claimable = hasLeader ? await claimableBreaches(s, vault, leader) : [];
   return {

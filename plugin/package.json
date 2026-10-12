@@ -1,7 +1,7 @@
 {
   "name": "mm-plugin-copas",
   "version": "0.1.0",
-  "description": "Copas for MetaMask Agent Wallet: copy bonded Perpl traders on Monad with on-chain risk limits, slashing claims and outflow caps",
+  "description": "Copas for MetaMask Agent Wallet: bonded copy trading on Monad. Follow Perpl traders who post a slashable bond and an on-chain mandate; enforce it, claim slashed bonds, underwrite leaders.",
   "license": "MIT",
   "type": "module",
   "keywords": [
@@ -195,6 +195,36 @@
         "id": "copas:status",
         "capabilities": [
           "wallet-read"
+        ],
+        "dataAccess": [
+          "accounts",
+          "network"
+        ],
+        "targetChains": [
+          143,
+          10143
+        ]
+      },
+      {
+        "id": "copas:checkpoint",
+        "capabilities": [
+          "wallet-read",
+          "wallet-submit"
+        ],
+        "dataAccess": [
+          "accounts",
+          "network"
+        ],
+        "targetChains": [
+          143,
+          10143
+        ]
+      },
+      {
+        "id": "copas:underwrite",
+        "capabilities": [
+          "wallet-read",
+          "wallet-submit"
         ],
         "dataAccess": [
           "accounts",

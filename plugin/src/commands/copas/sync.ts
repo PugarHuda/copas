@@ -1,7 +1,7 @@
 import { type CommandIO, InputFieldType, type InputSchema, PluginCommand, schemaToArgs, schemaToFlags } from "@metamask/agent-wallet/plugin";
 import { type Address, maxUint256 } from "viem";
 import { encode, parsePerpId, symbolOf } from "../../lib/core.ts";
-import { commonInputs, resolveVault, send, type Sent, session, vaultInput, wrap, fail } from "../../lib/host.ts";
+import { activeAddress, commonInputs, resolveVault, send, type Sent, session, vaultInput, wrap, fail } from "../../lib/host.ts";
 
 const inputs = {
   market: { type: InputFieldType.Text, flag: "market", message: "Market symbol (BTC, ETH, SOL, MON) or Perpl perp id", required: true, index: 0 },
@@ -26,7 +26,12 @@ export default class CopasSync extends PluginCommand<Result> {
     const idx = await s.read<bigint>(s.dep.registry, "CopasRegistry", "indexOf", [BigInt(perpId)]);
     if (idx === maxUint256) throw fail("COPAS_MARKET_NOT_LISTED", `Perp ${perpId} is not in the Copas registry.`);
     const vault = await resolveVault(this.ctx, s, rawVault);
-    const tx = await send(this.ctx, io, this.pluginCommandId, s.chainId, encode.sync(vault, perpId), `sync ${symbolOf(s.chainId, perpId)}`, { vault, perpId: String(perpId) });
+    const call = encode.sync(vault, perpId);
+    // Dry-run first: a fill the order book rejects reverts the whole sync, and the wallet would only report a failed job.
+    await s.client.call({ account: activeAddress(this.ctx), to: call.to, data: call.data }).catch(() => {
+      throw fail("COPAS_SYNC_REVERTED", `sync ${symbolOf(s.chainId, perpId)} would revert right now; nothing was sent.`, "Perpl rejected the copy fill (thin book or stale mark). Retry in a few seconds; check 'mm copas status'.");
+    });
+    const tx = await send(this.ctx, io, this.pluginCommandId, s.chainId, call, `sync ${symbolOf(s.chainId, perpId)}`, { vault, perpId: String(perpId) });
     return { vault, market: symbolOf(s.chainId, perpId), perpId, tx };
   }
 }

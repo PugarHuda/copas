@@ -3,6 +3,7 @@ import { test } from "node:test";
 import { decodeFunctionData, erc20Abi, toFunctionSelector } from "viem";
 import {
   abi,
+  agentNameFromUri,
   buildFollowParams,
   buildTightenParams,
   checkWithdrawCap,
@@ -116,6 +117,18 @@ test("calldata round-trips through the contract ABIs", () => {
     assert.deepEqual(d.args, args);
   }
 
+  assert.equal(decodeFunctionData({ abi: abi("LeaderBook"), data: encode.checkpoint(LEADER).data }).functionName, "checkpoint");
+  const uw: [ReturnType<typeof encode.uwDeposit>, string, unknown[] | undefined][] = [
+    [encode.uwDeposit(VAULT, 5n), "deposit", [5n]],
+    [encode.uwRequestWithdraw(VAULT, 9n), "requestWithdraw", [9n]],
+    [encode.uwWithdraw(VAULT), "withdraw", undefined],
+  ];
+  for (const [tx, fn, args] of uw) {
+    const d = decodeFunctionData({ abi: abi("UnderwriterPool"), data: tx.data });
+    assert.equal(d.functionName, fn);
+    assert.deepEqual(d.args, args);
+  }
+
   const cv = encode.createVault(VAULT);
   assert.equal(decodeFunctionData({ abi: abi("CopasRegistry"), data: cv.data }).functionName, "createVault");
 
@@ -138,4 +151,13 @@ test("protection ratio = bond / AUM, capped at 100%", () => {
   assert.equal(protectionRatioBps(25_000_000n, 250_000_000n), 1_000);
   assert.equal(protectionRatioBps(500n, 100n), 10_000);
   assert.equal(protectionRatioBps(1n, 0n), 10_000);
+});
+
+test("ERC-8004 agent name: inline data: JSON only, capped at 40 chars", () => {
+  const b64 = Buffer.from(JSON.stringify({ name: "Copas Momentum Agent" })).toString("base64");
+  assert.equal(agentNameFromUri(`data:application/json;base64,${b64}`), "Copas Momentum Agent");
+  assert.equal(agentNameFromUri(`data:application/json,${encodeURIComponent('{"name":"  x  "}')}`), "x");
+  assert.equal(agentNameFromUri(`data:application/json,{"name":"${"a".repeat(60)}"}`)?.length, 40);
+  assert.equal(agentNameFromUri("https://evil.example/agent.json"), undefined);
+  assert.equal(agentNameFromUri("data:application/json;base64,!!!"), undefined);
 });

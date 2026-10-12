@@ -3,7 +3,7 @@
 import { cpSync, existsSync, mkdirSync, readdirSync } from "node:fs";
 
 const root = new URL("../", import.meta.url);
-const abis = ["FollowerVault", "LeaderBook", "CopasRegistry", "PerplExchange"];
+const abis = ["FollowerVault", "LeaderBook", "CopasRegistry", "PerplExchange", "UnderwriterPool", "AgentLeaderRegistry"];
 mkdirSync(new URL("abis/", root), { recursive: true });
 mkdirSync(new URL("deployments/", root), { recursive: true });
 
@@ -13,7 +13,8 @@ if (existsSync(srcAbis)) {
 }
 const srcDep = new URL("../contracts/deployments/", root);
 if (existsSync(srcDep)) {
-  for (const f of readdirSync(srcDep).filter((f) => f.endsWith(".json"))) {
+  // only <chainId>.json; script state files (agent-/leaders-/breach-<chainId>.json) stay in the monorepo
+  for (const f of readdirSync(srcDep).filter((f) => /^\d+\.json$/.test(f))) {
     cpSync(new URL(f, srcDep), new URL(`deployments/${f}`, root));
   }
 }

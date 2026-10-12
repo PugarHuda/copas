@@ -32,10 +32,13 @@ outflow limits and MFA all apply. The plugin never handles keys or tokens.
 | Stop copying | `mm copas unfollow`, then `mm copas sync <market>` per open market |
 | Copy the leader's latest move now | `mm copas sync <BTC|ETH|SOL|MON>` |
 | How am I doing / PnL / positions / anything to claim | `mm copas status` |
+| Is this leader inside its mandate? Enforce it | `mm copas checkpoint <leaderBook>` (permissionless; slashes on a breach) |
 | Get paid after a breach | `mm copas claim <leaderBook> <epoch>` (the exact command is listed in `status`) |
+| Back a leader / earn fees as an underwriter | `mm copas underwrite <leaderBook> <amount>`; leave with `--exit` (twice: request, then withdraw after the unbond epoch) |
+| Trade Perpl directly (not copy) | Not this plugin. Use a Perpl trading plugin (e.g. `mm-plugin-perpl`) |
 | Take money out | `mm copas withdraw <amount>` |
 
-All commands take `--chain-id 143` (Monad, default) or `--chain-id 10143` (testnet), `--vault <addr>`
+All commands take `--chain-id 143` (Monad) or `--chain-id 10143` (testnet; the default while Copas is testnet-only), `--vault <addr>`
 where relevant, and the host's `--json`. Amounts are AUSD (6 decimals), e.g. `25` or `12.5`.
 
 ## Safety rules (mandatory)
@@ -50,7 +53,7 @@ where relevant, and the host's `--json`. Amounts are AUSD (6 decimals), e.g. `25
 3. **Never raise limits without explicit user confirmation.** `tighten` can only lower risk (the
    plugin and the contract both refuse increases). Raising limits means `unfollow` + `follow`
    with new values; do that only if the user explicitly asks for the higher numbers.
-4. **Never work around a refusal.** If a command fails with `COPAS_OUTFLOW_CAP`,
+4. **Never work around a refusal.** If a command fails with `COPAS_OUTFLOW_CAP`, `COPAS_SYNC_REVERTED` (retry later, don't loosen limits),
    `COPAS_DEPOSIT_CAP`, `COPAS_CAPACITY`, `COPAS_LIMITS_REQUIRED`, `COPAS_NOT_TIGHTER`, or the
    host pauses with `AWAITING_MFA`, stop and tell the user. Do not split a withdrawal to dodge the
    daily cap, do not edit `~/.copas/config.json` to raise `maxWithdrawPerDay`, and do not retry
@@ -86,6 +89,15 @@ mm copas status --chain-id 10143
   live position inside your limits. A keeper normally calls it; the command lets you trigger it.
 - Breach payouts: `claim` pays `min(pot × yourCap / totalCap, yourLoss)` straight to your wallet,
   within `claimWindowEpochs` after the breach.
+- `checkpoint` measures the leader's unit-price drawdown from the epoch high and its leverage; past
+  the mandate it marks the epoch Breached and slashes bond + fee escrow + underwriter pool into the
+  pot. Followers have a reason to call it, so does anyone watching.
+- Underwriters (`underwrite`) are second loss after the leader's bond and earn a share of the
+  leader's released fees. Exit takes one unbond epoch: `--exit` once to request, again after
+  the unlock epoch to withdraw.
+- Some leaders are AI agents: `leader`/`leaders` show `agent` (ERC-8004 identity id + registered
+  name) when the book is linked in the AgentLeaderRegistry. The agent key trades as `operator`;
+  the human owner's bond still stands behind it.
 - Withdrawals are checked against a plugin-level rolling 24h cap (`maxWithdrawPerDay`, default
   100 AUSD; env `COPAS_MAX_WITHDRAW_PER_DAY` or `~/.copas/config.json`) before the tx is built,
   in addition to the Agent Wallet's own outflow policy.

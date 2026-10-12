@@ -8,6 +8,8 @@ import { fileURLToPath } from "node:url";
 import { type Address, isAddress, zeroAddress } from "viem";
 import {
   abi,
+  type AbiName,
+  CHAINS,
   encode,
   AUSD_DECIMALS,
   DAY_MS,
@@ -21,7 +23,7 @@ import {
   type WithdrawEntry,
 } from "./core.ts";
 
-export type Deployment = { registry: Address; exchange: Address; ausd: Address; breachMarket?: Address; agentRegistry?: Address };
+export type Deployment = { registry: Address; exchange: Address; ausd: Address; breachMarket?: Address; agentRegistry?: Address; identity8004?: Address };
 
 /** Flags shared by every command. */
 export const commonInputs = {
@@ -29,7 +31,7 @@ export const commonInputs = {
     type: InputFieldType.Text,
     flag: "chain-id",
     env: "COPAS_CHAIN_ID",
-    message: "Monad chain: 143 (mainnet, default) or 10143 (testnet)",
+    message: "Monad chain: 143 (mainnet) or 10143 (testnet). Default: mainnet if Copas is deployed there, else testnet",
     required: false,
     prompt: false,
   },
@@ -65,6 +67,8 @@ function deploymentDirs(): string[] {
   return dirs;
 }
 
+const hasDeployment = (chainId: number) => deploymentDirs().some((d) => existsSync(join(d, `${chainId}.json`)));
+
 export function loadDeployment(chainId: number): Deployment {
   for (const dir of deploymentDirs()) {
     const file = join(dir, `${chainId}.json`);
@@ -87,16 +91,28 @@ export type Session = {
   chainId: number;
   dep: Deployment;
   client: PublicClient;
-  read: <T>(address: Address, name: "FollowerVault" | "LeaderBook" | "CopasRegistry" | "PerplExchange", fn: string, args?: unknown[]) => Promise<T>;
+  read: <T>(address: Address, name: AbiName, fn: string, args?: unknown[]) => Promise<T>;
+  /** Several reads in one eth_call (Multicall3), so list views stay under public-RPC rate limits. */
+  many: <T extends unknown[]>(calls: { address: Address; name: AbiName; fn: string; args?: unknown[] }[]) => Promise<T>;
 };
 
+// Multicall3, same address on Monad mainnet and testnet.
+const MULTICALL3: Address = "0xcA11bde05977b3631167028862bE2a173976CA11";
+
 export function session(ctx: PluginCommandContext, rawChainId: string | undefined): Session {
-  const chainId = wrap(() => parseChainId(rawChainId));
+  // No --chain-id: mainnet once Copas is deployed there, testnet until then.
+  const chainId = rawChainId ? wrap(() => parseChainId(rawChainId)) : hasDeployment(CHAINS.mainnet) ? CHAINS.mainnet : CHAINS.testnet;
   const dep = loadDeployment(chainId);
   const client = ctx.publicClient(chainId);
-  const read = <T>(address: Address, name: Parameters<typeof abi>[0], fn: string, args: unknown[] = []) =>
+  const read = <T>(address: Address, name: AbiName, fn: string, args: unknown[] = []) =>
     client.readContract({ address, abi: abi(name), functionName: fn, args }) as Promise<T>;
-  return { chainId, dep, client, read };
+  const many = <T extends unknown[]>(calls: { address: Address; name: AbiName; fn: string; args?: unknown[] }[]) =>
+    client.multicall({
+      multicallAddress: MULTICALL3,
+      allowFailure: false,
+      contracts: calls.map((c) => ({ address: c.address, abi: abi(c.name), functionName: c.fn, args: c.args ?? [] })),
+    }) as Promise<T>;
+  return { chainId, dep, client, read, many };
 }
 
 export async function registryMarkets(s: Session): Promise<RegistryMarket[]> {

@@ -40,7 +40,8 @@ export class InputError extends Error {
 
 const pkgRoot = new URL("../../", import.meta.url);
 const abiCache: Record<string, Abi> = {};
-export function abi(name: "FollowerVault" | "LeaderBook" | "CopasRegistry" | "PerplExchange"): Abi {
+export type AbiName = "FollowerVault" | "LeaderBook" | "CopasRegistry" | "PerplExchange" | "UnderwriterPool" | "AgentLeaderRegistry";
+export function abi(name: AbiName): Abi {
   return (abiCache[name] ??= JSON.parse(readFileSync(new URL(`abis/${name}.json`, pkgRoot), "utf8")) as Abi);
 }
 
@@ -214,7 +215,7 @@ export function riskDisclosure(o: { protection: bigint; aumAfter: bigint; maxNot
   const pct = protectionRatioBps(o.protection, o.aumAfter) / 100;
   return [
     "RISK DISCLOSURE",
-    `- Max protection = bond / AUM = ${fmtAusd(o.protection)} / ${fmtAusd(o.aumAfter)} = ${pct.toFixed(2)}% of losses, and only if the leader breaches its mandate.`,
+    `- Max protection = slashable stake (bond + fee escrow + underwriters) / AUM = ${fmtAusd(o.protection)} / ${fmtAusd(o.aumAfter)} = ${pct.toFixed(2)}% of losses, and only if the leader breaches its mandate.`,
     `- Losses within the leader's declared drawdown (${o.leaderMaxDDbps / 100}%) are NOT compensated.`,
     `- Your exposure is capped at ${fmtAusd(o.maxNotional)} notional; perps can still lose more than expected on gaps or intra-block moves.`,
     "- Contracts are unaudited. Mainnet deposits are capped per vault.",
@@ -238,7 +239,30 @@ export const encode = {
   sync: (vault: Address, perpId: number): Tx => ({ to: vault, data: encodeFunctionData({ abi: abi("FollowerVault"), functionName: "sync", args: [BigInt(perpId)] }) }),
   claim: (vault: Address, leader: Address, epoch: bigint): Tx => ({ to: vault, data: encodeFunctionData({ abi: abi("FollowerVault"), functionName: "claim", args: [leader, epoch] }) }),
   setReferrer: (vault: Address, ref: Address): Tx => ({ to: vault, data: encodeFunctionData({ abi: abi("FollowerVault"), functionName: "setReferrer", args: [ref] }) }),
+  checkpoint: (leader: Address): Tx => ({ to: leader, data: encodeFunctionData({ abi: abi("LeaderBook"), functionName: "checkpoint" }) }),
+  uwDeposit: (pool: Address, amount: bigint): Tx => ({ to: pool, data: encodeFunctionData({ abi: abi("UnderwriterPool"), functionName: "deposit", args: [amount] }) }),
+  uwRequestWithdraw: (pool: Address, shares: bigint): Tx => ({ to: pool, data: encodeFunctionData({ abi: abi("UnderwriterPool"), functionName: "requestWithdraw", args: [shares] }) }),
+  uwWithdraw: (pool: Address): Tx => ({ to: pool, data: encodeFunctionData({ abi: abi("UnderwriterPool"), functionName: "withdraw" }) }),
 };
+
+/**
+ * ERC-8004 registration-file `name` from a tokenURI. Only inline data:application/json is decoded (no network fetch:
+ * anyone can register an agent, so remote URIs are not followed). Capped at 40 chars like the web app.
+ */
+export function agentNameFromUri(uri: string): string | undefined {
+  const u = uri.trim();
+  if (!/^data:application\/json[;,]/i.test(u)) return;
+  try {
+    const comma = u.indexOf(",");
+    const body = u.slice(comma + 1);
+    const text = /;base64$/i.test(u.slice(0, comma)) ? Buffer.from(body, "base64").toString() : decodeURIComponent(body);
+    if (text.length > 64 * 1024) return;
+    const name = (JSON.parse(text) as { name?: unknown }).name;
+    return typeof name === "string" && name.trim() ? name.trim().slice(0, 40) : undefined;
+  } catch {
+    return;
+  }
+}
 
 // ------------------------------------------------------------------ outflow cap
 
