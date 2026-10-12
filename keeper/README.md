@@ -38,7 +38,7 @@ Node 22+ is required because the service uses `process.loadEnvFile`. If the depl
 | `eth_sendTransaction`, chain 143/10143, value 0, calldata function in {`sync(uint256)`, `checkpoint()`, `rollEpoch()`, `touch()`, `settle(address,uint256)`} | ALLOW |
 | `eth_sendTransaction` to the ERC-8004 ReputationRegistry, function `giveFeedback` only | ALLOW |
 | any tx `to` AUSD or the Perpl Exchange | DENY |
-| `eth_sign7702Authorization`, `personal_sign`, `eth_signTypedData_v4` | DENY |
+| `eth_sign7702Authorization`, `personal_sign`, `eth_signTypedData_v4` | DENY (Privy default-deny: no ALLOW rule matches; Privy rejects conditionless DENY rules) |
 
 Privy denies everything else by default.
 

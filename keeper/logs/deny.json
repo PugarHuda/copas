@@ -1,0 +1,23 @@
+{
+  "at": "2026-10-12T03:13:57.330Z",
+  "chainId": 10143,
+  "wallet": "0x960c694D3DdE57eD9Fb5d69130Ff510A990a8B25",
+  "walletId": "wc36rv4uoqpvs4t1qie7uo5d",
+  "policyIds": [
+    "mpa2cfm3bnoeij1wvhgx34mm"
+  ],
+  "request": {
+    "method": "eth_sendTransaction",
+    "to": "0xa9012a055bd4e0eDfF8Ce09f960291C09D5322dC",
+    "call": "approve(0x000000000000000000000000000000000000dEaD, 1 AUSD)",
+    "data": "0x095ea7b3000000000000000000000000000000000000000000000000000000000000dead00000000000000000000000000000000000000000000000000000000000f4240",
+    "sponsor": false
+  },
+  "outcome": "DENIED",
+  "status": 400,
+  "error": {
+    "error": "RPC request denied due to policy violation",
+    "code": "policy_violation"
+  },
+  "message": "400 {\"error\":\"RPC request denied due to policy violation\",\"code\":\"policy_violation\"}"
+}

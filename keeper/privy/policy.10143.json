@@ -4,7 +4,7 @@
   "chain_type": "ethereum",
   "rules": [
     {
-      "name": "Keeper calls on Copas contracts: sync/checkpoint/rollEpoch/touch/settle, no value",
+      "name": "Keeper calls on Copas contracts only",
       "method": "eth_sendTransaction",
       "action": "ALLOW",
       "conditions": [
@@ -180,24 +180,6 @@
           ]
         }
       ]
-    },
-    {
-      "name": "No EIP-7702 re-delegation",
-      "method": "eth_sign7702Authorization",
-      "action": "DENY",
-      "conditions": []
-    },
-    {
-      "name": "No raw message signing",
-      "method": "personal_sign",
-      "action": "DENY",
-      "conditions": []
-    },
-    {
-      "name": "No typed-data signing",
-      "method": "eth_signTypedData_v4",
-      "action": "DENY",
-      "conditions": []
     }
   ]
 }
