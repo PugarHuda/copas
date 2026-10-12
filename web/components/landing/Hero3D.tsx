@@ -85,6 +85,7 @@ export function Hero3D() {
       renderer.domElement.style.height = "100%";
       camera.aspect = w / h;
       camera.position.z = w < 640 ? 19 : 14;
+      group.position.x = w < 640 ? 2 : 0; // the cluster sits left of centre on desktop; recentre it on phones
       camera.updateProjectionMatrix();
       ov.width = w * devicePixelRatio;
       ov.height = h * devicePixelRatio;
