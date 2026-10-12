@@ -11,6 +11,7 @@ import { num, pct, usd } from "@/lib/format";
 import { Panel, btn } from "@/components/ui";
 import { AnalysisPanel, BacktestPanel, SimulatePreview, type FollowerSettings } from "@/components/services";
 import { copasChain } from "@/lib/chains";
+import { FundPanel } from "@/components/FundPanel";
 
 const MIN_DEPOSIT = 10;
 const input = "num mt-1 w-full rounded-md border border-line-strong bg-bg px-3 py-2 text-sm focus:border-gold focus:outline-none aria-[invalid=true]:border-down";
@@ -141,6 +142,10 @@ export function FollowTicket({ leader: l, maxDeposit }: { leader: Leader; maxDep
               </div>
             </fieldset>
           </div>
+        </Panel>
+
+        <Panel title="Fund from any chain" aside={<span>Aurora · Socket · Kuru Flow</span>}>
+          <FundPanel />
         </Panel>
 
         <Panel title={L("Backtest dengan setelan ini, 30 hari", "Backtest with these settings, 30 days")}>
