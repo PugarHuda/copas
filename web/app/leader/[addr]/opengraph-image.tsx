@@ -32,7 +32,7 @@ export default async function Image({ params }: { params: Promise<{ addr: string
             <div style={{ display: "flex" }}>{breached ? "MANDATE BROKEN · BOND SLASHED" : "BOND ON THE LINE"}</div>
           </div>
           <div style={{ display: "flex", flexDirection: "column" }}>
-            <div style={{ fontSize: 30, color: breached ? "#fff" : "#e3241b", letterSpacing: 2 }}>LEADER {(l?.status ?? "unknown").toUpperCase()}</div>
+            <div style={{ fontSize: 30, color: breached ? "#fff" : "#e3241b", letterSpacing: 2 }}>{`LEADER ${(l?.status ?? "unknown").toUpperCase()}`}</div>
             <div style={{ fontSize: 120, color: "#fff", lineHeight: 1 }}>{l?.name ?? `${addr.slice(0, 6)}…${addr.slice(-4)}`}</div>
           </div>
           <div style={{ display: "flex" }}>
