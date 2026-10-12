@@ -147,9 +147,22 @@ export function parseLlm(content: string, n: number): Record<string, number> {
 }
 
 /** UTF-8 → base64 without Buffer (not available in the QuickJS/WASM runtime). */
+// The CRE WASM runtime (Javy/QuickJS) has no btoa or TextEncoder: UTF-8 + base64 by hand.
+const B64 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'
 export function toBase64(s: string): string {
-	const bytes = new TextEncoder().encode(s)
-	let bin = ''
-	for (const b of bytes) bin += String.fromCharCode(b)
-	return btoa(bin)
+	const bytes: number[] = []
+	for (const ch of s) {
+		const c = ch.codePointAt(0)!
+		if (c < 0x80) bytes.push(c)
+		else if (c < 0x800) bytes.push(0xc0 | (c >> 6), 0x80 | (c & 63))
+		else if (c < 0x10000) bytes.push(0xe0 | (c >> 12), 0x80 | ((c >> 6) & 63), 0x80 | (c & 63))
+		else bytes.push(0xf0 | (c >> 18), 0x80 | ((c >> 12) & 63), 0x80 | ((c >> 6) & 63), 0x80 | (c & 63))
+	}
+	let out = ''
+	for (let i = 0; i < bytes.length; i += 3) {
+		const [a, b = 0, c = 0] = [bytes[i], bytes[i + 1], bytes[i + 2]]
+		const n = (a << 16) | (b << 8) | c
+		out += B64[n >> 18] + B64[(n >> 12) & 63] + (i + 1 < bytes.length ? B64[(n >> 6) & 63] : '=') + (i + 2 < bytes.length ? B64[n & 63] : '=')
+	}
+	return out
 }

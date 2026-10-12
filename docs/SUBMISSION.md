@@ -26,7 +26,7 @@ On Perpl, 71% of traders lose money within 30 days, and copy-trading leaders ris
 | Kuru: Consumer Trading App | Kuru Flow swap to AUSD inside deposit-and-follow | `onramp/` (F3) | quotes live |
 | Envio | HyperIndex for all Perpl events plus Copas contracts (dynamic registration); HyperSync used for history scans | `indexer/` | Envio Cloud: https://indexer.dev.hyperindex.xyz/042db7d/v1/graphql (web falls back to RPC while it backfills) |
 | Aurora Intents | Any-chain deposit → USDC on Monad → Kuru swap → vault deposit | `onramp/` (F1) | live on 3 Oct; 1Click had no Monad liquidity on 11 Oct |
-| Chainlink CRE | `copas-risk-guardian`: reads leaders, sanity-checks prices, scores risk, a consumer contract checkpoints risky leaders | `cre/` | simulated |
+| Chainlink CRE | `copas-risk-guardian`: reads leaders, sanity-checks prices, scores risk, a consumer contract checkpoints risky leaders | `cre/`, `cre/SIMULATION.md` | simulated with `--broadcast` on testnet: report tx `0x28bdb9385d27536d9a42c42b993141a168fb295ced9a0954fd3ccbe392dfe878` to consumer `0xBc28c947e51572e55eeb0f988a068C7A0f4ec7b0` |
 | Alchemy | Notify webhooks for keeper alerts | `keeper/` | needs Alchemy key in deploy |
 | Mera: Best Mera-Powered UX | Passkey is the whole account layer: create/sign in, session for small actions, re-prompt for risky ones; no extension, no custody backend | `web/lib/mera` | live |
 | Mera: One Passkey, Many Keys | Second PRF salt `sha256("copas.feed.v1")` → X25519 key → encrypted leader strategy notes readable only by followers, ciphertext onchain in `CopasFeed` | `web/lib/mera/feed.ts`, `web/components/StrategyFeed.tsx`, `contracts/src/CopasFeed.sol` | live on testnet |
