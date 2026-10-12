@@ -1,30 +1,34 @@
 /**
- * A7 track-record attestation: a wallet's pre-Copas Perpl record, canonical JSON, keccak256, EIP-191 signature
+ * A7 track-record attestation: a wallet's Perpl record, canonical JSON, keccak256, EIP-191 signature
  * by ATTESTER_PRIVATE_KEY. Verify: viem.verifyMessage({ address: attester, message: { raw: hash }, signature }).
+ *
+ * The windowed stats come from getLeaderData, i.e. the exact fills, window and source /leader/:addr/analysis
+ * uses, so the two never disagree. Other sources are kept in their own, labelled fields.
  */
 import { type Hex, keccak256, toBytes, verifyMessage } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
-import { type Fill, closedTrades, computeStats, fetchLeaderboard, fetchPlumbFills, fetchEnvioFills, maxDrawdown, equityCurve, capitalFromRow } from "./leaderData.js";
-import { type Fetch, canonicalJson, env, requireEnv } from "./util.js";
+import { type LeaderData, PLUMB_API, getLeaderData } from "./leaderData.js";
+import { type Fetch, canonicalJson, requireEnv } from "./util.js";
 
 export interface TrackRecord {
-  schema: "copas.trackrecord.v1";
+  schema: "copas.trackrecord.v2";
   address: string;
-  chainId: 143;
+  chainId: number; // 143 mainnet, 10143 testnet (Copas LeaderBooks)
   venue: "perpl";
   asOf: number; // unix s
+  window: { from: number; to: number }; // span the fill stats below cover
+  complete: boolean; // false: the fill history was capped and `window` shrunk to what was fetched
+  fillsUsed: number;
   firstTradeAt: number | null;
   lastTradeAt: number | null;
-  fillsUsed: number;
-  complete: boolean; // false if the fill history was capped
-  pnl30d: string; // AUSD, official Perpl leaderboard (month)
-  roi30dBps: number | null;
-  volume30d: string;
-  pnlAll: string; // realized net PnL over all fills used
-  maxDrawdown: string; // AUSD on the realized curve
-  maxDrawdownPct: number | null; // of the Perpl ROI capital base
-  winRateBps: number;
+  pnl30d: string; // AUSD; source in pnl30dSource
+  pnl30dSource: "fills" | "perpl-leaderboard"; // leaderboard only when the fills are capped and it exists
+  winRateBps: number; // closed round trips in `window`
   closedTrades: number;
+  maxDrawdown: string; // AUSD on the realized curve in `window`
+  maxDrawdownPct: number | null; // of the Perpl ROI capital base
+  perplLeaderboard30d: { pnl: string; roiBps: number; volume: string } | null; // official, mainnet only
+  allTime: { netPnl: string; closedTrades: number; winRateBps: number; maxDrawdown: string; firstSeenAt: number; lastSeenAt: number } | null; // Envio Account aggregates
   sources: string[];
 }
 export interface Attestation {
@@ -37,31 +41,39 @@ export interface Attestation {
 }
 
 const s6 = (x: number) => x.toFixed(6);
+const bps = (x: number) => Math.round(x * 10_000);
 
-export function buildTrackRecord(address: string, fills: Fill[], row: { pnl: number; roi: number; volume: number } | null, asOf: number, complete: boolean, source: string): TrackRecord {
-  const trades = closedTrades(fills);
-  const st = computeStats(fills, trades, { from: fills[0]?.ts ?? asOf, to: asOf });
-  const cap = capitalFromRow(row as any);
-  const mdd = maxDrawdown(equityCurve(fills).map((p) => p.cumNetPnl));
+export function buildTrackRecord(d: LeaderData): TrackRecord {
+  const st = d.stats;
+  const row = d.official30d;
+  const useBoard = !d.complete && !!row;
+  const a = d.envioAccount;
   return {
-    schema: "copas.trackrecord.v1",
-    address: address.toLowerCase(),
-    chainId: 143,
+    schema: "copas.trackrecord.v2",
+    address: d.address,
+    chainId: d.chainId,
     venue: "perpl",
-    asOf,
-    firstTradeAt: fills[0]?.ts ?? null,
+    asOf: d.window.to,
+    window: d.window,
+    complete: d.complete,
+    fillsUsed: d.fills.length,
+    firstTradeAt: d.fills[0]?.ts ?? null,
     lastTradeAt: st.lastTradeAt,
-    fillsUsed: fills.length,
-    complete,
-    pnl30d: s6(row?.pnl ?? 0),
-    roi30dBps: row ? Math.round(row.roi * 10_000) : null,
-    volume30d: s6(row?.volume ?? 0),
-    pnlAll: s6(st.netPnl),
-    maxDrawdown: s6(mdd),
-    maxDrawdownPct: cap ? Math.round((mdd / cap) * 10_000) / 100 : null,
-    winRateBps: Math.round(st.winRate * 10_000),
+    pnl30d: s6(useBoard ? row!.pnl : st.netPnl),
+    pnl30dSource: useBoard ? "perpl-leaderboard" : "fills",
+    winRateBps: bps(st.winRate),
     closedTrades: st.closedTrades,
-    sources: ["https://app.perpl.xyz/api/v1/trading/leaderboard/month/pnl", source],
+    maxDrawdown: s6(st.maxDrawdown),
+    maxDrawdownPct: d.capitalEstimate ? Math.round((st.maxDrawdown / d.capitalEstimate) * 10_000) / 100 : null,
+    perplLeaderboard30d: row ? { pnl: s6(row.pnl), roiBps: bps(row.roi), volume: s6(row.volume) } : null,
+    allTime: a
+      ? { netPnl: s6(Number(a.netPnlCNS) / 1e6), closedTrades: a.closedTrades, winRateBps: a.closedTrades ? bps(a.wins / a.closedTrades) : 0, maxDrawdown: s6(Number(a.maxDrawdownCNS) / 1e6), firstSeenAt: a.firstSeenAt, lastSeenAt: a.lastSeenAt }
+      : null,
+    sources: [
+      d.source === "envio" ? "envio:copas-indexer Fill" : `${PLUMB_API}/wallets/:addr/trades`,
+      ...(row ? ["https://app.perpl.xyz/api/v1/trading/leaderboard/month/pnl"] : []),
+      ...(a ? ["envio:copas-indexer Account"] : []),
+    ],
   };
 }
 
@@ -78,17 +90,7 @@ export async function verifyAttestation(a: Pick<Attestation, "record" | "hash" |
   return verifyMessage({ address: a.attester, message: { raw: a.hash }, signature: a.signature });
 }
 
-export async function attest(address: string, opts: { fetch?: Fetch; now?: number; maxFills?: number } = {}): Promise<Attestation> {
+export async function attest(address: string, opts: { fetch?: Fetch; now?: number; days?: number } = {}): Promise<Attestation> {
   requireEnv("ATTESTER_PRIVATE_KEY"); // fail fast before any fetch
-  const f = opts.fetch ?? fetch;
-  const asOf = opts.now ?? Math.floor(Date.now() / 1000);
-  const max = opts.maxFills ?? 5000;
-  const envio = env("ENVIO_GRAPHQL_URL");
-  const [fills, board] = await Promise.all([
-    envio ? fetchEnvioFills(envio, address, 0, asOf, f) : fetchPlumbFills(address, 0, asOf, f, max),
-    fetchLeaderboard("month", "pnl", f),
-  ]);
-  const row = board.find((r) => r.address === address.toLowerCase()) ?? null;
-  const record = buildTrackRecord(address, fills, row, asOf, fills.length < max, envio ? "envio:copas-indexer" : "https://plumb.huginn.tech/api/v1/wallets/:addr/trades");
-  return signTrackRecord(record);
+  return signTrackRecord(buildTrackRecord(await getLeaderData(address, { days: opts.days ?? 30, now: opts.now, fetch: opts.fetch })));
 }

@@ -5,9 +5,9 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { attest, buildTrackRecord, signTrackRecord, verifyAttestation } from "../src/attest.js";
 import { backtest } from "../src/backtest.js";
 import { computeFeatures } from "../src/features.js";
-import { analyzeLeader, guardAnalysis, kimiCost } from "../src/kimi.js";
+import { analyzeLeader, guardAnalysis, humanize, kimiCost } from "../src/kimi.js";
 import { type Fill, closedTrades, getLeaderData, normalizePlumbRow } from "../src/leaderData.js";
-import { alignmentScore, compositeScore, discoverLeaders, exposureByMarket, fetchMonadNetflow, monadPriceUsd, nansenClient } from "../src/nansen.js";
+import { alignmentScore, clearNetflowCache, compositeScore, discoverLeaders, exposureByMarket, fetchMonadNetflow, monadPriceUsd, nansenClient } from "../src/nansen.js";
 import { simulate } from "../src/simulate.js";
 import { createApp } from "../src/app.js";
 import { LEADER, NOW, calls, nansen, nansen402, stubFetch, trades } from "./stub.js";
@@ -21,6 +21,7 @@ let saved: Record<string, string | undefined>;
 beforeEach(() => {
   saved = Object.fromEntries(KEYS.map((k) => [k, process.env[k]]));
   for (const k of KEYS) delete process.env[k];
+  clearNetflowCache();
 });
 afterEach(() => {
   for (const k of KEYS) saved[k] === undefined ? delete process.env[k] : (process.env[k] = saved[k]);
@@ -187,6 +188,9 @@ describe("Nansen (D2, D4)", () => {
     const c = nansenClient({ fetch: stubFetch });
     const board = (await (await stubFetch("https://app.perpl.xyz/api/v1/trading/leaderboard/month/pnl")).json()).d.map((r: any) => ({ rank: r.i, address: r.a, pnl: Number(r.p) / 1e6, roi: r.r / 1e4, volume: Number(r.v) / 1e6 }));
     const r = await discoverLeaders(c, board, { limit: 3, now: NOW });
+    const scores = r.candidates.map((x) => x.composite.components.performance);
+    expect(Math.max(...scores as number[]) - Math.min(...scores as number[])).toBeGreaterThanOrEqual(50); // normalized across candidates, not all 100
+    expect(r.nansen.available).toBe(true);
     expect(r.smartMoneyOverlap).toBe(1);
     expect(r.candidates[0]).toMatchObject({ address: LEADER, smartMoney: true });
     expect(r.candidates[0].composite.components.nansenWalletQuality).toBe(55);
@@ -231,11 +235,14 @@ describe("simulate (C4) + attest (A7)", () => {
   it("signs a canonical track record that verifies and breaks when tampered", async () => {
     process.env.ATTESTER_PRIVATE_KEY = TEST_PK;
     const a = await attest(LEADER, { fetch: stubFetch, now: NOW });
-    expect(a.record.closedTrades).toBeGreaterThan(20);
-    expect(a.record.pnl30d).toBe("1364.371360");
+    const d = await getLeaderData(LEADER, { now: NOW, fetch: stubFetch });
+    // one source of truth: the attested stats are the analysis stats (same fills, same 30d window)
+    expect(a.record).toMatchObject({ closedTrades: d.stats.closedTrades, winRateBps: Math.round(d.stats.winRate * 10_000), complete: true, pnl30dSource: "fills", window: d.window });
+    expect(a.record.closedTrades).toBeGreaterThan(5);
+    expect(a.record.perplLeaderboard30d?.pnl).toBe("1364.371360");
     expect(await verifyAttestation(a)).toBe(true);
-    expect(await verifyAttestation({ ...a, record: { ...a.record, pnlAll: "999999.000000" } })).toBe(false);
-    const again = await signTrackRecord(buildTrackRecord(LEADER, trades().map(normalizePlumbRow).reverse(), { pnl: 1364.37136, roi: 0.2095, volume: 67277.711402 }, NOW, true, "https://plumb.huginn.tech/api/v1/wallets/:addr/trades"));
+    expect(await verifyAttestation({ ...a, record: { ...a.record, pnl30d: "999999.000000" } })).toBe(false);
+    const again = await signTrackRecord(buildTrackRecord(d));
     expect(again.hash).toBe(a.hash);
   });
 });
@@ -278,7 +285,7 @@ describe("Envio source", () => {
       const data = q.includes("Protocol")
         ? { Protocol: [{ lastUpdatedAt: NOW - 60 }] }
         : q.includes("Account")
-        ? { Account: [{ id: "3237" }] }
+        ? { Account: [{ id: "3237", chainId: 143, fills: 2, closedTrades: 1, wins: 1, netPnlCNS: "9927550", maxDrawdownCNS: "0", firstSeenAt: NOW - 100, lastSeenAt: NOW - 50 }] }
         : { Fill: [
             { id: "100-1", timestamp: NOW - 100, block: 100, txHash: "0xa", role: "TAKER", side: "BUY", pricePNS: "1000000", lotLNS: "100000", notionalCNS: "100000000", feeCNS: "34500", realizedPnlCNS: "0", market },
             { id: "200-2", timestamp: NOW - 50, block: 200, txHash: "0xb", role: "TAKER", side: "SELL", pricePNS: "1100000", lotLNS: "100000", notionalCNS: "110000000", feeCNS: "37950", realizedPnlCNS: "10000000", market },
@@ -298,5 +305,83 @@ describe("Envio source", () => {
         ? new Response(JSON.stringify({ data: { Protocol: [{ lastUpdatedAt: NOW - 30 * 86400 }] } }), { headers: { "content-type": "application/json" } })
         : stubFetch(u, init);
     expect((await getLeaderData(LEADER, { now: NOW, fetch: stale })).source).toBe("plumb");
+  });
+});
+
+describe("QA fixes", () => {
+  const json = (b: unknown, status = 200) => new Response(JSON.stringify(b), { status, headers: { "content-type": "application/json" } });
+
+  it("testnet LeaderBooks: chain-filtered Envio fills with the static testnet market table", async () => {
+    process.env.ENVIO_GRAPHQL_URL = "http://envio.test/v1/graphql";
+    const sent: any[] = [];
+    // raw indexer rows for testnet BTC (perp 16): the indexer's Market row says PERP-16 with 0 decimals
+    const market = { perpId: 16, symbol: "PERP-16", priceDecimals: 0, lotDecimals: 0 };
+    const f: typeof fetch = async (u, init) => {
+      if (!String(u).startsWith("http://envio.test")) return stubFetch(u, init);
+      const b = JSON.parse(String(init?.body));
+      sent.push(b);
+      if (b.query.includes("Account(")) return json({ data: { Account: [{ id: "1101", chainId: 10143, fills: 2, closedTrades: 1, wins: 0, netPnlCNS: "-50167", maxDrawdownCNS: "50167", firstSeenAt: NOW - 100, lastSeenAt: NOW - 50 }] } });
+      return json({ data: { Fill: [
+        { id: "1-5", timestamp: NOW - 100, block: 1, txHash: "0xa", role: "TAKER", side: "BUY", pricePNS: "836807", lotLNS: "40", feeCNS: "11548", realizedPnlCNS: "0", market },
+        { id: "2-35", timestamp: NOW - 50, block: 2, txHash: "0xb", role: "TAKER", side: "SELL", pricePNS: "836146", lotLNS: "40", feeCNS: "11539", realizedPnlCNS: "-27080", market },
+      ] } });
+    };
+    const d = await getLeaderData("0xb1b08f6a0642c51b48c1916136458a769a1c5208", { now: NOW, fetch: f });
+    expect(d).toMatchObject({ chainId: 10143, source: "envio", official30d: null });
+    expect(sent.find((b) => b.query.includes("Fill("))?.variables).toMatchObject({ acc: "1101", chain: 10143 });
+    expect(d.fills.map((x) => [x.symbol, x.price, x.size])).toEqual([["BTC", 83680.7, 0.0004], ["BTC", 83614.6, 0.0004]]);
+    expect(d.fills[0].notional).toBeCloseTo(33.47228, 6);
+    expect(d.stats.medianNotional).toBeLessThan(100);
+    expect(d.stats.closedTrades).toBe(1);
+    expect(d.stats.markets[0].symbol).toBe("BTC");
+  });
+
+  it("Nansen out of credits: alignment is 200 + degraded, discovery still ranks", async () => {
+    process.env.NANSEN_API_KEY = "k";
+    const broke: typeof fetch = async (u, init) =>
+      String(u).includes("api.nansen.ai") ? json({ error: "Insufficient credits" }, 403) : stubFetch(u, init);
+    const app = createApp({ fetch: broke, now: () => NOW });
+    const r = await app.request(`/leader/${LEADER}/alignment`);
+    expect(r.status).toBe(200);
+    const j = await r.json();
+    expect(j).toMatchObject({ unavailable: "nansen-credits", alignment: { score: null, poweredBy: null } });
+    expect(j.error).toMatch(/403/);
+    expect(j.composite.poweredBy).toBeNull();
+    const dsc = await app.request("/discover?limit=3");
+    expect(dsc.status).toBe(200);
+    const dj = await dsc.json();
+    expect(dj).toMatchObject({ unavailable: "nansen-credits", poweredBy: null, nansen: { available: false } });
+    expect(dj.candidates.length).toBe(3);
+    expect(dj.candidates.every((c: any) => c.composite.poweredBy === null)).toBe(true);
+  });
+
+  it("caches the Monad netflow for an hour", async () => {
+    process.env.NANSEN_API_KEY = "k";
+    let hits = 0;
+    const f: typeof fetch = async (u, init) => {
+      if (String(u).includes("smart-money/netflow")) hits++;
+      return stubFetch(u, init);
+    };
+    const c = nansenClient({ fetch: f });
+    const t = 1_000_000;
+    await fetchMonadNetflow(c, t);
+    await fetchMonadNetflow(c, t + 59 * 60_000);
+    expect(hits).toBe(1);
+    await fetchMonadNetflow(c, t + 61 * 60_000);
+    expect(hits).toBe(2);
+  });
+
+  it("drops POST /kimi/verify", async () => {
+    const app = createApp({ fetch: stubFetch, now: () => NOW });
+    expect((await app.request("/kimi/verify", { method: "POST", body: "{}" })).status).toBe(404);
+  });
+
+  it("strips code identifiers, severities and unix timestamps from LLM text", () => {
+    const out = humanize("Tilt: sizeUpsAfterLoss = 2 (severity 0.9) since 1790740438, see `max_drawdown`.");
+    expect(out).not.toMatch(/sizeUpsAfterLoss|severity|1790740438|`|_/);
+    expect(out).toContain("size ups after loss 2");
+    expect(out).toContain("2026-");
+    const g = guardAnalysis({ styleSummary: { en: "weeklySummary: fine" } }, { tilt: { detected: false }, drift: { detected: false }, reasonsNotToFollow: [] } as any);
+    expect(g.styleSummary).toEqual({ en: "weekly summary fine", id: "weekly summary fine" });
   });
 });

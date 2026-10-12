@@ -6,8 +6,10 @@
  *    (period day|week|2weeks|month|all, sorting pnl|roi|vol). Official 30d PnL / ROI / volume.
  *  - Per-wallet fills: Perpl's own /v1/trading/fills needs an API key signed by THAT wallet (401 otherwise),
  *    so for arbitrary leaders we read an indexer:
- *      * Envio HyperIndex (copas/indexer, `Fill` entity) when ENVIO_GRAPHQL_URL is set, else
- *      * plumb (third-party Perpl indexer, https://plumb.huginn.tech/api/v1/wallets/:addr/trades).
+ *      * Envio HyperIndex (copas/indexer, `Fill` entity) when ENVIO_GRAPHQL_URL is set: testnet accounts
+ *        (Copas LeaderBooks) always, mainnet when fresh and the history fits ENVIO_MAX_ROWS, else
+ *      * plumb (third-party mainnet Perpl indexer, https://plumb.huginn.tech/api/v1/wallets/:addr/trades).
+ *    See fetchFills.
  */
 import { type Fetch, env, getJson, median, round, sum } from "./util.js";
 
@@ -15,6 +17,19 @@ export const PERPL_API = "https://app.perpl.xyz/api/v1";
 export const PLUMB_API = "https://plumb.huginn.tech/api/v1";
 /** Perpl mainnet market ids (SPEC §2.2). */
 export const MARKETS: Record<number, string> = { 1: "BTC", 10: "MON", 20: "ETH", 31: "SOL", 40: "HYPE", 50: "ZEC", 60: "LIT", 70: "VVV", 90: "PUMP", 100: "NEAR" };
+export const MAINNET = 143;
+export const TESTNET = 10143;
+/**
+ * Perpl testnet markets (exchange 0x1964C32f0bE608E7D29302AFF5E61268E72080cc getPerpetualInfo). The indexer's
+ * testnet start block is after ContractAdded, so its testnet Market rows say "PERP-16" with 0 decimals.
+ * ponytail: static table; read getPerpetualInfo over RPC if Copas ever supports more testnet markets.
+ */
+export const TESTNET_MARKETS: Record<number, { symbol: string; priceDecimals: number; lotDecimals: number }> = {
+  16: { symbol: "BTC", priceDecimals: 1, lotDecimals: 5 },
+  32: { symbol: "ETH", priceDecimals: 2, lotDecimals: 3 },
+  48: { symbol: "SOL", priceDecimals: 2, lotDecimals: 3 },
+  64: { symbol: "MON", priceDecimals: 5, lotDecimals: 0 },
+};
 
 export interface Fill {
   ts: number; // unix seconds
@@ -87,10 +102,27 @@ export interface LeaderStats {
   lastTradeAt: number | null;
 }
 
+export interface EnvioAccount {
+  id: string;
+  chainId: number;
+  fills: number; // all-time
+  closedTrades: number;
+  wins: number;
+  netPnlCNS: string;
+  maxDrawdownCNS: string;
+  firstSeenAt: number;
+  lastSeenAt: number;
+}
+
 export interface LeaderData {
   address: string;
+  chainId: number;
   source: "envio" | "plumb";
+  /** Stats window. If the fill history hit the row cap, `from` is the oldest fill fetched and `complete` is false. */
   window: { from: number; to: number };
+  complete: boolean;
+  /** All-time aggregates from the Envio indexer (exact, not capped), when the wallet is indexed. */
+  envioAccount: EnvioAccount | null;
   official30d: LeaderboardRow | null;
   /** AUSD base Perpl uses for ROI: PnL / max(100, starting equity + inbound transfers) */
   capitalEstimate: number | null;
@@ -134,7 +166,18 @@ export function normalizePlumbRow(r: any): Fill {
   };
 }
 
-export async function fetchPlumbFills(address: string, from: number, to: number, f: Fetch = fetch, maxRows = 5000): Promise<Fill[]> {
+export interface FillPage {
+  fills: Fill[];
+  complete: boolean; // false when the row cap was hit before the window was exhausted
+}
+// ponytail: ~2s per plumb page; 10 pages keeps a request well under the function timeout.
+export const PLUMB_MAX_ROWS = 5000;
+/** Envio's hosted GraphQL returns at most 1000 rows per query; we page up to ENVIO_MAX_ROWS. */
+export const ENVIO_PAGE = 1000;
+export const ENVIO_MAX_ROWS = 10_000;
+
+/** plumb pages newest first (500/page) and carries exact position sizes, so a capped history only loses old fills. */
+export async function fetchPlumbFills(address: string, from: number, to: number, f: Fetch = fetch, maxRows = PLUMB_MAX_ROWS): Promise<FillPage> {
   const rows: any[] = [];
   let next: string | null = null;
   do {
@@ -144,13 +187,16 @@ export async function fetchPlumbFills(address: string, from: number, to: number,
     rows.push(...page.rows);
     next = page.next ?? null;
   } while (next && rows.length < maxRows);
-  return sortFills(rows.map(normalizePlumbRow));
+  return { fills: sortFills(rows.map(normalizePlumbRow)), complete: !next };
 }
 
-const ENVIO_ACCOUNT = `query($addr: String!) { Account(where: { address: { _eq: $addr } }) { id } }`;
-const ENVIO_FILLS = `query($acc: String!, $from: Int!, $to: Int!) {
-  Fill(where: { account_id: { _eq: $acc }, timestamp: { _gte: $from, _lte: $to } }, order_by: [{ block: asc }, { id: asc }], limit: 5000) {
-    id timestamp block txHash role side pricePNS lotLNS notionalCNS feeCNS realizedPnlCNS
+const ENVIO_ACCOUNT = `query($addr: String!) { Account(where: { address: { _eq: $addr } }) {
+  id chainId fills closedTrades wins netPnlCNS maxDrawdownCNS firstSeenAt lastSeenAt } }`;
+// Entities are per chain (indexer config disable_default_cross_chain) and Account ids are per-chain Perpl
+// accountIds: mainnet account 1101 and testnet account 1101 are different wallets, so filter on chainId too.
+const ENVIO_FILLS = `query($acc: String!, $chain: Int!, $from: Int!, $to: Int!, $offset: Int!) {
+  Fill(where: { account_id: { _eq: $acc }, chainId: { _eq: $chain }, timestamp: { _gte: $from, _lte: $to } }, order_by: [{ block: asc }, { id: asc }], limit: ${ENVIO_PAGE}, offset: $offset) {
+    id timestamp block txHash role side pricePNS lotLNS feeCNS realizedPnlCNS
     market { perpId symbol priceDecimals lotDecimals }
   } }`;
 
@@ -167,31 +213,39 @@ async function envio<T>(url: string, query: string, variables: object, f: Fetch)
 /**
  * Envio `Fill` (copas/indexer/schema.graphql). The entity carries no position size, so positionAfter is the
  * running sum of fills inside the window (ponytail: assumes flat at window start; plumb gives exact sizes).
+ * Notional is recomputed as price x size: the indexer's notionalCNS is wrong wherever its market decimals are.
  */
-export async function fetchEnvioFills(url: string, address: string, from: number, to: number, f: Fetch = fetch): Promise<Fill[]> {
-  const acc = await envio<{ Account: { id: string }[] }>(url, ENVIO_ACCOUNT, { addr: address.toLowerCase() }, f);
-  if (!acc.Account.length) return [];
-  const d = await envio<{ Fill: any[] }>(url, ENVIO_FILLS, { acc: acc.Account[0].id, from, to }, f);
+export async function fetchEnvioFills(url: string, account: Pick<EnvioAccount, "id" | "chainId">, from: number, to: number, f: Fetch = fetch, maxRows = ENVIO_MAX_ROWS): Promise<FillPage> {
+  const rows: any[] = [];
+  let complete = false;
+  for (let offset = 0; offset < maxRows && !complete; offset += ENVIO_PAGE) {
+    const d = await envio<{ Fill: any[] }>(url, ENVIO_FILLS, { acc: account.id, chain: account.chainId, from, to, offset }, f);
+    rows.push(...d.Fill);
+    complete = d.Fill.length < ENVIO_PAGE;
+  }
   const pos = new Map<number, number>();
   const out: Fill[] = [];
-  for (const r of d.Fill) {
+  for (const r of rows) {
     if (!r.side || !r.market) continue;
-    const m = r.market;
+    const m = account.chainId === TESTNET ? TESTNET_MARKETS[r.market.perpId] : { ...r.market, symbol: String(r.market.symbol).replace(/_v\d+$/, "") };
+    if (!m) continue; // testnet market Copas doesn't map: no decimals, so no honest numbers
+    const perpId = r.market.perpId;
     const size = Number(r.lotLNS) / 10 ** m.lotDecimals;
+    const price = Number(r.pricePNS) / 10 ** m.priceDecimals;
     const buy = r.side === "BUY";
-    const p = round((pos.get(m.perpId) ?? 0) + (buy ? size : -size), 10);
-    pos.set(m.perpId, p);
+    const p = round((pos.get(perpId) ?? 0) + (buy ? size : -size), 10);
+    pos.set(perpId, p);
     out.push({
       ts: r.timestamp,
       block: r.block,
       logIndex: Number(String(r.id).split("-")[1] ?? 0),
       tx: r.txHash,
-      market: m.perpId,
+      market: perpId,
       symbol: m.symbol,
       buy,
-      price: Number(r.pricePNS) / 10 ** m.priceDecimals,
+      price,
       size,
-      notional: Number(r.notionalCNS) / 1e6,
+      notional: round(price * size, 6),
       fee: Number(r.feeCNS) / 1e6,
       pnl: Number(r.realizedPnlCNS) / 1e6,
       role: r.role === "MAKER" ? "maker" : "taker",
@@ -200,7 +254,21 @@ export async function fetchEnvioFills(url: string, address: string, from: number
       leverage: null,
     });
   }
-  return out;
+  return { fills: out, complete };
+}
+
+/** The wallet's indexed Perpl account; mainnet wins if the address traded on both chains. */
+export async function fetchEnvioAccount(url: string, address: string, f: Fetch = fetch): Promise<EnvioAccount | null> {
+  const d = await envio<{ Account: EnvioAccount[] }>(url, ENVIO_ACCOUNT, { addr: address.toLowerCase() }, f);
+  return d.Account.find((a) => a.chainId === MAINNET) ?? d.Account.find((a) => a.chainId === TESTNET) ?? null;
+}
+
+/** Mainnet all-time aggregates for many wallets in one query (discovery ranking). */
+export async function fetchEnvioAccounts(url: string, addresses: string[], f: Fetch = fetch): Promise<Map<string, EnvioAccount>> {
+  const q = `query($addrs: [String!]!) { Account(where: { address: { _in: $addrs }, chainId: { _eq: ${MAINNET} } }) {
+    address id chainId fills closedTrades wins netPnlCNS maxDrawdownCNS firstSeenAt lastSeenAt } }`;
+  const d = await envio<{ Account: (EnvioAccount & { address: string })[] }>(url, q, { addrs: addresses.map((a) => a.toLowerCase()) }, f);
+  return new Map(d.Account.map(({ address, ...a }) => [address, a]));
 }
 
 const sortFills = (xs: Fill[]) => xs.sort((a, b) => a.block - b.block || a.logIndex - b.logIndex);
@@ -310,28 +378,52 @@ export interface LeaderDataOpts {
 
 /** A backfilling indexer has no recent fills; use it only once its last mainnet event is within a day of `to`. */
 async function envioFresh(url: string, to: number, f: Fetch): Promise<boolean> {
-  const d = await envio<{ Protocol: { lastUpdatedAt: number }[] }>(url, `{ Protocol(where: { chainId: { _eq: 143 } }) { lastUpdatedAt } }`, {}, f).catch(() => null);
+  const d = await envio<{ Protocol: { lastUpdatedAt: number }[] }>(url, `{ Protocol(where: { chainId: { _eq: ${MAINNET} } }) { lastUpdatedAt } }`, {}, f).catch(() => null);
   return !!d && (d.Protocol[0]?.lastUpdatedAt ?? 0) >= to - 86400;
+}
+
+export interface FillsResult extends FillPage {
+  source: "envio" | "plumb";
+  chainId: number;
+  envioAccount: EnvioAccount | null;
+}
+
+/**
+ * One fill source per wallet, shared by /stats, /analysis, /alignment and /attest:
+ *  - testnet Perpl accounts (Copas LeaderBooks): Envio (plumb indexes mainnet only);
+ *  - mainnet: Envio when fresh and the wallet's whole history fits ENVIO_MAX_ROWS, else plumb
+ *    (exact position sizes, newest first, so a capped history only drops the oldest fills).
+ */
+export async function fetchFills(address: string, from: number, to: number, f: Fetch = fetch): Promise<FillsResult> {
+  const url = env("ENVIO_GRAPHQL_URL");
+  const acc = url ? await fetchEnvioAccount(url, address, f).catch(() => null) : null;
+  if (url && acc?.chainId === TESTNET) return { ...(await fetchEnvioFills(url, acc, from, to, f)), source: "envio", chainId: TESTNET, envioAccount: acc };
+  if (url && (!acc || acc.fills <= ENVIO_MAX_ROWS) && (await envioFresh(url, to, f))) {
+    const page = acc ? await fetchEnvioFills(url, acc, from, to, f) : { fills: [], complete: true };
+    return { ...page, source: "envio", chainId: MAINNET, envioAccount: acc };
+  }
+  return { ...(await fetchPlumbFills(address, from, to, f)), source: "plumb", chainId: MAINNET, envioAccount: acc };
 }
 
 export async function getLeaderData(address: string, opts: LeaderDataOpts = {}): Promise<LeaderData> {
   const f = opts.fetch ?? fetch;
-  const to = opts.now ?? Math.floor(Date.now() / 1000);
-  const from = to - (opts.days ?? 30) * 86400;
+  let to = opts.now ?? Math.floor(Date.now() / 1000);
+  let from = to - (opts.days ?? 30) * 86400;
   const addr = address.toLowerCase();
-  const configured = env("ENVIO_GRAPHQL_URL");
-  const envioUrl = configured && (await envioFresh(configured, to, f)) ? configured : undefined;
-  const [fills, board] = await Promise.all([
-    envioUrl ? fetchEnvioFills(envioUrl, addr, from, to, f) : fetchPlumbFills(addr, from, to, f),
-    fetchLeaderboard("month", "pnl", f).catch(() => [] as LeaderboardRow[]),
-  ]);
-  const inWindow = fills.filter((x) => x.ts >= from && x.ts <= to);
+  const [src, board] = await Promise.all([fetchFills(addr, from, to, f), fetchLeaderboard("month", "pnl", f).catch(() => [] as LeaderboardRow[])]);
+  const inWindow = src.fills.filter((x) => x.ts >= from && x.ts <= to);
+  // capped history: stats describe only the span actually fetched (plumb keeps the newest, Envio the oldest)
+  if (!src.complete && inWindow.length) src.source === "plumb" ? (from = inWindow[0].ts) : (to = inWindow[inWindow.length - 1].ts);
   const trades = closedTrades(inWindow);
-  const row = board.find((r) => r.address === addr) ?? null;
+  // the Perpl leaderboard is mainnet only
+  const row = src.chainId === MAINNET ? (board.find((r) => r.address === addr) ?? null) : null;
   return {
     address: addr,
-    source: envioUrl ? "envio" : "plumb",
+    chainId: src.chainId,
+    source: src.source,
     window: { from, to },
+    complete: src.complete,
+    envioAccount: src.envioAccount,
     official30d: row,
     capitalEstimate: capitalFromRow(row),
     fills: inWindow,

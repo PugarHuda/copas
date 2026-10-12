@@ -1,5 +1,5 @@
 /**
- * D1/D3 Kimi K3 risk analyst. Explains precomputed features; never decides or executes anything.
+ * D1/D3 LLM risk analyst (Kimi K3, or OpenRouter free models when OPENROUTER_API_KEY is set). Explains precomputed features; never decides or executes anything.
  * Every call carries X-Msh-Request-Nonce, so Kimi returns a Request Signature that anyone can check at
  * POST https://api.moonshot.ai/v1/signatures/verify. Hashes of input/output are appended to data/kimi-log.jsonl.
  */
@@ -50,14 +50,42 @@ export interface AnalysisResult {
 }
 
 const SYSTEM = `You are the risk analyst of Copas, a bonded copy-trading app on Monad (Perpl perps).
-You EXPLAIN precomputed, deterministic features of a leader to a retail follower. Rules:
+You EXPLAIN precomputed, deterministic features of a leader to a retail follower, in plain English. Rules:
 - Use only numbers that appear in the input. Never invent data, prices or forecasts.
 - Never tell the user to buy, sell or follow; execution is done by deterministic contracts, not by you.
 - "tilt.detected" and "drift.detected" MUST equal the input flags; you only explain them.
 - devilsAdvocate: pick exactly 3 items from input.reasonsNotToFollow (strongest first), keep their "key", explain each with its numbers.
-- Every text field is bilingual: "en" (English) and "id" (Bahasa Indonesia, natural, not literal). Max 2 sentences each.
+- Write for a person, not a programmer: never output field names or code identifiers (camelCase, snake_case, "x = 2"),
+  never mention "severity", scores or flags, and write dates as dates (e.g. "Oct 3"), never unix timestamps.
+  Say "2 times they increased size after a loss", not "sizeUpsAfterLoss = 2".
+- Max 2 sentences per text field.
 Reply with ONE JSON object:
-{"riskLevel":"low|medium|high","styleSummary":{"en":"","id":""},"tilt":{"detected":bool,"en":"","id":""},"drift":{"detected":bool,"en":"","id":""},"weeklySummary":{"en":"","id":""},"devilsAdvocate":[{"key":"","en":"","id":""}]}`;
+{"riskLevel":"low|medium|high","styleSummary":{"en":""},"tilt":{"detected":bool,"en":""},"drift":{"detected":bool,"en":""},"weeklySummary":{"en":""},"devilsAdvocate":[{"key":"","en":""}]}`;
+
+/** Belt and braces for the prompt rules: code identifiers, "= n", severities and unix timestamps out of user text. */
+export function humanize(text: string): string {
+  return text
+    .replace(/`([^`]*)`/g, "$1")
+    .replace(/\(?\s*severity\s*[:=]?\s*\d+(\.\d+)?\s*\)?/gi, "")
+    .replace(/\b1[6-9]\d{8}\b/g, (t) => new Date(Number(t) * 1000).toISOString().slice(0, 10))
+    .replace(/\b([a-z]+(?:[A-Z][a-z0-9]*)+|[a-z]+(?:_[a-z0-9]+)+)\b(\s*(?:=|:)\s*)?/g, (_m, id: string, eq?: string) => {
+      const words = id.replace(/_/g, " ").replace(/([a-z0-9])([A-Z])/g, "$1 $2").toLowerCase();
+      return eq ? `${words} ` : words;
+    })
+    .replace(/\s{2,}/g, " ")
+    .replace(/\s+([.,;])/g, "$1")
+    .trim();
+}
+
+/** What the LLM sees: features minus internal scoring, timestamps as dates. */
+export function llmInput(f: Features) {
+  const day = (t: number) => new Date(t * 1000).toISOString().slice(0, 10);
+  return {
+    ...f,
+    weekly: { ...f.weekly, from: day(f.weekly.from), to: day(f.weekly.to) },
+    reasonsNotToFollow: f.reasonsNotToFollow.map(({ severity: _s, ...r }) => r),
+  };
+}
 
 export const sha256 = (s: string) => "0x" + createHash("sha256").update(s).digest("hex");
 
@@ -71,7 +99,11 @@ export function kimiCost(usage: { prompt_tokens?: number; completion_tokens?: nu
 
 /** Keeps the LLM inside the deterministic facts: flags are overwritten, reasons must come from the candidates. */
 export function guardAnalysis(raw: any, f: Features): Analysis {
-  const bi = (x: any): Bilingual => ({ en: String(x?.en ?? ""), id: String(x?.id ?? "") });
+  // English only now; `id` mirrors `en` so the response shape (and the web) stays the same.
+  const bi = (x: any): Bilingual => {
+    const en = humanize(String(x?.en ?? ""));
+    return { en, id: en };
+  };
   const cands = new Map(f.reasonsNotToFollow.map((r) => [r.key, r]));
   const picked = (Array.isArray(raw?.devilsAdvocate) ? raw.devilsAdvocate : []).filter((d: any) => cands.has(d?.key));
   const seen = new Set<string>();
@@ -117,7 +149,7 @@ export async function analyzeLeader(
   const key = requireEnv(or ? "OPENROUTER_API_KEY" : "KIMI_API_KEY");
   const f = opts.fetch ?? fetch;
   const nonce = randomUUID();
-  const input = canonicalJson({ leader: address, features });
+  const input = canonicalJson({ leader: address, features: llmInput(features) });
   const messages = [
     { role: "system", content: SYSTEM },
     { role: "user", content: input },

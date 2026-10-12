@@ -3,11 +3,11 @@ import { cors } from "hono/cors";
 import { attest } from "./attest.js";
 import { type FollowerParams, type MandateParams, backtest } from "./backtest.js";
 import { computeFeatures } from "./features.js";
-import { analyzeLeader, verifyKimiSignature } from "./kimi.js";
-import { type LeaderData, fetchLeaderboard, getLeaderData } from "./leaderData.js";
-import { alignmentScore, compositeScore, discoverLeaders, exposureByMarket, fetchMonadNetflow, nansenClient } from "./nansen.js";
+import { analyzeLeader } from "./kimi.js";
+import { type LeaderData, fetchEnvioAccounts, fetchLeaderboard, getLeaderData } from "./leaderData.js";
+import { NansenUnavailable, alignmentScore, compositeScore, discoverLeaders, exposureByMarket, fetchMonadNetflow, nansenClient } from "./nansen.js";
 import { simulate } from "./simulate.js";
-import { type Fetch, ServiceUnavailable, isAddress } from "./util.js";
+import { type Fetch, ServiceUnavailable, env, isAddress } from "./util.js";
 
 export const DEFAULT_FOLLOWER: FollowerParams = { depositCNS: 100, ratioBps: 200, maxNotionalCNS: 300, maxLeverageHdths: 500, maxChaseBps: 100, priceBandBps: 50, stopLossBps: 0 };
 export const DEFAULT_MANDATE: MandateParams = { maxDDbps: 1500, epochLen: 7 * 86400 };
@@ -34,7 +34,7 @@ export function createApp(deps: { fetch?: Fetch; now?: () => number } = {}) {
     return c.json({ error: e.message }, 502);
   });
 
-  app.get("/", (c) => c.json({ service: "@copas/services", routes: ["/leader/:addr/stats", "POST /leader/:addr/backtest", "/leader/:addr/analysis", "/leader/:addr/alignment", "/discover", "POST /simulate", "/attest/:addr", "POST /kimi/verify"] }));
+  app.get("/", (c) => c.json({ service: "@copas/services", routes: ["/leader/:addr/stats", "POST /leader/:addr/backtest", "/leader/:addr/analysis", "/leader/:addr/alignment", "/discover", "POST /simulate", "/attest/:addr"] }));
 
   app.get("/leader/:addr/stats", async (c) => {
     const d = await leader(c.req.param("addr"), Number(c.req.query("days") ?? 30));
@@ -70,7 +70,18 @@ export function createApp(deps: { fetch?: Fetch; now?: () => number } = {}) {
     const nc = nansenClient({ fetch: f });
     const days = Number(c.req.query("days") ?? 7);
     const win = { from: d.window.to - days * 86400, to: d.window.to };
-    const alignment = alignmentScore(exposureByMarket(d.fills, win.from, win.to), await fetchMonadNetflow(nc), win);
+    // out of credits: still 200, so the badge degrades; the error stays visible in the JSON
+    let netflow = null;
+    let error: string | undefined;
+    try {
+      netflow = await fetchMonadNetflow(nc);
+    } catch (e) {
+      if (!(e instanceof NansenUnavailable)) throw e;
+      error = e.message;
+    }
+    const alignment = netflow
+      ? alignmentScore(exposureByMarket(d.fills, win.from, win.to), netflow, win)
+      : { score: null, coverage: 0, markets: [], window: { ...win, netflowField: "net_flow_7d_usd" as const }, poweredBy: null };
     const composite = compositeScore({
       roi30d: d.official30d?.roi ?? null,
       winRate: d.stats.closedTrades ? d.stats.winRate : null,
@@ -78,13 +89,15 @@ export function createApp(deps: { fetch?: Fetch; now?: () => number } = {}) {
       avgLeverage: d.stats.avgLeverage,
       alignment: alignment.score,
     });
-    return c.json({ address: d.address, alignment, composite, cost: nc.ledger.toJSON() });
+    return c.json({ address: d.address, alignment, composite, cost: nc.ledger.toJSON(), ...(error ? { unavailable: "nansen-credits", error } : {}) });
   });
 
   app.get("/discover", async (c) => {
     const nc = nansenClient({ fetch: f });
     const board = await fetchLeaderboard("month", "pnl", f);
-    return c.json(await discoverLeaders(nc, board, { limit: Math.min(25, Number(c.req.query("limit") ?? 10)), now: now() }));
+    const envio = env("ENVIO_GRAPHQL_URL");
+    const accounts = envio ? (xs: string[]) => fetchEnvioAccounts(envio, xs, f) : undefined;
+    return c.json(await discoverLeaders(nc, board, { limit: Math.min(25, Number(c.req.query("limit") ?? 10)), now: now(), accounts }));
   });
 
   app.post("/simulate", async (c) => {
@@ -94,8 +107,6 @@ export function createApp(deps: { fetch?: Fetch; now?: () => number } = {}) {
   });
 
   app.get("/attest/:addr", async (c) => c.json(await attest(addr(c.req.param("addr")), { fetch: f, now: now() })));
-
-  app.post("/kimi/verify", async (c) => c.json({ valid: await verifyKimiSignature(await c.req.json(), f) }));
 
   return app;
 }
