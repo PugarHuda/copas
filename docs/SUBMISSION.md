@@ -11,6 +11,7 @@ On Perpl, 71% of traders lose money within 30 days, and copy-trading leaders ris
 ## Links
 - Repo: https://github.com/PugarHuda/copas
 - Live app: https://copas-mocha.vercel.app — testnet 10143. Judges: create a passkey account, then use **Get testnet MON + AUSD** in the account menu.
+- Telegram bot: https://t.me/copas_monad_bot — `/leaders`, live leader cards, `/watch #1` (or the 🔔 Watch button) to get breach, epoch, unbond and claim alerts in your DM from the hosted keeper
 - Demo video (≤3 min): _(link)_ · Pitch (≤2 min): _(link)_
 - Services API: https://copas-services.vercel.app · Indexer: https://indexer.dev.hyperindex.xyz/042db7d/v1/graphql
 - Keeper (copy-sync bot, Privy sponsored): https://github.com/PugarHuda/copas/actions/workflows/keeper.yml · E2E tests (Playwright, 70 tests vs production): https://github.com/PugarHuda/copas/actions/workflows/e2e.yml
