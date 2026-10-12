@@ -77,3 +77,12 @@ test("market chips show keyboard focus on the visible label", async ({ page, isM
   await expect(chip).toHaveCount(1);
   expect(await chip.evaluate((e) => getComputedStyle(e).outlineStyle)).toBe("solid");
 });
+
+test("wallet search shows a visible error for input that is not an address or account ID", async ({ page }) => {
+  await page.goto("/analytics");
+  const box = page.getByLabel("Search a wallet address or account ID");
+  await box.fill("0x123");
+  await page.getByRole("button", { name: "Open", exact: true }).click();
+  await expect(page.getByRole("alert").filter({ hasText: "Enter a 40-character 0x address or an account ID." })).toBeVisible();
+  await expect(box).toHaveAttribute("aria-invalid", "true");
+});

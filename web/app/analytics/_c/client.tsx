@@ -23,7 +23,7 @@ export function WalletSearch({ compact = false }: { compact?: boolean }) {
     else setErr(true);
   };
   return (
-    <form onSubmit={go} role="search" className={`flex w-full gap-2 ${compact ? "max-w-md" : "max-w-xl"}`}>
+    <form onSubmit={go} role="search" className={`flex w-full flex-wrap gap-2 ${compact ? "max-w-md" : "max-w-xl"}`}>
       <label htmlFor="wsearch" className="sr-only">
         {L("Cari alamat wallet atau ID akun", "Search a wallet address or account ID")}
       </label>
@@ -33,11 +33,11 @@ export function WalletSearch({ compact = false }: { compact?: boolean }) {
         onChange={(e) => (setV(e.target.value), setErr(false))}
         placeholder={L("Alamat 0x… atau ID akun Perpl", "0x… address or Perpl account ID")}
         aria-invalid={err}
-        className="num min-w-0 flex-1 rounded-md border border-line-strong bg-surface px-3 py-2 text-sm placeholder:text-ink-3 focus:border-gold focus:outline-none"
+        className="num min-w-0 flex-1 rounded-md border border-line-strong bg-surface px-3 py-2 text-sm placeholder:text-ink-3 focus:border-gold focus:outline-none aria-[invalid=true]:border-down"
       />
       <button className={btn.primary}>{L("Buka", "Open")}</button>
       {err && (
-        <span role="alert" className="sr-only">
+        <span role="alert" className="basis-full text-xs text-down">
           {L("Masukkan alamat 0x 40 karakter atau ID akun.", "Enter a 40-character 0x address or an account ID.")}
         </span>
       )}
