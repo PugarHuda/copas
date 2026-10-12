@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
-import { erc20Abi, parseUnits, type Abi } from "viem";
+import { erc20Abi, type Abi } from "viem";
+import { toAusd } from "@/lib/format";
 import { useL } from "@/lib/i18n/client";
 import { useMeraSession } from "@/lib/mera/MeraProvider";
 import { useCopasWrite } from "@/lib/copas/useCopasWrite";
@@ -18,7 +19,7 @@ export function MintRedeem({ book, epoch, settled }: { book: `0x${string}`; epoc
   const bad = !(n > 0);
   if (!deployment?.breachMarket || !deployment.ausd) return null;
   const bm = { address: deployment.breachMarket, abi: copasAbi.BreachMarket as Abi };
-  const units = () => parseUnits(n.toFixed(6), 6);
+  const units = () => toAusd(n);
 
   async function mint() {
     setDone(undefined);

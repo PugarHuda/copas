@@ -1,4 +1,11 @@
 /** Display helpers. All amounts are plain numbers in AUSD (≈ USD) unless stated. */
+import { parseUnits } from "viem";
+
+/**
+ * AUSD (6 dp) atomic units from a form number. String(1e-7) / String(1e30) use exponent notation, which parseUnits rejects
+ * with a throw (a render-time throw blanks the page); toLocaleString never does. Non-finite or ≤ 0 → 0n.
+ */
+export const toAusd = (v: number) => parseUnits(Number.isFinite(v) && v > 0 ? v.toLocaleString("en-US", { useGrouping: false, maximumFractionDigits: 6 }) : "0", 6);
 
 const compact = new Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 2 });
 

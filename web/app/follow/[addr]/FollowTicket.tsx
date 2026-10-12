@@ -1,13 +1,13 @@
 "use client";
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { encodeFunctionData, erc20Abi, parseUnits, type Abi } from "viem";
+import { encodeFunctionData, erc20Abi, type Abi } from "viem";
 import { useL, useT } from "@/lib/i18n/client";
 import { useMeraSession } from "@/lib/mera/MeraProvider";
 import { copasPublic, useCopasWrite } from "@/lib/copas/useCopasWrite";
 import { copasAbi, deployment, isDeployed, marketsMask, type Leader } from "@/lib/copas/contracts";
 import { getReferrer } from "@/lib/copas/referral";
-import { num, pct, usd } from "@/lib/format";
+import { num, pct, toAusd, usd } from "@/lib/format";
 import { Panel, btn } from "@/components/ui";
 import { AnalysisPanel, BacktestPanel, SimulatePreview, type FollowerSettings } from "@/components/services";
 import { copasChain } from "@/lib/chains";
@@ -32,7 +32,6 @@ function Field({ id, label, hint, error, ...p }: { id: string; label: string; hi
 }
 
 type Form = { deposit: string; ratio: string; maxNotional: string; maxLev: string; chase: string; band: string; stop: string };
-const toUnits = (v: number) => parseUnits(v.toFixed(6), 6); // String(1e-7) is not a decimal parseUnits accepts
 
 export function FollowTicket({ leader: l, maxDeposit }: { leader: Leader; maxDeposit: number | null }) {
   const L = useL();
@@ -51,13 +50,15 @@ export function FollowTicket({ leader: l, maxDeposit }: { leader: Leader; maxDep
   const err: Partial<Record<keyof Form, string>> = {};
   if (!(n.deposit >= MIN_DEPOSIT)) err.deposit = L(`Minimal ${MIN_DEPOSIT} AUSD.`, `Enter at least ${MIN_DEPOSIT} AUSD.`);
   else if (cap && n.deposit > cap) err.deposit = L(`Registry membatasi ${cap} AUSD per vault.`, `The registry caps each vault at ${cap} AUSD.`);
-  if (!(n.ratio > 0)) err.ratio = L("Rasio harus di atas 0%.", "Enter a ratio above 0%.");
+  if (!(n.ratio >= 0.01)) err.ratio = L("Rasio minimal 0.01% (1 bps).", "Enter a ratio of at least 0.01% (1 bps).");
   else if (n.ratio > 100) err.ratio = L("Rasio maksimal 100% dari ukuran leader.", "The ratio can't exceed 100% of the leader's size.");
-  if (!(n.maxNotional > 0)) err.maxNotional = L("Masukkan jumlah positif.", "Enter a positive amount.");
+  if (!(n.maxNotional >= 1)) err.maxNotional = L("Minimal 1 AUSD.", "Enter at least 1 AUSD.");
+  else if (n.maxNotional > 1e12) err.maxNotional = L("Jumlah terlalu besar.", "That amount is too large.");
   if (!(n.maxLev >= 1)) err.maxLev = L("Minimal 1x.", "Use at least 1x.");
   else if (n.maxLev > l.maxLeverage) err.maxLev = L(`Mandat leader maksimal ${l.maxLeverage}x.`, `The leader's mandate allows at most ${l.maxLeverage}x.`);
-  if (!(n.chase >= 0)) err.chase = L("Masukkan 0 bps atau lebih.", "Enter 0 bps or more.");
-  if (!(n.band > 0)) err.band = L("Pita harus di atas 0 bps.", "Enter a band above 0 bps.");
+  // bps fields are uint32 onchain; past 100% they mean nothing anyway
+  if (!(n.chase >= 0 && n.chase <= 10_000)) err.chase = L("Gunakan 0 sampai 10.000 bps.", "Use 0 to 10,000 bps.");
+  if (!(n.band >= 1 && n.band <= 10_000)) err.band = L("Gunakan 1 sampai 10.000 bps.", "Use 1 to 10,000 bps.");
   if (!(n.stop >= 0 && n.stop <= 90)) err.stop = L("Gunakan 0 sampai 90%.", "Use 0 to 90%.");
   const invalid = Object.keys(err).length > 0 || !mkts.length;
   const ok = (k: keyof Form) => (err[k] ? null : n[k]);
@@ -86,7 +87,7 @@ export function FollowTicket({ leader: l, maxDeposit }: { leader: Leader; maxDep
         maxChaseBps: Math.round(n.chase),
         priceBandBps: Math.round(n.band),
         stopLossBps: Math.round(n.stop * 100),
-        maxNotionalCNS: toUnits(n.maxNotional),
+        maxNotionalCNS: toAusd(n.maxNotional),
         marketsMask: marketsMask(mkts),
       };
 
@@ -99,7 +100,7 @@ export function FollowTicket({ leader: l, maxDeposit }: { leader: Leader; maxDep
     const vaults = (await copasPublic.readContract({ ...reg, functionName: "vaultsOf", args: [address] })) as `0x${string}`[];
     const vault = vaults[vaults.length - 1];
     const v = { address: vault, abi: copasAbi.FollowerVault as Abi };
-    const amt = toUnits(n.deposit);
+    const amt = toAusd(n.deposit);
     await write("small", { address: deployment.ausd, abi: erc20Abi as Abi, functionName: "approve", args: [vault, amt] });
     await write("small", { ...v, functionName: "deposit", args: [amt] });
     const ref = getReferrer();
@@ -112,7 +113,7 @@ export function FollowTicket({ leader: l, maxDeposit }: { leader: Leader; maxDep
       <div className="space-y-6">
         <Panel title={L("Setelan copy", "Copy settings")}>
           <div className="grid gap-5 sm:grid-cols-2">
-            <Field id="f-deposit" label={L("Setoran (AUSD)", "Deposit (AUSD)")} hint={cap ? L(`Registry membatasi ${cap} AUSD per vault.`, `The registry caps each vault at ${cap} AUSD.`) : undefined} error={err.deposit} min={MIN_DEPOSIT} max={cap ?? undefined} step={1} value={f.deposit} onChange={on("deposit")} />
+            <Field id="f-deposit" label={L("Setoran (AUSD)", "Deposit (AUSD)")} hint={cap && !err.deposit ? L(`Registry membatasi ${cap} AUSD per vault.`, `The registry caps each vault at ${cap} AUSD.`) : undefined} error={err.deposit} min={MIN_DEPOSIT} max={cap ?? undefined} step={1} value={f.deposit} onChange={on("deposit")} />
             <Field
               id="f-ratio"
               label={L("Rasio copy (% dari ukuran leader)", "Copy ratio (% of leader size)")}
@@ -186,7 +187,7 @@ export function FollowTicket({ leader: l, maxDeposit }: { leader: Leader; maxDep
           </h2>
           <ul className="mt-2 list-disc space-y-1.5 pl-5 text-ink-2">
             <li>
-              {t("risk.body1")} {L(`Saat ini: ${usd(l.bond + l.underwritten, { dp: 0 })} untuk AUM ${usd(l.followerAum + dep, { dp: 0 })}.`, `Right now: ${usd(l.bond + l.underwritten, { dp: 0 })} against ${usd(l.followerAum + dep, { dp: 0 })} AUM.`)}
+              {t("risk.body1")} {L(`Setelah kamu masuk: ${usd(l.bond + l.underwritten, { dp: 0 })} untuk AUM ${usd(l.followerAum + dep, { dp: 0 })}.`, `Once you join: ${usd(l.bond + l.underwritten, { dp: 0 })} against ${usd(l.followerAum + dep, { dp: 0 })} AUM.`)}
             </li>
             <li>{t("risk.body2")}</li>
             <li>{L("Fill kamu bisa lebih buruk dari leader: order IOC taker, jeda 1 sampai 3 blok.", "Your fills can be worse than the leader's: taker IOC orders, 1 to 3 blocks behind.")}</li>

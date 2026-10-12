@@ -2,14 +2,14 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { erc20Abi, parseUnits, type Abi } from "viem";
+import { erc20Abi, type Abi } from "viem";
 import { Empty, Panel, btn } from "@/components/ui";
 import { DDMeter, StatusPill } from "@/components/copas";
 import { useL } from "@/lib/i18n/client";
 import { useMeraSession } from "@/lib/mera/MeraProvider";
 import { copasPublic, useCopasWrite } from "@/lib/copas/useCopasWrite";
 import { copasAbi, deployment, type LeaderStatus } from "@/lib/copas/contracts";
-import { num, usd } from "@/lib/format";
+import { num, toAusd, usd } from "@/lib/format";
 
 export type PoolRow = {
   book: `0x${string}`;
@@ -65,7 +65,7 @@ export function Pools({ rows }: { rows: PoolRow[] }) {
 
   async function deposit() {
     if (!row || !deployment?.ausd) return;
-    const a = parseUnits(String(amt), 6);
+    const a = toAusd(Number(amt));
     // risky: one passkey prompt; the deposit signs inside the renewed session
     if (!(await write("risky", { address: deployment.ausd, abi: erc20Abi as Abi, functionName: "approve", args: [row.pool, a] }))) return;
     done(await write("small", { address: row.pool, abi: uw, functionName: "deposit", args: [a] }));
@@ -137,7 +137,7 @@ export function Pools({ rows }: { rows: PoolRow[] }) {
                 <span className="text-ink-2">{L("Setor (AUSD)", "Deposit (AUSD)")}</span>
                 <input type="number" min={1} step={1} value={amt} onChange={(e) => setAmt(Number(e.target.value))} className={input} />
               </label>
-              <button disabled={pending || amt <= 0 || row.status !== "active"} onClick={deposit} className={btn.primary + " w-full"}>
+              <button disabled={pending || !(amt >= 0.000001 && amt < 1e12) || row.status !== "active"} onClick={deposit} className={btn.primary + " w-full"}>
                 {L("Setor ke pool", "Deposit to pool")}
               </button>
               {me && me.pending > 0n ? (

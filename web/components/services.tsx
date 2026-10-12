@@ -198,8 +198,8 @@ export function AlignmentBadge({ perplAddress }: { perplAddress?: string }) {
   });
   if (!q.data?.ok) return null; // Nansen not configured: show nothing rather than a fake score
   const d = q.data.data;
-  // credits out (or no data) answers 200 with null scores: say so instead of showing "–"
-  if (d.composite.score == null && d.alignment.score == null) return d.unavailable ? <span className="inline-flex rounded border border-line px-2 py-1 text-xs text-ink-3">{L("Data smart money tidak tersedia", "Smart-money data unavailable")}</span> : null;
+  // credits out (or no data) answers 200 with null scores: a badge with nothing in it is noise, so show nothing
+  if (d.composite.score == null && d.alignment.score == null) return null;
   const by = d.alignment.poweredBy ?? d.composite.poweredBy;
   return (
     <span className="inline-flex items-center gap-2 rounded border border-line-strong px-2 py-1 text-xs">
@@ -236,7 +236,7 @@ export function AttestedBadge({ perplAddress }: { perplAddress?: string }) {
     <span className="inline-flex flex-wrap items-center gap-2 rounded border border-gold/40 px-2 py-1 text-xs">
       <span className="text-gold-2">{a.label}</span>
       <span className="num text-ink-2">
-        PnL 30d {usd(Number(a.record.pnl30d), { sign: true, dp: 0 })} · WR {pct(a.record.winRateBps / 100, 0)} · {a.record.closedTrades} trades
+        PnL 30d {usd(Number(a.record.pnl30d), { sign: true, dp: Math.abs(Number(a.record.pnl30d)) < 10 ? 2 : 0 })} · WR {pct(a.record.winRateBps / 100, 0)} · {a.record.closedTrades} {a.record.closedTrades === 1 ? "trade" : "trades"}
       </span>
       {(a.record.complete ?? a.complete) === false && <span className="text-warn">{L("histori parsial", "partial history")}</span>}
       <button onClick={check} className="text-ink-3 underline-offset-2 hover:text-ink-2 hover:underline">

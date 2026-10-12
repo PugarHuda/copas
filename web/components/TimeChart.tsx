@@ -21,7 +21,7 @@ export type ChartSeries = {
   data: { t: number; v: number; color?: string }[]; // t in ms
 };
 
-const fmt = (f: "usd" | "pct" | "num", v: number) => (f === "usd" ? usd(v, { compact: true }) : f === "pct" ? pct(v, 2, true) : num(v, 2, true));
+const fmt = (f: "usd" | "pct" | "num", v: number) => (f === "usd" ? usd(v, { compact: true }) : f === "pct" ? pct(v, 2, true) : num(v, Math.abs(v) < 10 ? 4 : 2, true)); // unit prices hover near 1.0; 2 dp would read "1.00" for every point
 
 /**
  * Thin wrapper on lightweight-charts: one value axis, recessive grid,

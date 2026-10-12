@@ -3,7 +3,7 @@ import { Hero3D } from "./Hero3D";
 
 type Stats = { leaders: number | null; bonded: number; bond: number | null; breached: number; followerAum: number };
 /** Lifetime indexer counters (lib/copas/indexer protocolMetrics); null when the indexer is down. */
-type Metrics = { followers: number; syncs: number; slashPaid: number; claims: number; vaults: number; upkeep: number } | null;
+type Metrics = { slashedLeaders: number; followers: number; syncs: number; slashPaid: number; claims: number; vaults: number; upkeep: number } | null;
 type Lx = (id: string, en: string) => string;
 
 const fmt = (n: number) => n.toLocaleString("en-US", { maximumFractionDigits: 0 });
@@ -19,7 +19,7 @@ export function Landing({ stats, metrics, L }: { stats: Stats; metrics: Metrics;
         "An AUSD bond and an onchain mandate: max drawdown, leverage, size, markets. No bond, no followers.",
       ),
       k: `${fmt(stats.bonded)} AUSD`,
-      kl: L("dijaminkan sekarang", "bonded right now"),
+      kl: L("dipertaruhkan sekarang (jaminan + underwriter)", "at stake now (bonds + underwriters)"),
     },
     {
       n: "02",
@@ -38,8 +38,8 @@ export function Landing({ stats, metrics, L }: { stats: Stats; metrics: Metrics;
         "Ekuitas dibaca langsung dari state Perpl, tanpa oracle. Pelanggaran memotong jaminan ke follower secara otomatis.",
         "Equity is read straight from Perpl state, no oracle. A breach slashes the bond to followers automatically.",
       ),
-      k: String(stats.breached),
-      kl: L("leader pernah dipotong", stats.breached === 1 ? "leader slashed so far" : "leaders slashed so far"),
+      k: String(metrics?.slashedLeaders ?? stats.breached),
+      kl: L("leader pernah dipotong", (metrics?.slashedLeaders ?? stats.breached) === 1 ? "leader slashed so far" : "leaders slashed so far"),
     },
   ];
 
@@ -77,7 +77,7 @@ export function Landing({ stats, metrics, L }: { stats: Stats; metrics: Metrics;
         </div>
         <div className="mt-4 grid grid-cols-2 gap-x-6 gap-y-5 sm:grid-cols-3 lg:grid-cols-6">
           {[
-            { k: "AUSD bonded", v: stats.bond == null ? "–" : fmt(stats.bond), s: stats.leaders == null ? "registry read failed" : `across ${stats.leaders} ${stats.leaders === 1 ? "leader" : "leaders"}` },
+            { k: "AUSD leader bonds", v: stats.bond == null ? "–" : fmt(stats.bond), s: stats.leaders == null ? "registry read failed" : `across ${stats.leaders} ${stats.leaders === 1 ? "leader" : "leaders"}` },
             { k: "Active followers", v: metrics ? fmt(metrics.followers) : "–", s: "follows live now" },
             { k: "Copy syncs executed", v: metrics ? fmt(metrics.syncs) : "–", s: "Synced events onchain" },
             { k: "AUSD slashes paid", v: metrics ? metrics.slashPaid.toLocaleString("en-US", { maximumFractionDigits: metrics.slashPaid < 1 ? 4 : 2 }) : "–", s: metrics ? `${metrics.claims} ${metrics.claims === 1 ? "claim" : "claims"} by followers` : "" },

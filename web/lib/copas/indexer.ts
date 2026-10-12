@@ -199,13 +199,14 @@ const all = <T,>(entity: string, fields: string, where = "") =>
 export async function protocolMetrics() {
   if (!indexerConfigured()) return null;
   try {
-    const [followers, fills, claims, vaults, checkpoints, epochs] = await Promise.all([
+    const [followers, fills, claims, vaults, checkpoints, epochs, breaches] = await Promise.all([
       all<{ id: string }>("Follower", "id", ", active: { _eq: true }"),
       all<{ id: string }>("CopyFill", "id"),
       all<{ amountCNS: string }>("Claim", "amountCNS"),
       all<{ id: string }>("Vault", "id"),
       all<{ id: string }>("Checkpoint", "id"),
       all<{ epoch: number }>("Epoch", "epoch", ", epoch: { _gt: 1 }"), // epoch 1 starts with the first deposit; later rows are rollEpoch calls
+      all<{ leader_id: string }>("Breach", "leader_id"),
     ]);
     return {
       followers: followers.length,
@@ -214,6 +215,8 @@ export async function protocolMetrics() {
       claims: claims.length,
       vaults: vaults.length,
       upkeep: checkpoints.length + epochs.length + fills.length,
+      // a slashed leader drops to Unbonded onchain, so count distinct leaders with a Breach row, not status == breached
+      slashedLeaders: new Set(breaches.map((b) => b.leader_id)).size,
     };
   } catch {
     return null;
