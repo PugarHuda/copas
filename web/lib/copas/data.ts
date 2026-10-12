@@ -55,6 +55,13 @@ export async function maxVaultDeposit(): Promise<number | null> {
   return client.readContract({ address: deployment.registry, abi: copasAbi.CopasRegistry as Abi, functionName: "maxVaultDepositCNS" }).then(A, () => null);
 }
 
+/** Perpl's minimum first deposit (getMinAccountOpenCNS) in AUSD: a vault's first deposit opens its Perpl account. Null when unreadable. */
+export async function minVaultOpen(): Promise<number | null> {
+  const ex = (deployment as { exchange?: `0x${string}` } | undefined)?.exchange;
+  if (!ex) return null;
+  return client.readContract({ address: ex, abi: parseAbi(["function getMinAccountOpenCNS() view returns (uint256)"]), functionName: "getMinAccountOpenCNS" }).then(A, () => null);
+}
+
 /** Live LeaderBook equity/unit/peak, or null when the address is not a Copas LeaderBook. Throws on RPC failure. */
 export async function leaderBookLive(book: `0x${string}`) {
   if (!deployment?.registry) return null;

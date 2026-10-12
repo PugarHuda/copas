@@ -38,15 +38,19 @@ test("fresh passkey account follows a bonded leader onchain", async ({ page, con
 
   const pub = createPublicClient({ chain, transport: http() });
   const funder = createWalletClient({ account: privateKeyToAccount(key!), chain, transport: http() });
-  await pub.waitForTransactionReceipt({ hash: await funder.sendTransaction({ to: me, value: parseEther("0.1") }) });
+  await pub.waitForTransactionReceipt({ hash: await funder.sendTransaction({ to: me, value: parseEther("1")  /* same as the judge faucet; Monad charges the gas limit, createVault alone reserves ~0.37 MON */ }) });
   await pub.waitForTransactionReceipt({ hash: await funder.writeContract({ address: AUSD_FAUCET, abi, functionName: "requestFunds", args: [me] }) });
   expect(await pub.readContract({ address: AUSD, abi, functionName: "balanceOf", args: [me] })).toBeGreaterThanOrEqual(10_000_000n);
 
   await page.goto(`/follow/${LEADER}`);
-  await page.locator("#f-deposit").fill("10");
+  // a full page load drops the in-memory passkey session (by design): sign in again like a returning user
+  await page.getByRole("button", { name: "Sign in with passkey" }).first().click();
+  await page.getByRole("button", { name: "Sign in with passkey" }).last().click(); // the header button opens a menu
+  await expect(page.getByRole("button", { name: /Follow .* with/ })).toBeVisible({ timeout: 30_000 });
+  await page.locator("#f-deposit").fill("100"); // Perpl getMinAccountOpenCNS = registry cap = 100
   await page.locator("#f-notional").fill("20");
   await page.getByLabel("I understand these limits on protection.").check();
-  await page.getByRole("button", { name: /Follow .* with 10 AUSD/ }).click();
+  await page.getByRole("button", { name: /Follow .* with 100 AUSD/ }).click();
   await expect(page.getByText("Vault active.")).toBeVisible({ timeout: 240_000 });
 
   const vaults = await pub.readContract({ address: REGISTRY, abi, functionName: "vaultsOf", args: [me] });

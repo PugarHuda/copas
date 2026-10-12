@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
-import { getLeader, maxVaultDeposit } from "@/lib/copas/data";
+import { getLeader, maxVaultDeposit, minVaultOpen } from "@/lib/copas/data";
 import { getT } from "@/lib/i18n/server";
 import { isAddress } from "@/lib/format";
 import { Empty, Panel, btn } from "@/components/ui";
@@ -22,7 +22,7 @@ export default async function FollowPage({ params }: { params: P }) {
   if (!isAddress(addr)) notFound();
   const { t, lang } = await getT();
   const L = (a: string, b: string) => (lang === "id" ? a : b);
-  const [l, maxDeposit] = await Promise.all([getLeader(addr), maxVaultDeposit()]);
+  const [l, maxDeposit, minDeposit] = await Promise.all([getLeader(addr), maxVaultDeposit(), minVaultOpen()]);
   if (!l)
     return (
       <Empty>
@@ -50,7 +50,7 @@ export default async function FollowPage({ params }: { params: P }) {
         </div>
       </div>
       {l.status === "active" ? (
-        <FollowTicket leader={l} maxDeposit={maxDeposit} />
+        <FollowTicket leader={l} maxDeposit={maxDeposit} minDeposit={minDeposit} />
       ) : (
         <Panel title={L("Leader ini tidak bisa diikuti", "This leader can't be followed")}>
           <p className="max-w-2xl text-sm text-ink-2">

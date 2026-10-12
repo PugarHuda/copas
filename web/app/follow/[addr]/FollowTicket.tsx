@@ -13,7 +13,6 @@ import { AnalysisPanel, BacktestPanel, SimulatePreview, type FollowerSettings } 
 import { copasChain } from "@/lib/chains";
 import { FundPanel } from "@/components/FundPanel";
 
-const MIN_DEPOSIT = 10;
 const input = "num mt-1 w-full rounded-md border border-line-strong bg-bg px-3 py-2 text-sm focus:border-gold focus:outline-none aria-[invalid=true]:border-down";
 
 /** Number input with its hint and error wired through aria-describedby (not nested in the label). */
@@ -33,12 +32,14 @@ function Field({ id, label, hint, error, ...p }: { id: string; label: string; hi
 
 type Form = { deposit: string; ratio: string; maxNotional: string; maxLev: string; chase: string; band: string; stop: string };
 
-export function FollowTicket({ leader: l, maxDeposit }: { leader: Leader; maxDeposit: number | null }) {
+export function FollowTicket({ leader: l, maxDeposit, minDeposit }: { leader: Leader; maxDeposit: number | null; minDeposit: number | null }) {
   const L = useL();
   const { t } = useT();
   const { status, address } = useMeraSession();
   const { write, pending, error } = useCopasWrite();
   const cap = maxDeposit || null; // 0 on chain = no cap
+  // a new vault's first deposit opens its Perpl account, which reverts below Perpl's minimum (100 AUSD on testnet)
+  const MIN_DEPOSIT = minDeposit ?? 1;
   const [f, setF] = useState<Form>({ deposit: String(cap && cap < 100 ? cap : 100), ratio: "2", maxNotional: "300", maxLev: String(Math.min(5, l.maxLeverage)), chase: "100", band: "50", stop: "20" });
   const on = (k: keyof Form) => (e: React.ChangeEvent<HTMLInputElement>) => setF({ ...f, [k]: e.target.value });
   const [mkts, setMkts] = useState<string[]>(l.markets);
@@ -48,7 +49,7 @@ export function FollowTicket({ leader: l, maxDeposit }: { leader: Leader; maxDep
   // empty reads as NaN so every check below fails closed
   const n = Object.fromEntries(Object.entries(f).map(([k, v]) => [k, v.trim() === "" ? NaN : Number(v)])) as Record<keyof Form, number>;
   const err: Partial<Record<keyof Form, string>> = {};
-  if (!(n.deposit >= MIN_DEPOSIT)) err.deposit = L(`Minimal ${MIN_DEPOSIT} AUSD.`, `Enter at least ${MIN_DEPOSIT} AUSD.`);
+  if (!(n.deposit >= MIN_DEPOSIT)) err.deposit = L(`Minimal ${MIN_DEPOSIT} AUSD: setoran pertama membuka akun Perpl vault.`, `Enter at least ${MIN_DEPOSIT} AUSD: the first deposit opens the vault's Perpl account.`);
   else if (cap && n.deposit > cap) err.deposit = L(`Registry membatasi ${cap} AUSD per vault.`, `The registry caps each vault at ${cap} AUSD.`);
   if (!(n.ratio >= 0.01)) err.ratio = L("Rasio minimal 0.01% (1 bps).", "Enter a ratio of at least 0.01% (1 bps).");
   else if (n.ratio > 100) err.ratio = L("Rasio maksimal 100% dari ukuran leader.", "The ratio can't exceed 100% of the leader's size.");

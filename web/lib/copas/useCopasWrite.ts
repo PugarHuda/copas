@@ -1,6 +1,6 @@
 "use client";
 import { useCallback, useState } from "react";
-import { createPublicClient, createWalletClient, type Abi } from "viem";
+import { createPublicClient, createWalletClient, parseEther, type Abi } from "viem";
 import { copasChain, rpcTransport } from "../chains";
 import { toUiError, useMeraSession, type ActionRisk } from "../mera/MeraProvider";
 import { isDeployed } from "./contracts";
@@ -14,7 +14,7 @@ type Call = { address: `0x${string}`; abi: Abi; functionName: string; args?: rea
  * `risk` decides whether the live session may sign (small) or the passkey must be re-presented (risky). See SPEC E2.
  */
 export function useCopasWrite() {
-  const { authorize } = useMeraSession();
+  const { authorize, address } = useMeraSession();
   const [pending, setPending] = useState(false);
   const [hash, setHash] = useState<`0x${string}`>();
   const [error, setError] = useState<string>();
@@ -36,12 +36,17 @@ export function useCopasWrite() {
         return h;
       } catch (e) {
         const code = (e as { code?: unknown })?.code;
+        // Monad rejects a tx whose gas limit x fee exceeds the balance with -32602 "Missing or invalid parameters"
+        if (code === -32602 && address && (await copasPublic.getBalance({ address }).catch(() => 1n)) < parseEther("0.5")) {
+          setError("Not enough MON for gas. Use “Get testnet MON + AUSD” in the account menu, then try again.");
+          return;
+        }
         setError(code === "TIMEOUT" || code === "CANCELLED" ? toUiError(e).message.en : e instanceof Error ? e.message.split("\n")[0] : String(e));
       } finally {
         setPending(false);
       }
     },
-    [authorize],
+    [authorize, address],
   );
 
   return { write, pending, hash, error };
