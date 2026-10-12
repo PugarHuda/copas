@@ -56,6 +56,11 @@ jobs:
           for i in $(seq 1 "$n"); do
             echo "### tick $i/$n $(date -u +%H:%M:%SZ)" >> "$GITHUB_STEP_SUMMARY"
             pnpm tick || echo "::warning::tick $i failed"
+            # ERC-8004 reputation for agent leaders, hourly (epochs are >= 1 h); idempotent per rater, so reruns are safe
+            if [ $((i % 12)) -eq 1 ] && [ -n "$REPUTATION_PRIVATE_KEY" ]; then
+              pnpm exec tsx scripts/reputation.ts > reputation.log || echo "::warning::reputation $i failed"
+              grep -o '0x[0-9a-f]\{64\}' reputation.log | sed 's|^|- ERC-8004 feedback https://testnet.monadscan.com/tx/|' >> "$GITHUB_STEP_SUMMARY" || true
+            fi
             [ "$i" -lt "$n" ] && sleep 300
           done
         env: # secrets only reach the step that signs
@@ -65,6 +70,11 @@ jobs:
           PRIVY_WALLET_ID: ${{ secrets.PRIVY_WALLET_ID }}
           # DOWN market maker (keeper/src/mm.ts): plain key holding MON + AUSD. Unset = the tick skips market making.
           MM_PRIVATE_KEY: ${{ secrets.MM_PRIVATE_KEY }}
+          # gas throttle, tunable via repo variables without a commit (keeper/src/mm.ts)
+          MM_LEADERS: ${{ vars.MM_LEADERS }}
+          MM_SERIES_EVERY: ${{ vars.MM_SERIES_EVERY }}
+          # ERC-8004 feedback rater (keeper/scripts/reputation.ts): plain key, not an agent owner. Unset = skipped.
+          REPUTATION_PRIVATE_KEY: ${{ secrets.REPUTATION_PRIVATE_KEY }}
           # optional: Telegram channel alerts (keeper/README.md). Unset = the tick skips alerts.
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
