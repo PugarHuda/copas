@@ -1,8 +1,7 @@
-# Vercel builds only web/ (root dir), which reads ../abis and ../contracts/deployments at prebuild.
+# Shared by both Vercel projects (copas: root dir web; copas-services: root dir services). Keep what either build reads.
 /indexer
 /keeper/*
 !/keeper/logs
-/services
 /cre
 /onramp
 /plugin
