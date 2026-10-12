@@ -23,12 +23,28 @@ const FAUCET_ERR: Record<string, string> = {
   network: "Network error. Try again.",
 };
 
+/** Telegram's in-app webview / Mini App (no WebAuthn there): its JS bridge, the Mini App launch hash, or a flag from earlier in this tab. */
+function useInTelegram() {
+  const [tg, setTg] = useState(false);
+  useEffect(() => {
+    try {
+      const hit = "TelegramWebviewProxy" in window || location.hash.includes("tgWebApp") || sessionStorage.getItem("copas:tg") === "1";
+      if (hit) sessionStorage.setItem("copas:tg", "1");
+      setTg(hit);
+    } catch {
+      /* storage blocked: detection by bridge/hash only */
+    }
+  }, []);
+  return tg;
+}
+
 export function AccountButton() {
   const { status, address, expiresAt, error, create, signIn, signOut, cancel } = useMeraSession();
   const { t, lang } = useT();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const left = useMinutesLeft(expiresAt);
+  const inTelegram = useInTelegram();
   const [drip, setDrip] = useState<string>();
   const getTestFunds = async () => {
     setDrip("…");
@@ -93,14 +109,23 @@ export function AccountButton() {
               ? "Akun Copas adalah passkey kamu. Tidak ada seed phrase, tidak ada kunci di server."
               : "Your Copas account is your passkey. No seed phrase, no key on any server."}
           </p>
-          <div className="mt-3 grid gap-2">
-            <button className={btn.primary} onClick={() => quiet(signIn())}>
-              {t("auth.signin")}
-            </button>
-            <button className={btn.ghost} onClick={() => quiet(create())}>
-              {t("auth.create")}
-            </button>
-          </div>
+          {inTelegram ? (
+            <div className="mt-3 grid gap-2">
+              <p className="text-xs text-warn">Passkeys don&apos;t work inside Telegram. Open Copas in your browser to sign in; everything else works here.</p>
+              <a className={btn.primary + " text-center"} href={typeof window === "undefined" ? "/" : location.href.split("#")[0]} target="_blank" rel="noreferrer">
+                Open in browser to sign in
+              </a>
+            </div>
+          ) : (
+            <div className="mt-3 grid gap-2">
+              <button className={btn.primary} onClick={() => quiet(signIn())}>
+                {t("auth.signin")}
+              </button>
+              <button className={btn.ghost} onClick={() => quiet(create())}>
+                {t("auth.create")}
+              </button>
+            </div>
+          )}
           {error && (
             <p role="alert" className="mt-3 text-xs leading-relaxed text-down">
               {error.message[lang]}
