@@ -8,7 +8,7 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { type Abi, type Hex, createPublicClient, decodeEventLog, erc20Abi, http } from "viem";
-import { type Fetch, env, getJson } from "./util.js";
+import { type Fetch, env, getJson, rpcUrl } from "./util.js";
 
 export interface SimTx {
   from: `0x${string}`;
@@ -28,7 +28,6 @@ export interface SimResult {
   url?: string;
 }
 
-const rpc = (): Record<number, string> => ({ 143: env("MONAD_RPC_URL") ?? "https://rpc.monad.xyz", 10143: env("MONAD_TESTNET_RPC_URL") ?? "https://testnet-rpc.monad.xyz" });
 
 let abis: Abi[] | undefined;
 function loadAbis(): Abi[] {
@@ -87,7 +86,7 @@ export async function simulate(tx: SimTx, opts: { fetch?: Fetch } = {}): Promise
   }
 
   // fallback: eth_simulateV1 with asset tracing (viem decodes ERC-20 + native balance diffs of `from`)
-  const client = createPublicClient({ transport: http(rpc()[chainId] ?? rpc()[143], opts.fetch ? { fetchFn: opts.fetch } : undefined) });
+  const client = createPublicClient({ transport: http(rpcUrl(chainId), opts.fetch ? { fetchFn: opts.fetch } : undefined) });
   const { results, assetChanges } = await client.simulateCalls({
     account: tx.from,
     calls: [{ to: tx.to, data: tx.data, value: tx.value ? BigInt(tx.value) : undefined }],

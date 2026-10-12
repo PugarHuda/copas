@@ -11,7 +11,8 @@
  *      * plumb (third-party mainnet Perpl indexer, https://plumb.huginn.tech/api/v1/wallets/:addr/trades).
  *    See fetchFills.
  */
-import { type Fetch, env, getJson, median, round, sum } from "./util.js";
+import { BaseError, ContractFunctionRevertedError, createPublicClient, http, parseAbi } from "viem";
+import { type Fetch, env, getJson, median, round, rpcUrl, sum } from "./util.js";
 
 export const PERPL_API = "https://app.perpl.xyz/api/v1";
 export const PLUMB_API = "https://plumb.huginn.tech/api/v1";
@@ -30,6 +31,38 @@ export const TESTNET_MARKETS: Record<number, { symbol: string; priceDecimals: nu
   48: { symbol: "SOL", priceDecimals: 2, lotDecimals: 3 },
   64: { symbol: "MON", priceDecimals: 5, lotDecimals: 0 },
 };
+
+/** Perpl Exchange per chain (docs/SPEC.md §2.2). */
+export const PERPL_EXCHANGE: Record<number, `0x${string}`> = { [MAINNET]: "0x34B6552d57a35a1D042CcAe1951BD1C370112a6F", [TESTNET]: "0x1964C32f0bE608E7D29302AFF5E61268E72080cc" };
+const MULTICALL3 = "0xcA11bde05977b3631167028862bE2a173976CA11";
+export const PERPL_ABI = parseAbi([
+  "struct PositionInfo { uint256 accountId; uint256 nextNodeId; uint256 prevNodeId; uint8 positionType; uint256 depositCNS; uint256 pricePNS; uint256 lotLNS; uint256 entryBlock; int256 pnlCNS; int256 deltaPnlCNS; int256 premiumPnlCNS; }",
+  "function getPosition(uint256 perpId, uint256 accountId) view returns (PositionInfo positionInfo, uint256 markPricePNS, bool markPriceValid)",
+  "struct PerpetualInfo { string name; string symbol; uint256 priceDecimals; uint256 lotDecimals; bytes32 linkFeedId; uint256 priceTolPer100K; uint256 marginTol; uint256 marginTolDecimals; uint256 refPriceMaxAgeSec; uint256 positionBalanceCNS; uint256 insuranceBalanceCNS; uint256 markPNS; uint256 markTimestamp; uint256 lastPNS; uint256 lastTimestamp; uint256 oraclePNS; uint256 oracleTimestampSec; uint256 longOpenInterestLNS; uint256 shortOpenInterestLNS; uint256 fundingStartBlock; int16 fundingRatePct100k; uint256 absFundingClampPctPer100K; uint8 status; uint256 basePricePNS; uint256 maxBidPriceONS; uint256 minBidPriceONS; uint256 maxAskPriceONS; uint256 minAskPriceONS; uint256 numOrders; bool ignOracle; }",
+  "function getPerpetualInfo(uint256 perpId) view returns (PerpetualInfo perpetualInfo)",
+  "struct PositionBitMap { uint256 bank1; uint256 bank2; uint256 bank3; uint256 bank4; }",
+  "struct AccountInfo { uint256 accountId; uint256 balanceCNS; uint256 lockedBalanceCNS; uint8 frozen; address accountAddr; PositionBitMap positions; }",
+  "function getAccountByAddr(address accountAddress) view returns (AccountInfo accountInfo)",
+]);
+
+/** A live Perpl position (exchange getPosition), not derived from fills. */
+export interface OpenPosition {
+  market: number; // perpId
+  symbol: string;
+  side: "long" | "short";
+  size: number; // base units
+  entry: number;
+  mark: number;
+  notional: number; // AUSD at mark
+  margin: number; // AUSD deposited on the position
+  unrealizedPnl: number; // AUSD, incl. funding
+  leverage: number | null; // notional / (margin + unrealized)
+}
+
+/** Closed round trips are the track record; fills or open positions without one are "no closed trades yet", not "no activity". */
+export type Activity = "trading" | "no_closed_trades_yet" | "no_activity";
+export const activityOf = (fills: number, closed: number, open: OpenPosition[] | null): Activity =>
+  closed > 0 ? "trading" : fills > 0 || (open?.length ?? 0) > 0 ? "no_closed_trades_yet" : "no_activity";
 
 export interface Fill {
   ts: number; // unix seconds
@@ -130,6 +163,9 @@ export interface LeaderData {
   closedTrades: ClosedTrade[];
   equityCurve: EquityPoint[];
   stats: LeaderStats;
+  /** Live positions read from the Perpl exchange now; null = RPC unavailable (unknown, not "none"). */
+  openPositions: OpenPosition[] | null;
+  activity: Activity;
 }
 
 // ------------------------------------------------------------------ sources
@@ -271,6 +307,65 @@ export async function fetchEnvioAccounts(url: string, addresses: string[], f: Fe
   return new Map(d.Account.map(({ address, ...a }) => [address, a]));
 }
 
+/**
+ * Live open positions: Perpl getPosition (+ getPerpetualInfo for decimals) for every known market in one multicall.
+ * accountId: the Envio Account id on this chain if known, else getAccountByAddr (reverts = no Perpl account = []).
+ * Returns null when the RPC fails, so callers can say "unknown" instead of "none".
+ */
+export async function fetchOpenPositions(address: string, chainId: number, accountId: string | null, f: Fetch = fetch): Promise<OpenPosition[] | null> {
+  const client = createPublicClient({ transport: http(rpcUrl(chainId), { fetchFn: f, retryCount: 1, timeout: 8000 }) });
+  const ex = { address: PERPL_EXCHANGE[chainId] ?? PERPL_EXCHANGE[MAINNET], abi: PERPL_ABI } as const;
+  try {
+    let id = accountId ? BigInt(accountId) : null;
+    if (id == null) {
+      const a = await client.readContract({ ...ex, functionName: "getAccountByAddr", args: [address as `0x${string}`] }).catch((e) => {
+        if (e instanceof BaseError && e.walk((x) => x instanceof ContractFunctionRevertedError)) return null;
+        throw e;
+      });
+      if (!a || a.accountId === 0n) return [];
+      id = a.accountId;
+    }
+    const ids = Object.keys(chainId === TESTNET ? TESTNET_MARKETS : MARKETS).map(Number);
+    const contracts = ids.flatMap((m) => [
+      { ...ex, functionName: "getPosition", args: [BigInt(m), id] },
+      { ...ex, functionName: "getPerpetualInfo", args: [BigInt(m)] },
+    ]);
+    const res = (await client.multicall({ multicallAddress: MULTICALL3, contracts: contracts as any })) as { status: string; result?: any }[];
+    const out: OpenPosition[] = [];
+    ids.forEach((m, i) => {
+      const pos = res[2 * i];
+      const info = res[2 * i + 1];
+      if (pos.status !== "success") throw new Error(`getPosition(${m}) failed`);
+      const [p, markPNS] = pos.result;
+      if (p.lotLNS === 0n) return;
+      const t = TESTNET_MARKETS[m];
+      const pd = info.status === "success" ? Number(info.result.priceDecimals) : t?.priceDecimals;
+      const ld = info.status === "success" ? Number(info.result.lotDecimals) : t?.lotDecimals;
+      if (pd == null || ld == null) throw new Error(`no decimals for market ${m}`);
+      const size = Number(p.lotLNS) / 10 ** ld;
+      const mark = Number(markPNS) / 10 ** pd;
+      const margin = Number(p.depositCNS) / 1e6;
+      const unrealizedPnl = Number(p.pnlCNS) / 1e6;
+      const notional = size * mark;
+      out.push({
+        market: m,
+        symbol: chainId === TESTNET ? t.symbol : (MARKETS[m] ?? String(info.result?.symbol ?? m).replace(/_v\d+$/, "")),
+        side: p.positionType === 0 ? "long" : "short",
+        size: round(size, 10),
+        entry: Number(p.pricePNS) / 10 ** pd,
+        mark,
+        notional: round(notional),
+        margin: round(margin),
+        unrealizedPnl: round(unrealizedPnl),
+        leverage: margin + unrealizedPnl > 0 ? round(notional / (margin + unrealizedPnl), 2) : null,
+      });
+    });
+    return out;
+  } catch {
+    return null;
+  }
+}
+
 const sortFills = (xs: Fill[]) => xs.sort((a, b) => a.block - b.block || a.logIndex - b.logIndex);
 
 // ------------------------------------------------------------------ derived
@@ -298,7 +393,10 @@ export function closedTrades(fills: Fill[]): ClosedTrade[] {
     if (x.positionAfter === 0 || flipped) {
       t.closedAt = x.ts;
       t.holdSeconds = x.ts - t.openedAt;
-      t.netPnl = t.pnl - t.fees;
+      t.pnl = round(t.pnl);
+      t.fees = round(t.fees);
+      t.maxNotional = round(t.maxNotional);
+      t.netPnl = round(t.pnl - t.fees);
       t.win = t.netPnl > 0;
       done.push(t);
       open.delete(x.market);
@@ -348,7 +446,7 @@ export function computeStats(fills: Fill[], trades: ClosedTrade[], window: { fro
     fills: fills.length,
     closedTrades: trades.length,
     wins: wins.length,
-    winRate: trades.length ? wins.length / trades.length : 0,
+    winRate: trades.length ? round(wins.length / trades.length, 4) : 0,
     profitFactor: grossLoss > 0 ? round(grossProfit / grossLoss, 4) : null,
     netPnl: round(sum(fills.map((x) => x.pnl - x.fee))),
     grossProfit: round(grossProfit),
@@ -417,6 +515,8 @@ export async function getLeaderData(address: string, opts: LeaderDataOpts = {}):
   const trades = closedTrades(inWindow);
   // the Perpl leaderboard is mainnet only
   const row = src.chainId === MAINNET ? (board.find((r) => r.address === addr) ?? null) : null;
+  const acc = src.envioAccount?.chainId === src.chainId ? src.envioAccount.id : null;
+  const openPositions = await fetchOpenPositions(addr, src.chainId, acc, f);
   return {
     address: addr,
     chainId: src.chainId,
@@ -430,5 +530,7 @@ export async function getLeaderData(address: string, opts: LeaderDataOpts = {}):
     closedTrades: trades,
     equityCurve: equityCurve(inWindow),
     stats: computeStats(inWindow, trades, { from, to }),
+    openPositions,
+    activity: activityOf(inWindow.length, trades.length, openPositions),
   };
 }

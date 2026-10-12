@@ -54,6 +54,9 @@ You EXPLAIN precomputed, deterministic features of a leader to a retail follower
 - Use only numbers that appear in the input. Never invent data, prices or forecasts.
 - Never tell the user to buy, sell or follow; execution is done by deterministic contracts, not by you.
 - "tilt.detected" and "drift.detected" MUST equal the input flags; you only explain them.
+- "activity" is ground truth. If it has fills or open positions, never say the leader has not traded, shows no activity
+  or holds no position. With 0 closed trades say "no closed trades yet" and describe the open positions (side, size,
+  market, entry, unrealized PnL); the styleSummary must restate activity.summary in your words.
 - devilsAdvocate: pick exactly 3 items from input.reasonsNotToFollow (strongest first), keep their "key", explain each with its numbers.
 - Write for a person, not a programmer: never output field names or code identifiers (camelCase, snake_case, "x = 2"),
   never mention "severity", scores or flags, and write dates as dates (e.g. "Oct 3"), never unix timestamps.
@@ -97,6 +100,10 @@ export function kimiCost(usage: { prompt_tokens?: number; completion_tokens?: nu
   return { usage: { promptTokens: prompt, cachedTokens: cached, completionTokens: out }, costUsd: round(costUsd, 6) };
 }
 
+/** LLM text claiming the leader never traded (contradicted by fills or open positions) / holds nothing (contradicted by open positions). */
+const CLAIMS_NO_TRADING = /\b(?:has(?:n't| not)|did(?:n't| not)|never)\s+(?:yet\s+)?(?:executed|made|placed|opened|taken|traded)\b|\bnot\s+(?:executed|made|placed|opened)\s+any\b|\bno\s+(?:trades?|trading|activity|fills?|executions?|orders?)\b|\bzero\s+(?:trades|fills)\b/i;
+const CLAIMS_NO_POSITION = /\bno\s+(?:active|open|current|live)\s+positions?\b|\bnot\s+holding\b|\bholds?\s+no\b/i;
+
 /** Keeps the LLM inside the deterministic facts: flags are overwritten, reasons must come from the candidates. */
 export function guardAnalysis(raw: any, f: Features): Analysis {
   // English only now; `id` mirrors `en` so the response shape (and the web) stays the same.
@@ -118,13 +125,21 @@ export function guardAnalysis(raw: any, f: Features): Analysis {
     seen.add(r.key);
     da.push({ key: r.key, metric: r.metric, value: r.value, en: r.detail, id: r.detail });
   }
-  const level = ["low", "medium", "high"].includes(raw?.riskLevel) ? raw.riskLevel : "medium";
+  const act = f.activity;
+  const traded = !!act && (act.fills > 0 || (act.openPositions?.length ?? 0) > 0);
+  const holds = (act?.openPositions?.length ?? 0) > 0;
+  // a sentence that contradicts the activity facts is replaced by the deterministic summary
+  const fact = (b: Bilingual): Bilingual => ((traded && CLAIMS_NO_TRADING.test(b.en)) || (holds && CLAIMS_NO_POSITION.test(b.en)) ? { en: act!.summary, id: act!.summary } : b);
+  let style = fact(bi(raw?.styleSummary));
+  if (act && act.status !== "trading" && style.en !== act.summary && !/closed trades?/i.test(style.en)) style = { en: `${act.summary} ${style.en}`.trim(), id: `${act.summary} ${style.en}`.trim() };
+  let level = ["low", "medium", "high"].includes(raw?.riskLevel) ? raw.riskLevel : "medium";
+  if (act && act.status !== "trading" && level === "low") level = "medium"; // no track record is never "low risk"
   return {
     riskLevel: level,
-    styleSummary: bi(raw?.styleSummary),
-    tilt: { detected: f.tilt.detected, ...bi(raw?.tilt) },
-    drift: { detected: f.drift.detected, ...bi(raw?.drift) },
-    weeklySummary: bi(raw?.weeklySummary),
+    styleSummary: style,
+    tilt: { detected: f.tilt.detected, ...fact(bi(raw?.tilt)) },
+    drift: { detected: f.drift.detected, ...fact(bi(raw?.drift)) },
+    weeklySummary: fact(bi(raw?.weeklySummary)),
     devilsAdvocate: da,
   };
 }

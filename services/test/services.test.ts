@@ -6,7 +6,8 @@ import { attest, buildTrackRecord, signTrackRecord, verifyAttestation } from "..
 import { backtest } from "../src/backtest.js";
 import { computeFeatures } from "../src/features.js";
 import { analyzeLeader, guardAnalysis, humanize, kimiCost } from "../src/kimi.js";
-import { type Fill, closedTrades, getLeaderData, normalizePlumbRow } from "../src/leaderData.js";
+import { type Hex, decodeFunctionData, encodeFunctionResult, multicall3Abi } from "viem";
+import { type Fill, PERPL_ABI, closedTrades, getLeaderData, normalizePlumbRow } from "../src/leaderData.js";
 import { alignmentScore, clearNetflowCache, compositeScore, discoverLeaders, exposureByMarket, fetchMonadNetflow, monadPriceUsd, nansenClient } from "../src/nansen.js";
 import { simulate } from "../src/simulate.js";
 import { createApp } from "../src/app.js";
@@ -383,5 +384,92 @@ describe("QA fixes", () => {
     expect(out).toContain("2026-");
     const g = guardAnalysis({ styleSummary: { en: "weeklySummary: fine" } }, { tilt: { detected: false }, drift: { detected: false }, reasonsNotToFollow: [] } as any);
     expect(g.styleSummary).toEqual({ en: "weekly summary fine", id: "weekly summary fine" });
+  });
+});
+
+describe("activity: fills and open positions without a closed trade", () => {
+  const json = (b: unknown, status = 200) => new Response(JSON.stringify(b), { status, headers: { "content-type": "application/json" } });
+  const LB = "0xda695cb060c7e2df0b5c36ea591ea69399463d90";
+  const btc = { perpId: 16, symbol: "PERP-16", priceDecimals: 0, lotDecimals: 0 };
+  const perpInfo = (symbol: string, pd: number, ld: number) => ({
+    name: symbol, symbol, priceDecimals: BigInt(pd), lotDecimals: BigInt(ld), linkFeedId: `0x${"0".repeat(64)}`, priceTolPer100K: 0n, marginTol: 0n, marginTolDecimals: 0n, refPriceMaxAgeSec: 0n, positionBalanceCNS: 0n, insuranceBalanceCNS: 0n, markPNS: 0n, markTimestamp: 0n, lastPNS: 0n, lastTimestamp: 0n, oraclePNS: 0n, oracleTimestampSec: 0n, longOpenInterestLNS: 0n, shortOpenInterestLNS: 0n, fundingStartBlock: 0n, fundingRatePct100k: 0, absFundingClampPctPer100K: 0n, status: 0, basePricePNS: 0n, maxBidPriceONS: 0n, minBidPriceONS: 0n, maxAskPriceONS: 0n, minAskPriceONS: 0n, numOrders: 0n, ignOracle: false,
+  });
+  const DEC: Record<number, [string, number, number]> = { 16: ["BTC", 1, 5], 32: ["ETH", 2, 3], 48: ["SOL", 2, 3], 64: ["MON", 5, 0] };
+  // Perpl testnet account 1099 as read live on 2026-10-12: long 20 lots BTC at 83597.7, mark 84210.6, upnl 0.1211
+  const rpc = (body: any) => {
+    const { args } = decodeFunctionData({ abi: multicall3Abi, data: body.params[0].data });
+    const results = (args![0] as { callData: Hex }[]).map(({ callData }) => {
+      const c = decodeFunctionData({ abi: PERPL_ABI, data: callData });
+      const perp = Number(c.args![0]);
+      const returnData =
+        c.functionName === "getPosition"
+          ? encodeFunctionResult({ abi: PERPL_ABI, functionName: "getPosition", result: [{ accountId: 1099n, nextNodeId: 0n, prevNodeId: 0n, positionType: 0, depositCNS: perp === 16 ? 8359770n : 0n, pricePNS: perp === 16 ? 835977n : 0n, lotLNS: perp === 16 ? 20n : 0n, entryBlock: 1n, pnlCNS: perp === 16 ? 121100n : 0n, deltaPnlCNS: 0n, premiumPnlCNS: 0n }, perp === 16 ? 842106n : 1n, true] })
+          : encodeFunctionResult({ abi: PERPL_ABI, functionName: "getPerpetualInfo", result: perpInfo(...DEC[perp]) as any });
+      return { success: true, returnData };
+    });
+    return { jsonrpc: "2.0", id: body.id, result: encodeFunctionResult({ abi: multicall3Abi, functionName: "aggregate3", result: results }) };
+  };
+  const chats: string[] = [];
+  const f: typeof fetch = async (u, init) => {
+    const url = String(u);
+    if (url.includes("testnet-rpc.monad.xyz")) return json(rpc(JSON.parse(String(init?.body))));
+    if (url.endsWith("/chat/completions")) {
+      chats.push(String(init?.body));
+      return json({ model: "m", usage: {}, choices: [{ message: { content: JSON.stringify({ riskLevel: "low", styleSummary: { en: "The leader has not executed any trades and shows no active position." }, weeklySummary: { en: "No trades this week." } }) } }] });
+    }
+    if (!url.startsWith("http://envio.test")) return stubFetch(u, init);
+    const b = JSON.parse(String(init?.body));
+    if (b.query.includes("Account(")) return json({ data: { Account: [{ id: "1099", chainId: 10143, fills: 1, closedTrades: 0, wins: 0, netPnlCNS: "-5769", maxDrawdownCNS: "5769", firstSeenAt: NOW - 100, lastSeenAt: NOW - 100 }] } });
+    return json({ data: { Fill: [{ id: "70274553-5", timestamp: NOW - 100, block: 70274553, txHash: "0xa", role: "TAKER", side: "BUY", pricePNS: "835977", lotLNS: "20", feeCNS: "5769", realizedPnlCNS: "0", market: btc }] } });
+  };
+
+  it("reads live open positions and labels the leader 'no closed trades yet'", async () => {
+    process.env.ENVIO_GRAPHQL_URL = "http://envio.test/v1/graphql";
+    const d = await getLeaderData(LB, { now: NOW, fetch: f });
+    expect(d.activity).toBe("no_closed_trades_yet");
+    expect(d.openPositions).toEqual([{ market: 16, symbol: "BTC", side: "long", size: 0.0002, entry: 83597.7, mark: 84210.6, notional: 16.84212, margin: 8.35977, unrealizedPnl: 0.1211, leverage: 1.99 }]);
+    const ft = computeFeatures(d.fills, d.closedTrades, d.stats, { now: NOW, openPositions: d.openPositions });
+    expect(ft.activity).toMatchObject({ status: "no_closed_trades_yet", fills: 1, closedTrades: 0, unrealizedPnl: 0.1211 });
+    expect(ft.activity.summary).toMatch(/^No closed trades yet: 1 fill in the window and 1 open position: long 0.0002 BTC at entry 83597.7/);
+    expect(ft.style.label).toBe("new");
+    expect(ft.reasonsNotToFollow.find((r) => r.key === "small_sample")?.detail).toBe("No closed trades yet: there is no track record to judge.");
+    // RPC down: positions unknown (null), never "none"
+    const down: typeof fetch = async (u, init) => (String(u).includes("testnet-rpc") ? new Response("x", { status: 500 }) : f(u, init));
+    expect((await getLeaderData(LB, { now: NOW, fetch: down })).openPositions).toBeNull();
+  });
+
+  it("guard replaces inactivity claims; no track record is never low risk", () => {
+    const base = computeFeatures([fill(1, true, 100, 1, 1)], [], baseStats, { now: 10, openPositions: [{ market: 1, symbol: "BTC", side: "long", size: 1, entry: 100, mark: 101, notional: 101, margin: 50, unrealizedPnl: 1, leverage: 1.98 }] });
+    const g = guardAnalysis({ riskLevel: "low", styleSummary: { en: "The leader has not executed any trades and shows no active position." }, weeklySummary: { en: "No open positions this week." }, tilt: { en: "No tilt." } }, base);
+    expect(g.styleSummary.en).toBe(base.activity.summary);
+    expect(g.weeklySummary.en).toBe(base.activity.summary);
+    expect(g.tilt.en).toBe("No tilt.");
+    expect(g.riskLevel).toBe("medium");
+    // "no closed trades yet" is a true statement and stays
+    expect(guardAnalysis({ styleSummary: { en: "No closed trades yet; one long BTC position is open." } }, base).styleSummary.en).toBe("No closed trades yet; one long BTC position is open.");
+  });
+
+  it("HTTP: backtest says 'not enough closed trades', analysis is memoized and corrected", async () => {
+    process.env.ENVIO_GRAPHQL_URL = "http://envio.test/v1/graphql";
+    process.env.KIMI_API_KEY = "test";
+    process.env.KIMI_LOG_PATH = join(mkdtempSync(join(tmpdir(), "kimi-")), "log.jsonl");
+    const app = createApp({ fetch: f, now: () => NOW });
+    const b = await app.request(`/leader/${LB}/backtest`, { method: "POST", body: "{}" });
+    expect(b.status).toBe(422);
+    expect(await b.json()).toMatchObject({ error: expect.stringMatching(/not enough closed trades/), closedTrades: 0, fills: 1, activity: "no_closed_trades_yet" });
+    const s = await (await app.request(`/leader/${LB}/stats`)).json();
+    expect(s).toMatchObject({ activity: "no_closed_trades_yet", fillsCount: 1, openPositions: [{ symbol: "BTC", side: "long" }] });
+    chats.length = 0;
+    const [r1, r2] = await Promise.all([app.request(`/leader/${LB}/analysis`), app.request(`/leader/${LB}/analysis`)]);
+    const a = await r1.json();
+    expect(await r2.json()).toEqual(a);
+    await app.request(`/leader/${LB}/analysis`);
+    expect(chats).toHaveLength(1);
+    expect(JSON.parse(JSON.parse(chats[0]).messages[1].content).features.activity.openPositions).toHaveLength(1);
+    expect(a.analysis.styleSummary.en).toMatch(/^No closed trades yet/);
+    expect(a.analysis.styleSummary.en).not.toMatch(/not executed/);
+    expect(a.analysis.weeklySummary.en).toMatch(/^No closed trades yet/);
+    expect(a.analysis.riskLevel).toBe("medium");
+    expect((await app.request(`/leader/${LB}/stats?days=abc`)).status).toBe(400);
   });
 });

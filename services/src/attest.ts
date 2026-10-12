@@ -11,7 +11,7 @@ import { type LeaderData, PLUMB_API, getLeaderData } from "./leaderData.js";
 import { type Fetch, canonicalJson, requireEnv } from "./util.js";
 
 export interface TrackRecord {
-  schema: "copas.trackrecord.v2";
+  schema: "copas.trackrecord.v3";
   address: string;
   chainId: number; // 143 mainnet, 10143 testnet (Copas LeaderBooks)
   venue: "perpl";
@@ -25,6 +25,9 @@ export interface TrackRecord {
   pnl30dSource: "fills" | "perpl-leaderboard"; // leaderboard only when the fills are capped and it exists
   winRateBps: number; // closed round trips in `window`
   closedTrades: number;
+  activity: "trading" | "no_closed_trades_yet" | "no_activity"; // fills / open positions without a closed trade are not "no activity"
+  openPositions: number | null; // live count at asOf; null = RPC unavailable
+  unrealizedPnl: string | null; // AUSD over open positions at asOf
   maxDrawdown: string; // AUSD on the realized curve in `window`
   maxDrawdownPct: number | null; // of the Perpl ROI capital base
   perplLeaderboard30d: { pnl: string; roiBps: number; volume: string } | null; // official, mainnet only
@@ -49,7 +52,7 @@ export function buildTrackRecord(d: LeaderData): TrackRecord {
   const useBoard = !d.complete && !!row;
   const a = d.envioAccount;
   return {
-    schema: "copas.trackrecord.v2",
+    schema: "copas.trackrecord.v3",
     address: d.address,
     chainId: d.chainId,
     venue: "perpl",
@@ -63,6 +66,9 @@ export function buildTrackRecord(d: LeaderData): TrackRecord {
     pnl30dSource: useBoard ? "perpl-leaderboard" : "fills",
     winRateBps: bps(st.winRate),
     closedTrades: st.closedTrades,
+    activity: d.activity,
+    openPositions: d.openPositions?.length ?? null,
+    unrealizedPnl: d.openPositions ? s6(d.openPositions.reduce((s, p) => s + p.unrealizedPnl, 0)) : null,
     maxDrawdown: s6(st.maxDrawdown),
     maxDrawdownPct: d.capitalEstimate ? Math.round((st.maxDrawdown / d.capitalEstimate) * 10_000) / 100 : null,
     perplLeaderboard30d: row ? { pnl: s6(row.pnl), roiBps: bps(row.roi), volume: s6(row.volume) } : null,

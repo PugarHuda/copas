@@ -8,6 +8,8 @@ export class ServiceUnavailable extends Error {
 }
 
 export const env = (k: string) => process.env[k]?.trim() || undefined;
+/** Monad JSON-RPC per chain id (anything but testnet reads mainnet). */
+export const rpcUrl = (chainId: number) => (chainId === 10143 ? (env("MONAD_TESTNET_RPC_URL") ?? "https://testnet-rpc.monad.xyz") : (env("MONAD_RPC_URL") ?? "https://rpc.monad.xyz"));
 
 export function requireEnv(k: string): string {
   const v = env(k);

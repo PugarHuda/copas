@@ -25,7 +25,26 @@ export function createApp(deps: { fetch?: Fetch; now?: () => number } = {}) {
     if (!isAddress(a)) throw new BadRequest("invalid address");
     return a.toLowerCase();
   };
-  const leader = (a: string, days = 30) => getLeaderData(addr(a), { days, now: now(), fetch: f });
+  const leader = (a: string, days = 30) => {
+    if (!Number.isInteger(days) || days < 1 || days > 365) throw new BadRequest("days must be an integer 1..365");
+    return getLeaderData(addr(a), { days, now: now(), fetch: f });
+  };
+  // ~20 s LLM call: one per address+window per instance per hour (the CDN in api/index.js caches across instances).
+  // ponytail: unbounded Map pruned on insert; fine for a per-instance memo of a few hundred leaders.
+  const ANALYSIS_TTL_MS = 3600_000;
+  const analysisMemo = new Map<string, { at: number; p: Promise<unknown> }>();
+  const runAnalysis = async (a: string, days: number) => {
+    const d = await leader(a, days);
+    // the replay needs at least one closed round trip; an open-only history would "backtest" a single entry
+    const bt = d.closedTrades.length ? backtest(d.fills, DEFAULT_FOLLOWER, DEFAULT_MANDATE, { leaderCapitalCNS: leaderCapital(d), from: d.window.from, to: d.window.to }).summary : undefined;
+    const features = computeFeatures(d.fills, d.closedTrades, d.stats, { now: d.window.to, capital: d.capitalEstimate, backtest: bt, openPositions: d.openPositions });
+    try {
+      return await analyzeLeader(d.address, features, { fetch: f, now: now() });
+    } catch (e) {
+      if (e instanceof ServiceUnavailable) Object.assign(e, { features });
+      throw e;
+    }
+  };
 
   app.use("*", cors());
   app.onError((e, c) => {
@@ -46,6 +65,17 @@ export function createApp(deps: { fetch?: Fetch; now?: () => number } = {}) {
     const body = (await c.req.json().catch(() => ({}))) as { follower?: Partial<FollowerParams>; mandate?: Partial<MandateParams>; opts?: any; days?: number };
     const d = await leader(c.req.param("addr"), body.days ?? 30);
     if (!d.fills.length) throw new BadRequest("leader has no fills in the window");
+    if (!d.closedTrades.length)
+      return c.json(
+        {
+          error: "not enough closed trades to backtest: a replay needs at least 1 closed round trip",
+          activity: d.activity,
+          fills: d.fills.length,
+          closedTrades: 0,
+          openPositions: d.openPositions,
+        },
+        422,
+      );
     try {
       return c.json(backtest(d.fills, { ...DEFAULT_FOLLOWER, ...body.follower }, { ...DEFAULT_MANDATE, ...body.mandate }, { leaderCapitalCNS: leaderCapital(d), from: d.window.from, to: d.window.to, ...body.opts }));
     } catch (e) {
@@ -54,13 +84,22 @@ export function createApp(deps: { fetch?: Fetch; now?: () => number } = {}) {
   });
 
   app.get("/leader/:addr/analysis", async (c) => {
-    const d = await leader(c.req.param("addr"));
-    const bt = d.fills.length ? backtest(d.fills, DEFAULT_FOLLOWER, DEFAULT_MANDATE, { leaderCapitalCNS: leaderCapital(d), from: d.window.from, to: d.window.to }).summary : undefined;
-    const features = computeFeatures(d.fills, d.closedTrades, d.stats, { now: d.window.to, capital: d.capitalEstimate, backtest: bt });
+    const a = addr(c.req.param("addr"));
+    const days = Number(c.req.query("days") ?? 30);
+    const key = `${a}:${days}`;
+    const t = Date.now();
+    let m = analysisMemo.get(key);
+    if (!m || t - m.at > ANALYSIS_TTL_MS) {
+      for (const [k, v] of analysisMemo) if (t - v.at > ANALYSIS_TTL_MS) analysisMemo.delete(k);
+      const entry = { at: t, p: runAnalysis(a, days) };
+      entry.p.catch(() => analysisMemo.get(key) === entry && analysisMemo.delete(key)); // errors are never memoized
+      analysisMemo.set(key, entry);
+      m = entry;
+    }
     try {
-      return c.json(await analyzeLeader(d.address, features, { fetch: f, now: now() }));
+      return c.json((await m.p) as object);
     } catch (e) {
-      if (e instanceof ServiceUnavailable) return c.json({ error: e.message, missing: e.missing, features }, 503);
+      if (e instanceof ServiceUnavailable) return c.json({ error: e.message, missing: e.missing, features: (e as any).features }, 503);
       throw e;
     }
   });
