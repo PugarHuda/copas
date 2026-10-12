@@ -1,3 +1,4 @@
+import type { APIRequestContext } from "@playwright/test";
 import { test, expect, checkPage, noOverflow, gotoUntil, parseNum, ACTIVE } from "./fixtures";
 
 /** "–" is an empty cell (no activity), anything else a signed number. */
@@ -6,6 +7,16 @@ const day = (t: number) => new Date(t * 1000).toISOString().slice(0, 10);
 const WEEK = 7 * 86_400;
 const monday = (t: number) => Math.floor((t - 4 * 86_400) / WEEK) * WEEK + 4 * 86_400;
 const ENVIO = "https://indexer.dev.hyperindex.xyz/042db7d/v1/graphql";
+/** Claim rows straight from the hosted indexer, which answers 429 (empty body) under load: retry until it answers. */
+async function claims(request: APIRequestContext, where = ""): Promise<{ amountCNS: string }[]> {
+  let rows: { amountCNS: string }[] = [];
+  await expect(async () => {
+    const res = await request.post(ENVIO, { data: { query: `{ Claim(where: { chainId: { _eq: 10143 }${where} }) { amountCNS } }` } });
+    expect(res.status()).toBe(200);
+    rows = (await res.json()).data.Claim;
+  }).toPass({ timeout: 60_000 });
+  return rows;
+}
 const WHALE = "0x31ca8395cf837de08b24da3f660e77761dfb974b";
 
 test.describe("/seasons", () => {
@@ -49,11 +60,7 @@ test.describe("/seasons", () => {
   test("slashes paid match the indexer's Claim rows of the week", async ({ page, request }) => {
     await gotoUntil(page, "/seasons", ready);
     const from = monday(Date.now() / 1000);
-    const res = await request.post(ENVIO, {
-      data: { query: `{ Claim(where: { chainId: { _eq: 10143 }, timestamp: { _gte: ${from}, _lt: ${from + WEEK} } }) { amountCNS } }` },
-    });
-    const claims: { amountCNS: string }[] = (await res.json()).data.Claim;
-    const want = claims.reduce((a, c) => a + Number(c.amountCNS) / 1e6, 0);
+    const want = (await claims(request, `, timestamp: { _gte: ${from}, _lt: ${from + WEEK} }`)).reduce((a, c) => a + Number(c.amountCNS) / 1e6, 0);
     const shown = cell(await page.getByText("Slashes paid to followers", { exact: true }).locator("..").locator(".num").innerText());
     expect(Math.abs(shown - want)).toBeLessThan(0.0001);
   });
@@ -256,11 +263,11 @@ test("landing live metrics strip matches the indexer", async ({ page, request })
   // values must fit their column (nothing truncated with an ellipsis)
   const clipped = await items.locator("p.num").evaluateAll((ps) => ps.filter((p) => p.scrollWidth > p.clientWidth + 1).map((p) => p.textContent));
   expect(clipped).toEqual([]);
-  const claims: { amountCNS: string }[] = (await (await request.post(ENVIO, { data: { query: "{ Claim(where: { chainId: { _eq: 10143 } }) { amountCNS } }" } })).json()).data.Claim;
-  const slashed = claims.reduce((a, c) => a + Number(c.amountCNS) / 1e6, 0);
+  const all = await claims(request);
+  const slashed = all.reduce((a, c) => a + Number(c.amountCNS) / 1e6, 0);
   const item = items.filter({ hasText: "AUSD slashes paid" });
   expect(Math.abs(parseNum(await item.locator("p.num").innerText()) - slashed)).toBeLessThan(0.0001);
-  await expect(item).toContainText(`${claims.length} ${claims.length === 1 ? "claim" : "claims"} by followers`);
+  await expect(item).toContainText(`${all.length} ${all.length === 1 ? "claim" : "claims"} by followers`);
 });
 
 test("leader OG image is a 1200×630 PNG linked from the page", async ({ page, request }) => {
