@@ -91,6 +91,12 @@ describe('HTTP routes', () => {
     return { app, calls: f.calls };
   };
 
+  it('GET / lists the routes instead of a 404', async () => {
+    const r = await mk([]).app.request('/');
+    expect(r.status).toBe(200);
+    expect((await r.json()).routes).toContain('/health');
+  });
+
   it('POST /aurora/quote (public 1Click)', async () => {
     const { app, calls } = mk([['1click.chaindefuser.com/v0/quote', fx('oneclick-quote-dry-base')]]);
     const r = await app.request('/aurora/quote', post({ source: 'base:USDC', amount: '5000000', refundTo: USER, recipient: USER }));

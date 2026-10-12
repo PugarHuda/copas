@@ -73,6 +73,8 @@ export function createApp(o: AppOpts = {}) {
     return c.json({ error: err instanceof Error ? err.message : 'internal error' }, 500);
   });
 
+  // the bare URL is what a judge opens first: answer with the route list, like @copas/services does, not a 404
+  app.get('/', (c) => c.json({ service: '@copas/onramp', routes: ['/health', '/aurora/sources', 'POST /aurora/quote', 'POST /aurora/deposit-address', '/aurora/status/:id', 'POST /aurora/connect/plan', 'POST /kuru/quote', 'POST /socket/deposit-address', '/socket/status/:id'] }));
   app.get('/health', (c) => c.json({ ok: true, aurora: apiKey ? 'key' : 'public-1click', connect: connectOn }));
   app.get('/aurora/sources', (c) => c.json(SOURCES));
 
