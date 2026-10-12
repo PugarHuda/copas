@@ -12,6 +12,7 @@ export function Header() {
   const nav = [
     { href: "/", label: t("nav.leaders"), match: (p: string) => p === "/" || p.startsWith("/leader") || p.startsWith("/follow") },
     { href: "/analytics", label: t("nav.analytics"), match: (p: string) => p.startsWith("/analytics") },
+    { href: "/saved", label: "Reality check", match: (p: string) => p.startsWith("/saved") },
     { href: "/me", label: t("nav.me"), match: (p: string) => p.startsWith("/me") },
     { href: "/become-leader", label: t("nav.becomeLeader"), match: (p: string) => p.startsWith("/become-leader") },
     { href: "/underwrite", label: t("nav.underwrite"), match: (p: string) => p.startsWith("/underwrite") || p.startsWith("/market") },

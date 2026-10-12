@@ -19,7 +19,7 @@ export default async function Image({ params }: { params: Promise<{ addr: string
   const breached = l?.status === "breached";
   const stat = (k: string, v: string) => (
     <div style={{ display: "flex", flexDirection: "column", marginRight: 56 }}>
-      <div style={{ fontSize: 22, letterSpacing: 2, color: "#8a8a86" }}>{k}</div>
+      <div style={{ fontSize: 22, letterSpacing: 2, color: breached ? "rgba(255,255,255,0.75)" : "#8a8a86" }}>{k}</div>
       <div style={{ fontSize: 76, color: "#f2f2f0", lineHeight: 1 }}>{v}</div>
     </div>
   );
