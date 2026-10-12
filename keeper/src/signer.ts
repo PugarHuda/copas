@@ -19,7 +19,16 @@ export async function privySend(privy: PrivyClient, walletId: string, to: Addres
     sponsor: cfg.privy.sponsor,
     ...(cfg.privy.authKey ? { authorization_context: { authorization_private_keys: [cfg.privy.authKey] } } : {}),
   });
-  return res.hash as Hex;
+  if (res.hash) return res.hash as Hex;
+  // Sponsored sends go out as a user operation (Alchemy); the tx hash appears once Privy sees it land.
+  const id = (res as { transaction_id?: string }).transaction_id;
+  for (let i = 0; id && i < 40; i++) {
+    await new Promise((r) => setTimeout(r, 1500));
+    const t = (await privy.transactions().get(id)) as { status?: string; transaction_hash?: string | null };
+    if (t.transaction_hash) return t.transaction_hash as Hex;
+    if (t.status === 'failed' || t.status === 'execution_reverted') throw new Error(`privy tx ${id} ${t.status}`);
+  }
+  throw new Error(`privy tx ${id ?? '?'}: no hash after 60s`);
 }
 
 export async function makeSigner(): Promise<Signer> {
