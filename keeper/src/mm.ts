@@ -52,6 +52,10 @@ const MARGIN_AUSD = num('MM_MARGIN_AUSD', 50); // Kuru margin AUSD kept for bids
 const MIN_AUSD = num('MM_MIN_AUSD', 1_000); // below this the MM asks the testnet faucet for more
 const U = 1e6; // AUSD / DOWN / UP decimals
 const NEW_SERIES_GAS = 4n * 10n ** 17n; // 0.4 MON at testnet's ~100 gwei
+// ponytail: gas throttle for a MON-starved testnet MM. A new series (~0.35 MON) only on epochs divisible by
+// MM_SERIES_EVERY, only for MM_LEADERS (comma list, empty = all). Listed books keep being quoted and swept.
+const SERIES_EVERY = BigInt(Math.max(1, Math.floor(num('MM_SERIES_EVERY', 1))));
+const MM_LEADERS = (process.env.MM_LEADERS ?? '').toLowerCase().split(',').map((a) => a.trim()).filter(Boolean);
 
 export function kuruMarketFor(down: Address, ausd: Address) {
   return client.readContract({
@@ -129,6 +133,9 @@ export async function marketMake(dep: Deployments, leaders: Leader[], now: bigin
     // a new series costs ~0.33 MON (mint deploys 2 tokens, deployProxy a book + vault): don't start one that can't be listed
     if (!listed && (await client.getBalance({ address: me })) < NEW_SERIES_GAS) {
       return out.decisions.push({ what, decision: `p=${p.toFixed(3)} (${why}): skip, MM below ${Number(NEW_SERIES_GAS) / 1e18} MON` });
+    }
+    if (s.down === zeroAddress && (e % SERIES_EVERY !== 0n || (MM_LEADERS.length > 0 && !MM_LEADERS.includes(l.address.toLowerCase())))) {
+      return out.decisions.push({ what, decision: `p=${p.toFixed(3)} (${why}): skip, throttled (new series every ${SERIES_EVERY} epochs${MM_LEADERS.length ? `, leaders ${MM_LEADERS.length}` : ''})` });
     }
     const mint = mintAmount({ downHeld: down, upHeld: up, budget }, params);
     if (mint > 0) {
