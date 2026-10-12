@@ -9,6 +9,7 @@ import { copasPublic, useCopasWrite } from "@/lib/copas/useCopasWrite";
 import { TIERS, copasAbi, deployment, isDeployed, marketsMask, type Tier } from "@/lib/copas/contracts";
 import { copasChain } from "@/lib/chains";
 import { usd } from "@/lib/format";
+import { ImportTrackRecord } from "./ImportTrackRecord";
 
 const input = "num mt-1 w-full rounded-md border border-line-strong bg-bg px-3 py-2 text-sm focus:border-gold focus:outline-none";
 
@@ -60,6 +61,7 @@ export default function BecomeLeader() {
 
       <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
         <div className="space-y-6">
+          <ImportTrackRecord onApply={pick} />
           <Panel title={L("1. Pilih mandat", "1. Choose a mandate")}>
             <div className="grid gap-3 sm:grid-cols-3" role="group" aria-label="Tier">
               {tiers.map((x) => (
