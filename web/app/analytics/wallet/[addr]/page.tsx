@@ -36,6 +36,7 @@ export default async function WalletPage({ params }: { params: P }) {
         <Link href="/analytics" className="text-sm text-ink-3 hover:text-ink-2">
           {L("Kembali ke analitik Perpl", "Back to Perpl analytics")}
         </Link>
+        <h1 className="num break-all font-cond text-2xl font-semibold sm:text-3xl">{isAccountId(addr) ? `#${addr}` : short(addr)}</h1>
         <Panel>
           <Empty>{isAccountId(addr) ? L(`Akun #${addr} tidak ditemukan di Perpl.`, `Account #${addr} not found on Perpl.`) : L("Wallet ini belum punya akun exchange Perpl.", "This wallet has no Perpl exchange account.")}</Empty>
           <div className="flex justify-center pb-4">

@@ -31,7 +31,7 @@ export default async function Image({ params }: { params: Promise<{ addr: string
         <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "space-between", borderRadius: 26, background: breached ? "#d81f16" : "#111214", padding: "40px 52px", position: "relative" }}>
           <div style={{ display: "flex", justifyContent: "space-between", fontSize: 22, letterSpacing: 2, color: breached ? "#fff" : "#8a8a86" }}>
             <div style={{ display: "flex" }}>BONDED COPY TRADING · MONAD</div>
-            <div style={{ display: "flex" }}>{breached ? "MANDATE BROKEN · BOND SLASHED" : "BOND ON THE LINE"}</div>
+            <div style={{ display: "flex" }}>{breached ? "MANDATE BROKEN · BOND SLASHED" : l?.status === "active" ? "BOND ON THE LINE" : "NO ACTIVE BOND"}</div>
           </div>
           <div style={{ display: "flex", flexDirection: "column" }}>
             <div style={{ fontSize: 30, color: breached ? "#fff" : "#e3241b", letterSpacing: 2 }}>{`LEADER ${(l?.status ?? "unknown").toUpperCase()}`}</div>

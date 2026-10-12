@@ -58,3 +58,22 @@ test("attested track record shows cents and a singular trade; no empty smart-mon
   await expect(page.getByText(/PnL 30d [−+]?\$\d+\.\d{2} · WR \d+% · 1 trade$/)).toBeVisible();
   await expect(page.getByText(/smart-money data unavailable/i)).toHaveCount(0);
 });
+
+test("home page has a live 1200×630 og:image for link previews", async ({ page, request }) => {
+  await page.goto("/");
+  const og = await page.locator('meta[property="og:image"]').getAttribute("content");
+  expect(og).toMatch(/\/opengraph-image/);
+  const res = await request.get(new URL(og!).pathname + new URL(og!).search);
+  expect(res.status()).toBe(200);
+  expect(res.headers()["content-type"]).toBe("image/png");
+});
+
+test("market chips show keyboard focus on the visible label", async ({ page, isMobile }) => {
+  test.skip(isMobile, "keyboard navigation");
+  await page.goto(`/follow/${ACTIVE}`);
+  await page.locator("#f-band").focus();
+  await page.keyboard.press("Tab");
+  const chip = page.locator("label:has(> input.sr-only:focus-visible)");
+  await expect(chip).toHaveCount(1);
+  expect(await chip.evaluate((e) => getComputedStyle(e).outlineStyle)).toBe("solid");
+});

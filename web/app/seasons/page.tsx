@@ -23,7 +23,8 @@ export default async function Seasons({ searchParams }: { searchParams: SP }) {
   const to = from + WEEK;
   const [board, leaders] = await Promise.all([seasonBoard(from, to), getLeaders()]);
   const names = new Map((leaders ?? []).map((l) => [l.book.toLowerCase(), l]));
-  const rows = (board?.rows ?? []).sort((a, b) => b.net - a.net || b.bond - a.bond);
+  // a leader nobody copied has no follower result: rank it after every leader with copying vaults, not above the ones with a small loss
+  const rows = (board?.rows ?? []).sort((a, b) => Number(b.vaults > 0) - Number(a.vaults > 0) || b.net - a.net || b.bond - a.bond);
   const first = board ? weekStart(board.firstAt) : from;
   const season = Math.round((from - first) / WEEK) + 1; // < 1 = before the first leader existed
   const label = (n: number) => (n < 1 ? "Pre-season" : `Season ${n}`);
@@ -145,7 +146,7 @@ export default async function Seasons({ searchParams }: { searchParams: SP }) {
             </li>
             <li>Slash received is the <code>Claim</code> rows of this leader&apos;s breaches, paid to followers in the season. Performance fees are <code>Epoch.feesToLeader + feesToUnderwriters</code>.</li>
             <li>Leader unit is the LeaderBook unit price change over the season (last checkpoint before the start vs. the latest checkpoint before the end), shown for contrast: it is the leader&apos;s own result.</li>
-            <li>Bond is the live <code>LeaderBook.bond()</code>. Ties rank by bond.</li>
+            <li>Bond is the live <code>LeaderBook.bond()</code>. Leaders with no copying vault rank last. Ties rank by bond.</li>
           </ul>
         </div>
       </Panel>
