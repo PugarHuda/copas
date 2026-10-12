@@ -53,3 +53,4 @@ Legenda: ✅ selesai + teruji · 🟡 dikerjakan · ⏳ menunggu (key/deploy) ·
 | I1–I4 | Leader/follower nyata, model bisnis, update publik | ⏳ | — | setelah deploy mainnet |
 
 Deploy: ✅ **testnet 10143** 11 Okt 2026, block 70102394 — registry `0xA8BA57c7Af1d9A28660653E0439A180c86D03e3d`, alamat lengkap di `contracts/deployments/10143.json` (`contracts/deploy-testnet.sh`). Mainnet ⏳.
+Demo seed: ✅ 12 Okt 2026 (`contracts/script/Seed.s.sol`) — leader `0x8478…2a18` book `0xda695cB060c7e2dF0b5c36EA591eA69399463D90` (deposit 100, bond 50, aktif, long 0,0002 BTC), follower vault `0x433fFb841c4Cc8521364aBf14BEab9a008DCe5a1` (deposit 100, ratio 50%, tersalin 0,0001 BTC). AUSD testnet: faucet `0xd236c18d274e54faccc3dd9dda4b27965a73ee6c` `requestFunds(address)` = 10k AUSD.
