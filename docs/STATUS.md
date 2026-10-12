@@ -38,8 +38,8 @@ Legenda: ✅ selesai + teruji · 🟡 dikerjakan · ⏳ menunggu (key/deploy) ·
 | F1 | Aurora deposit→follow | 🟡 | `onramp/` | butuh akses Intents Connect |
 | F2 | Socket deposit address | 🟡 | `onramp/` | |
 | F3 | Kuru Flow swap | 🟡 | `onramp/` | |
-| G1 | Indexer Envio | 🟡 | `indexer/` | |
-| G2 | Dashboard Perpl Analytics | 🟡 | `web/analytics` | |
+| G1 | Indexer Envio | ✅ | `indexer/` | Envio Cloud, mainnet + testnet di head (72,5 jt event mainnet); testnet Perpl mulai blok 70.084.000 |
+| G2 | Dashboard Perpl Analytics | ✅ | `web/analytics` | + heatmap funding & OI (MarketDaily), kohort trader (Account), likuiditas order book vs tekanan likuidasi (`/book`) |
 | G3 | CRE workflow | 🟡 | `cre/` | |
 | G4 | Alert Alchemy + Telegram | 🟡 | `keeper/` | |
 | G5 | Halaman Proof | 🟡 | web | |

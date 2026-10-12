@@ -11,8 +11,9 @@ AgentLeaderRegistry). Spec: `../docs/SPEC.md` G1.
 | Node | >= 22 |
 | Chains | Monad mainnet `143`, Monad testnet `10143` (rows are per chain) |
 | Perpl Exchange | mainnet `0x34B6552d57a35a1D042CcAe1951BD1C370112a6F` (proxy), testnet `0x1964C32f0bE608E7D29302AFF5E61268E72080cc` |
-| Mainnet start block | **54,350,505** = 2026-02-10 00:00 UTC, two days before Perpl's first trading day (DefiLlama start 2026-02-12). The exact deploy block could not be fetched without a HyperSync token; an earlier block only costs a few empty HyperSync pages. |
-| Testnet start block | `0` (HyperSync jumps to the first event) |
+| Mainnet start block | **54,773,010**, the first Perpl Exchange log (found with HyperSync). |
+| Testnet start block | **70,084,000** (11 Oct 2026, just before the Copas testnet deploy at 70,102,394). Full testnet Perpl history would take ~74 h on the free HyperSync tier, so earlier testnet perps are skipped (see Known limits). |
+| Hosted | Envio Cloud, https://indexer.dev.hyperindex.xyz/042db7d/v1/graphql. On 12 Oct 2026 both chains were at head: 72.5M mainnet events, 5,288 traders, 36.2M fills, 3,661 liquidations. |
 
 ## Files
 
@@ -33,7 +34,7 @@ cp .env.example .env          # put ENVIO_API_TOKEN (https://envio.dev/app/api-t
 pnpm install
 pnpm codegen                  # after any change to config.yaml / schema.graphql
 pnpm typecheck
-pnpm test                     # 4 tests, simulated events
+pnpm test                     # vitest, simulated events
 pnpm dev                      # sync + GraphQL at http://localhost:8080 (Hasura, password: testing)
 ```
 
@@ -50,9 +51,9 @@ February is not practical.
 | `ENVIO_COPAS_BREACH_MARKET_{143,10143}` | BreachMarket address |
 | `ENVIO_COPAS_AGENT_REGISTRY_{143,10143}` | AgentLeaderRegistry address |
 
-Unset Copas vars default to the zero address (nothing indexed). There is no
-`contracts/deployments/<chainId>.json` yet; when it exists, put its addresses here (or hardcode them in
-`config.yaml`) and set a per-contract `start_block` at the deploy block.
+Unset Copas vars default to the zero address (nothing indexed). The hosted indexer has the testnet
+addresses from `contracts/deployments/10143.json` set (registry `0xA8BA57c7Af1d9A28660653E0439A180c86D03e3d`);
+mainnet Copas is not deployed, so the `_143` vars are unset.
 
 ## Deploy to Envio Cloud
 
@@ -64,7 +65,9 @@ Unset Copas vars default to the zero address (nothing indexed). There is no
    npx envio-cloud indexer settings set copas   # root dir copas/indexer
    npx envio-cloud indexer env set copas ENVIO_API_TOKEN=... ENVIO_COPAS_REGISTRY_143=0x...
    ```
-2. Every push deploys; `npx envio-cloud deployment endpoint copas <commit>` prints the GraphQL URL.
+2. Auto-deploy on push is **off** for this project (a redeploy resyncs 72M mainnet events). Deploy a commit by hand
+   from the Envio dashboard, wait until both chains reach head, then point `NEXT_PUBLIC_ENVIO_GRAPHQL_URL` (web) and
+   the services at the new endpoint. `npx envio-cloud deployment endpoint copas <commit>` prints the GraphQL URL.
 3. Env var keys must start with `ENVIO_`.
 
 ## What is indexed
@@ -84,6 +87,16 @@ the position `insFee + protFee`).
 Entities: `Protocol`, `Market`, `Account`, `Position`, `ClosedTrade`, `Trade`, `Fill`, `Liquidation`,
 `CollateralFlow`, `FundingEvent`, `ProtocolDaily`, `MarketDaily`, `AccountDaily`; Copas: `Leader`, `Epoch`,
 `Checkpoint`, `Breach`, `Vault`, `Follower`, `CopyFill`, `Claim`, `UnderwriterPosition`, `BreachSeries`.
+
+## What the web reads
+
+| Page / panel | Entities |
+|---|---|
+| `/analytics` flows, liquidations, TVL proxy | `CollateralFlow`, `ProtocolDaily`, `Liquidation` |
+| `/analytics` funding heatmap (30 d), OI by market (90 d) | `MarketDaily` (`sumFundingRatePct100k / fundingEvents` = daily average rate) |
+| `/analytics` trader cohorts | `Account` (every mainnet trader, paged) |
+| `/analytics/wallet/[addr]` trades, equity curve | `ClosedTrade`, `AccountDaily`, `CollateralFlow` |
+| leader page, `/proof`, `/seasons`, landing counters | `Checkpoint`, `Breach`, `Claim`, `Leader`, `Vault`, `Follower`, `CopyFill`, `Fill`, `UnderwriterPosition` |
 
 ## Example GraphQL queries
 
@@ -160,8 +173,11 @@ Live feed: replace `query` with `subscription` (Hasura).
 
 ## Known limits
 
-- Market decimals: from `ContractAdded(V2)` events, with a fallback table (`src/perpl.ts`, read from
-  `getPerpetualInfo` on 3 Oct 2026). A market listed later without a captured `ContractAdded` logs a warning.
+- Market decimals: from `ContractAdded(V2)` events, with a fallback table (`src/perpl.ts`, mainnet markets read from
+  `getPerpetualInfo` on 3 Oct 2026). Testnet perps were listed before the testnet start block, so their `Market` rows have
+  `symbol` `PERP-<id>` and decimals 0, which makes testnet `notionalCNS`/`openInterestCNS` and the testnet `Protocol` row
+  meaningless. The web never shows them: Copas pages read testnet decimals onchain (`getPerpetualInfo`) and every Perpl
+  dashboard query filters `chainId = 143`.
 - `Account.address` is only known for accounts created after the start block (all of them, if the start block is right).
 - OI is derived from position events; `openInterestCNS` uses the last fill price, not the oracle mark.
 - Unrealized PnL / liquidation price are not indexed (read `getPosition` live).
