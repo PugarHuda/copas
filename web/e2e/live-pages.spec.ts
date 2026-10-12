@@ -246,11 +246,13 @@ test.describe("API /api/hyperliquid", () => {
 
 test("landing live metrics strip matches the indexer", async ({ page, request }) => {
   const strip = page.getByRole("region", { name: "Live protocol metrics" });
-  // both sources must answer: the indexer (counters) and the registry RPC (bond), which rate-limits now and then
-  await gotoUntil(page, "/", () => [strip.getByText("LeaderBook.bond() · Envio indexer"), strip.getByText(/^across \d+ leaders?$/)]);
+  await gotoUntil(page, "/", () => strip.getByText("LeaderBook.bond() · Envio indexer"));
   const items = strip.locator("div.grid > div");
   await expect(items).toHaveCount(6);
-  for (const v of await items.locator("p.num").allInnerTexts()) expect(v.trim()).toMatch(/^\d[\d,]*(\.\d+)?$/);
+  // the bond comes from the public testnet RPC, which rate-limits under load: then the strip says so instead of a number
+  const rpcDown = (await strip.getByText("registry read failed").count()) > 0;
+  for (const v of await items.locator("p.num").allInnerTexts()) expect(v.trim()).toMatch(rpcDown && v.trim() === "–" ? /^–$/ : /^\d[\d,]*(\.\d+)?$/);
+  if (!rpcDown) await expect(strip.getByText(/^across \d+ leaders?$/)).toBeVisible();
   // values must fit their column (nothing truncated with an ellipsis)
   const clipped = await items.locator("p.num").evaluateAll((ps) => ps.filter((p) => p.scrollWidth > p.clientWidth + 1).map((p) => p.textContent));
   expect(clipped).toEqual([]);
