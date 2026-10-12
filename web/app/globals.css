@@ -7,26 +7,28 @@
 */
 :root {
   color-scheme: dark;
-  --bg: #0b1120;
-  --surface: #111a2c;
-  --surface-2: #172238;
-  --line: #22304b;
-  --line-strong: #33446a;
-  --ink: #e9edf4;
-  --ink-2: #a9b4c8;
-  --ink-3: #8390a8;
-  --gold: #d9b45c;
-  --gold-2: #f0d48f;
-  --gold-ink: #1b1404;
+  /* Editorial red/black: charcoal page, near-white ink, one signal red. "gold" token names are kept as the accent slot. */
+  --bg: #0e0f11;
+  --surface: #16171a;
+  --surface-2: #1d1e22;
+  --line: #26272c;
+  --line-strong: #3a3b42;
+  --ink: #f2f2f0;
+  --ink-2: #b9b9b4;
+  --ink-3: #8a8a86;
+  --gold: #e3241b;
+  --gold-2: #ff4a3d;
+  --gold-ink: #ffffff;
+  --paper: #e8e8e6;
   --up: #3fc792;
-  --down: #f26d6d;
+  --down: #ff6b5e;
   --warn: #eaa53c;
-  /* chart categorical slots (dataviz reference, dark steps; validated vs --surface) */
-  --c1: #3987e5;
-  --c2: #d95926;
-  --c3: #199e70;
-  --c-other: #6b7690;
-  --grid: #1d2840;
+  /* chart categorical slots */
+  --c1: #e3241b;
+  --c2: #e8e8e6;
+  --c3: #3fc792;
+  --c-other: #6b6b70;
+  --grid: #222327;
 }
 
 @theme inline {
@@ -45,7 +47,8 @@
   --color-down: var(--down);
   --color-warn: var(--warn);
   --font-sans: var(--font-plex), system-ui, sans-serif;
-  --font-cond: var(--font-plex-cond), var(--font-plex), sans-serif;
+  --font-cond: var(--font-display), var(--font-plex), sans-serif;
+  --color-paper: var(--paper);
 }
 
 html,
@@ -74,8 +77,8 @@ body {
 /* Guilloche: two offset rings of fine lines, the way banknotes resist copying. */
 .guilloche {
   background-image:
-    repeating-radial-gradient(circle at 30% 40%, transparent 0 5px, rgb(217 180 92 / 0.13) 5px 6px),
-    repeating-radial-gradient(circle at 72% 64%, transparent 0 7px, rgb(217 180 92 / 0.09) 7px 8px);
+    repeating-radial-gradient(circle at 30% 40%, transparent 0 5px, rgb(227 36 27 / 0.16) 5px 6px),
+    repeating-radial-gradient(circle at 72% 64%, transparent 0 7px, rgb(227 36 27 / 0.1) 7px 8px);
 }
 /* Perforated stamp edge */
 .perforated {
@@ -114,6 +117,63 @@ table.data tbody tr:hover {
   background: var(--surface-2);
 }
 
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+
+/* Editorial display type: tall condensed caps, tight leading (reference: C8VN). */
+.display {
+  font-family: var(--font-cond);
+  text-transform: uppercase;
+  font-weight: 400;
+  letter-spacing: -0.01em;
+  line-height: 0.92;
+}
+.micro {
+  font-size: 10px;
+  line-height: 1.25;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+/* [ bracketed ] headline frame */
+.bracket {
+  position: relative;
+  padding: 0 clamp(16px, 4vw, 56px);
+}
+.bracket::before,
+.bracket::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 14px;
+  border: 1.5px solid currentColor;
+  opacity: 0.85;
+}
+.bracket::before {
+  left: 0;
+  border-right: 0;
+}
+.bracket::after {
+  right: 0;
+  border-left: 0;
+}
+.dots {
+  background-image: radial-gradient(currentColor 1px, transparent 1.2px);
+  background-size: 6px 2px;
+  background-repeat: repeat-x;
+  background-position: left center;
+  height: 2px;
+}
+h1.font-cond,
+h2.font-cond {
+  text-transform: uppercase;
+  font-weight: 400;
+  letter-spacing: -0.01em;
+}
 @media (prefers-reduced-motion: reduce) {
   * {
     animation: none !important;

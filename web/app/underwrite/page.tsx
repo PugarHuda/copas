@@ -1,16 +1,44 @@
-import Link from "next/link";
 import type { Metadata } from "next";
-import { Panel, PageHead, Source } from "@/components/ui";
-import { DDMeter, StatusPill } from "@/components/copas";
-import { MOCK_UW } from "@/lib/mock/copas"; // MOCK until contracts deployed
+import { createPublicClient, http, type Abi } from "viem";
+import { Empty, Panel, PageHead, Source } from "@/components/ui";
+import { getLeaders } from "@/lib/copas/data";
+import { leaderStats } from "@/lib/copas/indexer";
+import { copasAbi } from "@/lib/copas/contracts";
+import { copasChain } from "@/lib/chains";
 import { getT } from "@/lib/i18n/server";
-import { pct, usd } from "@/lib/format";
+import { Pools, type PoolRow } from "./Pools";
 
 export const metadata: Metadata = { title: "Underwrite" };
+
+const client = createPublicClient({ chain: copasChain, transport: http() });
 
 export default async function Underwrite() {
   const { t, lang } = await getT();
   const L = (a: string, b: string) => (lang === "id" ? a : b);
+  const [leaders, stats] = await Promise.all([getLeaders(), leaderStats()]);
+  const withPool = (leaders ?? []).filter((l) => l.pool);
+  const shares = (await client
+    .multicall({ contracts: withPool.map((l) => ({ address: l.pool!, abi: copasAbi.UnderwriterPool as Abi, functionName: "totalShares" })), allowFailure: false })
+    .catch(() => null)) as bigint[] | null;
+  const rows: PoolRow[] = withPool.map((l, i) => {
+    const s = stats?.get(l.book.toLowerCase());
+    return {
+      book: l.book,
+      name: l.name,
+      status: l.status,
+      statusLabel: t(`status.${l.status}`),
+      liveDD: l.liveDD,
+      maxDD: l.maxDD,
+      bond: l.bond,
+      pool: l.pool!,
+      assets: l.underwritten,
+      totalShares: shares ? Number(shares[i]) / 1e6 : null,
+      epoch: l.epoch,
+      breaches: s?.breaches ?? null,
+      uwFees: s?.uwFees ?? null,
+      pending: s?.uwPendingShares ?? null,
+    };
+  });
   return (
     <div className="space-y-6">
       <PageHead
@@ -20,54 +48,15 @@ export default async function Underwrite() {
           "Add AUSD to a leader's bond and earn 30% of their performance fees. If the leader breaks the mandate, the leader's own bond is slashed first, then the underwriter pool pro-rata.",
         )}
       >
-        <Source kind="mock">{t("common.mockNote")}</Source>
+        <Source kind="live">UnderwriterPool{stats ? " + Envio" : ""}</Source>
       </PageHead>
-      <Panel pad={false}>
-        <div className="overflow-x-auto">
-          <table className="data">
-            <thead>
-              <tr>
-                <th>Leader</th>
-                <th>{t("common.status")}</th>
-                <th>{L("Drawdown live / janji", "Drawdown live / declared")}</th>
-                <th className="r">{L("Jaminan leader (first loss)", "Leader bond (first loss)")}</th>
-                <th className="r">{L("Pool penjamin", "Underwriter pool")}</th>
-                <th className="r">{L("APR fee historis", "Historical fee APR")}</th>
-                <th className="r">{L("Breach", "Breaches")}</th>
-                <th className="r">{L("Posisimu", "Your stake")}</th>
-                <th />
-              </tr>
-            </thead>
-            <tbody>
-              {MOCK_UW.map((u) => (
-                <tr key={u.leader.book}>
-                  <td>
-                    <Link href={`/leader/${u.leader.book}`} className="hover:text-gold-2">
-                      {u.leader.name}
-                    </Link>
-                  </td>
-                  <td>
-                    <StatusPill status={u.leader.status} label={t(`status.${u.leader.status}`)} />
-                  </td>
-                  <td>
-                    <DDMeter live={u.leader.liveDD} max={u.leader.maxDD} compact />
-                  </td>
-                  <td className="r">{usd(u.leader.bond, { dp: 0 })}</td>
-                  <td className="r">{usd(u.pool, { dp: 0 })}</td>
-                  <td className="r">{pct(u.feeApr, 1)}</td>
-                  <td className={`r ${u.breaches ? "text-down" : ""}`}>{u.breaches}</td>
-                  <td className="r">{u.myStake ? usd(u.myStake, { dp: 0 }) : "–"}</td>
-                  <td className="r">
-                    <Link href={`/market/${u.leader.book}`} className="text-xs text-ink-3 hover:text-ink-2">
-                      {L("Pasar DOWN", "DOWN market")}
-                    </Link>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </Panel>
+      {!leaders ? (
+        <Panel>
+          <Empty>{L("CopasRegistry tidak terbaca dari RPC Monad. Coba lagi sebentar.", "Could not read CopasRegistry from the Monad RPC. Try again shortly.")}</Empty>
+        </Panel>
+      ) : (
+        <Pools rows={rows} />
+      )}
       <Panel title={L("Cara kerja risiko penjamin", "How underwriter risk works")}>
         <ul className="list-disc space-y-1.5 pl-5 text-sm text-ink-2">
           <li>{L("Deposit mencetak share cpUW per leader. Penarikan butuh satu epoch dan tetap bisa dipotong selama menunggu.", "Deposits mint per-leader cpUW shares. Withdrawals take one epoch and stay slashable while pending.")}</li>

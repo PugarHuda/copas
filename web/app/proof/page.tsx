@@ -2,9 +2,9 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import { Empty, Panel, PageHead, Source } from "@/components/ui";
 import { deny } from "@/lib/copas/generated/deny";
-import { MOCK_PROOF } from "@/lib/mock/copas"; // MOCK until contracts deployed
 import { deployment } from "@/lib/copas/contracts";
 import { copasBreaches } from "@/lib/copas/indexer";
+import { breachInputs, getLeaders } from "@/lib/copas/data";
 import { PERPL, copasChain, explorerAddr, explorerTx, monad } from "@/lib/chains";
 import { getT } from "@/lib/i18n/server";
 import { num, pct, short, usd } from "@/lib/format";
@@ -20,13 +20,14 @@ export default async function Proof() {
     ["BreachMarket", deployment?.breachMarket, copasChain.id],
     ["AgentLeaderRegistry", deployment?.agentRegistry, copasChain.id],
     ["ERC-8004 identity", deployment?.identity8004, copasChain.id],
-    ["Perpl Exchange", PERPL[monad.id].exchange, monad.id],
-    ["AUSD", PERPL[monad.id].ausd, monad.id],
+    ["Perpl Exchange", PERPL[copasChain.id].exchange, copasChain.id],
+    ["AUSD", PERPL[copasChain.id].ausd, copasChain.id],
   ];
-  const b = MOCK_PROOF.breaches[0];
-  // live breaches from the indexer once Copas is deployed; mock rows only while nothing is deployed
-  const live = deployment?.registry ? await copasBreaches() : null;
-  const breaches = live ?? MOCK_PROOF.breaches.map((x) => ({ ...x, book: x.leader.book, name: x.leader.name, ddPct: (1 - x.unit / x.peak) * 100 }));
+  const [live, leaders] = deployment?.registry ? await Promise.all([copasBreaches(), getLeaders()]) : [null, null];
+  const names = new Map((leaders ?? []).map((l) => [l.book.toLowerCase(), l.name]));
+  // worked example = newest breach; without the indexer, a leader still in status Breached is in the epoch that breached
+  const target = live?.[0] ?? leaders?.filter((l) => l.status === "breached").map((l) => ({ book: l.book, epoch: l.epoch, claims: [] }))[0];
+  const b = target ? await breachInputs(target.book as `0x${string}`, target.epoch, target.claims[0]) : null;
   return (
     <div className="space-y-6">
       <PageHead
@@ -58,8 +59,10 @@ export default async function Proof() {
         </table>
       </Panel>
 
-      <Panel title={L("Breach dan potongan jaminan", "Breaches and slashes")} aside={<Source kind={live ? "indexer" : "mock"}>LeaderBook.Breached + Claimed</Source>} pad={false}>
-        {live && !live.length ? (
+      <Panel title={L("Breach dan potongan jaminan", "Breaches and slashes")} aside={<Source kind="indexer">LeaderBook.Breached + Claimed</Source>} pad={false}>
+        {!live ? (
+          <Empty>{L("Indexer tidak merespons. Coba lagi sebentar.", "The indexer did not respond. Try again shortly.")}</Empty>
+        ) : !live.length ? (
           <p className="px-4 py-8 text-center text-sm text-ink-3">{L("Belum ada breach. Semua leader masih dalam mandat.", "No breaches yet. Every leader is inside its mandate.")}</p>
         ) : (
         <table className="data">
@@ -76,11 +79,11 @@ export default async function Proof() {
             </tr>
           </thead>
           <tbody>
-            {breaches.map((x) => (
+            {live.map((x) => (
               <tr key={x.tx}>
                 <td>
                   <Link href={`/leader/${x.book}`} className="hover:text-gold-2">
-                    {"name" in x ? x.name : short(x.book)}
+                    {names.get(x.book) ?? short(x.book)}
                   </Link>
                 </td>
                 <td>{x.epoch}</td>
@@ -103,7 +106,16 @@ export default async function Proof() {
         )}
       </Panel>
 
-      <Panel title={L("Matematika yang bisa direproduksi", "Reproducible math")}>
+      <Panel
+        title={L("Matematika yang bisa direproduksi", "Reproducible math")}
+        aside={
+          b && (
+            <Source kind="rpc">
+              {short(b.book)} · epoch {b.epoch} · {L("blok", "block")} {b.block}
+            </Source>
+          )
+        }
+      >
         <div className="grid gap-6 lg:grid-cols-2">
           <div className="space-y-3 text-sm text-ink-2">
             <p>
@@ -116,26 +128,35 @@ export default async function Proof() {
             </p>
             <p>
               <code className="num text-ink">breach ⇔ dd &gt; maxDD</code>{" "}
-              <span className="text-xs text-ink-3">
-                ({b.leader.name}: 1 − {num(b.unit, 4)} / {num(b.peak, 4)} = {pct((1 - b.unit / b.peak) * 100, 2)} &gt; {b.leader.maxDD}%)
-              </span>
+              {b && (
+                <span className="text-xs text-ink-3">
+                  ({names.get(b.book.toLowerCase()) ?? short(b.book)}: 1 − {num(b.equity / b.units, 6)} / {num(b.peak, 6)} = {pct((1 - b.equity / b.units / b.peak) * 100, 3)} &gt; {b.maxDD}%)
+                </span>
+              )}
             </p>
             <p>
               <code className="num text-ink">claimᵢ = min(slash × capᵢ / Σcap, lossᵢ)</code>{" "}
-              <span className="text-xs text-ink-3">
-                ({usd(b.slash, { dp: 0 })} × cap / {usd(b.capTotal, { dp: 0 })})
-              </span>
+              {b && (
+                <span className="text-xs text-ink-3">
+                  ({usd(b.slash)} × {usd(b.cap)} / {usd(b.capTotal)} {L("vs rugi", "vs loss")} {usd(b.loss, { dp: 6 })}
+                  {b.vault ? ` · vault ${short(b.vault)}` : ` · ${L("semua follower", "all followers")}`})
+                </span>
+              )}
             </p>
             <p>
               <code className="num text-ink">Σclaim ≤ slash ≤ bond + underwriters</code> <span className="text-xs text-ink-3">{L("invariant, diuji fuzz", "invariant, fuzz-tested")}</span>
             </p>
           </div>
-          <Recompute initial={{ equity: b.equity, units: b.units, peak: b.peak, maxDD: b.leader.maxDD, slash: b.slash, capTotal: b.capTotal, cap: 500, loss: 150 }} />
+          {b ? (
+            <Recompute initial={{ equity: b.equity, units: b.units, peak: b.peak, maxDD: b.maxDD, slash: b.slash, capTotal: b.capTotal, cap: b.cap, loss: b.loss }} />
+          ) : (
+            <Empty>{L("Belum ada breach untuk dihitung ulang.", "No breach to recompute yet.")}</Empty>
+          )}
         </div>
       </Panel>
 
       <div className="grid gap-6 lg:grid-cols-2">
-        <Panel title={L("Log DENY policy Privy", "Privy policy DENY log")} aside={deny ? <Source kind="live">Privy · {deny.chainId}</Source> : <Source kind="mock">Privy</Source>} pad={false}>
+        <Panel title={L("Log DENY policy Privy", "Privy policy DENY log")} aside={deny && <Source kind="live">Privy · {deny.chainId}</Source>} pad={false}>
           {deny ? (
             <table className="data">
               <tbody>

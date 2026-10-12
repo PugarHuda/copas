@@ -4,8 +4,10 @@ import { Panel, Segmented, Source, Tabs, Empty, btn } from "@/components/ui";
 import { Seal } from "@/components/Seal";
 import { DDMeter, StatusPill, protection } from "@/components/copas";
 import { getLeaders } from "@/lib/copas/data";
+import type { Leader } from "@/lib/copas/contracts";
 import { getLeaderboard, LB_PERIODS, type LbPeriod, type LbSort } from "@/lib/perpl/api";
 import { getT } from "@/lib/i18n/server";
+import { Landing } from "@/components/landing/Landing";
 import { num, pct, short, usd } from "@/lib/format";
 
 type SP = Promise<{ tab?: string; p?: string; s?: string }>;
@@ -15,13 +17,16 @@ export default async function Home({ searchParams }: { searchParams: SP }) {
   const { t, lang } = await getT();
   const L = (a: string, b: string) => (lang === "id" ? a : b);
   const tab = sp.tab === "shadow" ? "shadow" : "bonded";
-  const { leaders, source } = await getLeaders();
+  const read = await getLeaders();
+  const leaders = read ?? [];
   const atStake = leaders.reduce((a, l) => a + l.bond + l.underwritten, 0);
   const aum = leaders.reduce((a, l) => a + l.followerAum, 0);
 
+  const stats = { leaders: leaders.length, bonded: atStake, breached: leaders.filter((l) => l.status === "breached").length, followerAum: aum };
   return (
     <div className="space-y-8">
-      <section className="grid items-end gap-8 lg:grid-cols-[1fr_auto]">
+      <Landing stats={stats} L={L} />
+      <section id="leaders" className="grid scroll-mt-20 items-end gap-8 lg:grid-cols-[1fr_auto]">
         <div className="max-w-2xl">
           <h1 className="font-cond text-4xl font-semibold leading-[1.05] tracking-tight sm:text-5xl">{t("home.title")}</h1>
           <p className="mt-4 text-base leading-relaxed text-ink-2">{t("home.lede")}</p>
@@ -52,7 +57,7 @@ export default async function Home({ searchParams }: { searchParams: SP }) {
         />
         <div className="mt-4">
           {tab === "bonded" ? (
-            <Bonded leaders={leaders} source={source} L={L} t={t} />
+            <Bonded leaders={read} L={L} t={t} />
           ) : (
             <Suspense fallback={<div className="h-96 animate-pulse rounded-lg bg-surface" />}>
               <Shadow period={(LB_PERIODS as string[]).includes(sp.p ?? "") ? (sp.p as LbPeriod) : "month"} sort={(["pnl", "roi", "vol"] as string[]).includes(sp.s ?? "") ? (sp.s as LbSort) : "pnl"} L={L} t={t} />
@@ -67,10 +72,12 @@ export default async function Home({ searchParams }: { searchParams: SP }) {
 type Lx = (a: string, b: string) => string;
 type Tx = Awaited<ReturnType<typeof getT>>["t"];
 
-function Bonded({ leaders, source, L, t }: { leaders: Awaited<ReturnType<typeof getLeaders>>["leaders"]; source: string; L: Lx; t: Tx }) {
+function Bonded({ leaders, L, t }: { leaders: Leader[] | null; L: Lx; t: Tx }) {
+  if (!leaders) return <Empty>{L("CopasRegistry tidak terbaca dari RPC Monad. Coba lagi sebentar.", "Could not read CopasRegistry from the Monad RPC. Try again shortly.")}</Empty>;
+  if (!leaders.length) return <Empty>{L("Belum ada leader berjaminan. Jadilah yang pertama.", "No bonded leaders yet. Be the first.")}</Empty>;
   const sorted = [...leaders].sort((a, b) => (a.status === "active" ? 0 : 1) - (b.status === "active" ? 0 : 1) || b.bond + b.underwritten - (a.bond + a.underwritten));
   return (
-    <Panel pad={false} aside={<Source kind={source === "mock" ? "mock" : "live"}>{source === "mock" ? t("common.mockNote") : L("Dibaca dari CopasRegistry", "Read from CopasRegistry")}</Source>} title={L("Diurutkan: aktif dulu, lalu jaminan terbesar", "Sorted: active first, then largest stake")}>
+    <Panel pad={false} aside={<Source kind="live">{L("Dibaca dari CopasRegistry", "Read from CopasRegistry")}</Source>} title={L("Diurutkan: aktif dulu, lalu jaminan terbesar", "Sorted: active first, then largest stake")}>
       <ul className="divide-y divide-line">
         {sorted.map((l) => {
           const prot = protection(l);
@@ -105,7 +112,7 @@ function Bonded({ leaders, source, L, t }: { leaders: Awaited<ReturnType<typeof 
               <div>
                 <div className="text-xs text-ink-3">{t("lb.unit")}</div>
                 <div className="num">
-                  {num(l.unitPrice, 3)} <span className={`text-xs ${l.return30d >= 0 ? "text-up" : "text-down"}`}>{pct(l.return30d, 1, true)} 30d</span>
+                  {num(l.unitPrice, 3)} <span className={`text-xs ${l.returnTotal >= 0 ? "text-up" : "text-down"}`}>{pct(l.returnTotal, 1, true)} {L("sejak awal", "since start")}</span>
                 </div>
               </div>
               <div>

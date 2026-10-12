@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
-import { LangToggle, useT } from "@/lib/i18n/client";
+import { useT } from "@/lib/i18n/client";
 import { AccountButton } from "./AccountButton";
 
 export function Header() {
@@ -21,8 +21,8 @@ export function Header() {
     <header className="sticky top-0 z-30 border-b border-line bg-bg/95 backdrop-blur">
       <div className="mx-auto flex h-14 max-w-[1320px] items-center gap-6 px-4 sm:px-6">
         <Link href="/" className="flex items-center gap-2" aria-label="Copas home">
-          <span aria-hidden className="perforated guilloche inline-block h-6 w-6 bg-gold [--hole:2px]" />
-          <span className="font-cond text-xl font-semibold tracking-tight">copas</span>
+          <span aria-hidden className="inline-block h-2.5 w-2.5 rounded-full bg-gold" />
+          <span className="display text-[26px] tracking-tight">copas</span>
         </Link>
         <nav className="hidden items-center gap-1 lg:flex" aria-label="Main">
           {nav.map((n) => (
@@ -30,14 +30,13 @@ export function Header() {
               key={n.href}
               href={n.href}
               aria-current={n.match(path) ? "page" : undefined}
-              className={`rounded px-2.5 py-1.5 text-sm ${n.match(path) ? "text-ink" : "text-ink-3 hover:text-ink-2"}`}
+              className={`micro rounded-full px-3 py-1.5 font-medium ${n.match(path) ? "bg-ink text-bg" : "text-ink-3 hover:text-ink"}`}
             >
               {n.label}
             </Link>
           ))}
         </nav>
         <div className="ml-auto flex items-center gap-2">
-          <LangToggle />
           <Link href="/settings" className="hidden rounded px-2 py-1.5 text-sm text-ink-3 hover:text-ink-2 sm:block">
             {t("nav.settings")}
           </Link>

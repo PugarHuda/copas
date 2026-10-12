@@ -8,7 +8,7 @@ import { perpIdsForChain } from "./contracts";
 /**
  * Copas rows from the Envio indexer (schema: copas/indexer/schema.graphql, entities are per chain).
  * Ids/addresses are lowercase. Every reader returns null when the indexer is not configured or
- * fails, so pages fall back to their empty state / mock instead of crashing.
+ * fails, so pages show an honest empty state instead of crashing.
  */
 const CHAIN = copasChain.id;
 const cns = (x: string | number) => Number(x) / 1e6;
@@ -50,12 +50,12 @@ export async function copasBreaches() {
   const d = await q<{
     Breach: {
       leader_id: string; epoch: number; reason: number; potCNS: string; capTotalCNS: string; timestamp: number; txHash: string;
-      claims: { amountCNS: string }[];
+      claims: { amountCNS: string; vault_id: string }[];
       leader: { checkpoints: { epoch: number; timestamp: number; unitPrice: string; ddBps: number }[] } | null;
     }[];
   }>(
     `query($chain: Int!) { Breach(where: { chainId: { _eq: $chain } }, order_by: { timestamp: desc }, limit: 50) {
-      leader_id epoch reason potCNS capTotalCNS timestamp txHash claims { amountCNS }
+      leader_id epoch reason potCNS capTotalCNS timestamp txHash claims { amountCNS vault_id }
       leader { checkpoints(order_by: { timestamp: desc }, limit: 100) { epoch timestamp unitPrice ddBps } } } }`,
   );
   return d?.Breach.map((b) => {
@@ -72,10 +72,36 @@ export async function copasBreaches() {
       slash: cns(b.potCNS),
       capTotal: cns(b.capTotalCNS),
       claimed: b.claims.reduce((a, x) => a + cns(x.amountCNS), 0),
+      claims: b.claims.map((x) => ({ vault: x.vault_id as `0x${string}`, amount: cns(x.amountCNS) })),
       t: b.timestamp * 1000,
       tx: b.txHash,
     };
   }) ?? null;
+}
+
+/** Per-leader rollups: active followers, breach count, fees paid to underwriters, pending underwriter withdrawals. */
+export async function leaderStats() {
+  const d = await q<{
+    Leader: { id: string; followers: number; breaches: { epoch: number }[]; epochs: { feesToUnderwritersCNS: string }[] }[];
+    UnderwriterPosition: { leader_id: string | null; pool: string; pendingShares: string }[];
+  }>(
+    `query($chain: Int!) {
+      Leader(where: { chainId: { _eq: $chain } }) { id followers breaches { epoch } epochs { feesToUnderwritersCNS } }
+      UnderwriterPosition(where: { chainId: { _eq: $chain }, pendingShares: { _gt: "0" } }) { leader_id pool pendingShares }
+    }`,
+  );
+  if (!d) return null;
+  return new Map(
+    d.Leader.map((l) => [
+      l.id,
+      {
+        followers: l.followers,
+        breaches: l.breaches.length,
+        uwFees: l.epochs.reduce((a, e) => a + cns(e.feesToUnderwritersCNS), 0),
+        uwPendingShares: d.UnderwriterPosition.filter((u) => u.leader_id === l.id).reduce((a, u) => a + cns(u.pendingShares), 0),
+      },
+    ]),
+  );
 }
 
 /* ----------------------------------- vault ----------------------------------- */

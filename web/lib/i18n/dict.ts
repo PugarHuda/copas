@@ -1,6 +1,6 @@
 export type Lang = "id" | "en";
 export const LANGS: Lang[] = ["id", "en"];
-export const DEFAULT_LANG: Lang = "id";
+export const DEFAULT_LANG: Lang = "en";
 export const LANG_COOKIE = "copas_lang";
 
 const en = {
@@ -18,7 +18,6 @@ const en = {
   "auth.session": "Session",
   "auth.sessionLeft": "min left",
   "auth.sessionExpired": "Session expired. Sign in again to keep signing small actions without a prompt.",
-  "common.mockNote": "Demo data until Copas contracts are deployed.",
   "common.realNote": "Live data from Perpl mainnet.",
   "common.loading": "Loading…",
   "common.address": "Address",
@@ -98,7 +97,6 @@ const id: Record<DictKey, string> = {
   "auth.session": "Sesi",
   "auth.sessionLeft": "menit lagi",
   "auth.sessionExpired": "Sesi berakhir. Masuk lagi agar aksi kecil bisa ditandatangani tanpa prompt.",
-  "common.mockNote": "Data demo sampai kontrak Copas di-deploy.",
   "common.realNote": "Data live dari Perpl mainnet.",
   "common.loading": "Memuat…",
   "common.address": "Alamat",

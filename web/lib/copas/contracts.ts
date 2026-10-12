@@ -27,3 +27,34 @@ export type Tier = keyof typeof TIERS;
 /** Bitmask over the registry market index order. ponytail: assumes registry.markets() order == list order below; read registry.indexOf() once deployed. */
 export const marketsMask = (names: readonly string[], order: readonly string[] = ["BTC", "ETH", "SOL", "MON"]) =>
   names.reduce((m, n) => (order.indexOf(n) >= 0 ? m | (1n << BigInt(order.indexOf(n))) : m), 0n);
+
+export type LeaderStatus = "active" | "unbonded" | "breached" | "closed";
+
+/** One LeaderBook read from chain (lib/copas/data.ts), in display units (AUSD, %, x). */
+export type Leader = {
+  book: `0x${string}`;
+  owner: `0x${string}`;
+  name: string; // ERC-8004 agent name when linked, else short address
+  agent?: { erc8004Id: number; model: string };
+  status: LeaderStatus;
+  bond: number;
+  underwritten: number;
+  pool: `0x${string}` | null; // UnderwriterPool
+  maxDD: number; // declared %
+  liveDD: number; // current epoch drawdown %
+  unitPrice: number;
+  peakUnitPrice: number;
+  equity: number;
+  epoch: number;
+  epochEnd: number; // ms
+  epochLenH: number;
+  followerAum: number;
+  followers: number | null; // active Follower rows in the indexer; null when it is unreachable
+  capacity: number;
+  maxLeverage: number;
+  maxNotional: number;
+  markets: string[];
+  feePct: number;
+  returnTotal: number; // % unit price change since the book started at 1.0
+  perplAccount: string; // the LeaderBook owns its Perpl account
+};

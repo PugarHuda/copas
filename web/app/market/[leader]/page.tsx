@@ -3,7 +3,6 @@ import type { Metadata } from "next";
 import { Panel, Source, Stat, StatRow, Empty } from "@/components/ui";
 import { DDMeter } from "@/components/copas";
 import { getDownMarket, getLeader } from "@/lib/copas/data";
-import { mockDownBook } from "@/lib/mock/copas"; // fallback until a series is minted for this leader
 import { getT } from "@/lib/i18n/server";
 import { num, pct, usd } from "@/lib/format";
 import { copasChain, explorerAddr } from "@/lib/chains";
@@ -12,24 +11,21 @@ export const metadata: Metadata = { title: "DOWN market" };
 
 export default async function MarketPage({ params }: { params: Promise<{ leader: string }> }) {
   const { leader } = await params;
-  const { t, lang } = await getT();
+  const { lang } = await getT();
   const L = (a: string, b: string) => (lang === "id" ? a : b);
-  const { leader: l } = await getLeader(leader);
+  const l = await getLeader(leader);
   if (!l) return <Empty>{L("Leader tidak ditemukan.", "Leader not found.")}</Empty>;
-  const live = l.owner ? await getDownMarket(l.book, l.epoch).catch(() => null) : null;
-  const mock = mockDownBook(l);
-  const px = live ? (live.bid && live.ask ? (live.bid + live.ask) / 2 : live.ask || live.bid) : mock.downPrice;
-  const b = live
-    ? {
-        epoch: live.epoch,
-        downPrice: px,
-        upPrice: 1 - px,
-        supply: live.supply,
-        // ponytail: top of book only (bestBidAsk); full depth needs Kuru's L2 reader
-        asks: live.ask ? [{ px: live.ask, size: NaN }] : [],
-        bids: live.bid ? [{ px: live.bid, size: NaN }] : [],
-      }
-    : mock;
+  const live = await getDownMarket(l.book, l.epoch).catch(() => null);
+  // no px until DOWN trades on Kuru: odds are shown only when there is a book
+  const px = live && (live.bid && live.ask ? (live.bid + live.ask) / 2 : live.ask || live.bid);
+  const b = {
+    epoch: live?.epoch ?? l.epoch,
+    downPrice: px || null,
+    supply: live?.supply ?? 0,
+    // ponytail: top of book only (bestBidAsk); full depth needs Kuru's L2 reader
+    asks: live?.ask ? [{ px: live.ask, size: NaN }] : [],
+    bids: live?.bid ? [{ px: live.bid, size: NaN }] : [],
+  };
   return (
     <div className="space-y-6">
       <div>
@@ -46,10 +42,10 @@ export default async function MarketPage({ params }: { params: Promise<{ leader:
           )}
         </p>
       </div>
-      <Panel aside={live ? <Source kind="live">BreachMarket · Kuru</Source> : <Source kind="mock">{t("common.mockNote")}</Source>} title={L("Pasar", "Market")}>
+      <Panel aside={<Source kind="live">BreachMarket · Kuru</Source>} title={L("Pasar", "Market")}>
         <StatRow>
-          <Stat label={L("Peluang breach (harga DOWN)", "Breach odds (DOWN price)")} value={pct(b.downPrice * 100, 0)} tone={b.downPrice > 0.5 ? "text-down" : ""} />
-          <Stat label={L("Harga UP", "UP price")} value={num(b.upPrice, 2)} />
+          <Stat label={L("Peluang breach (harga DOWN)", "Breach odds (DOWN price)")} value={b.downPrice != null ? pct(b.downPrice * 100, 0) : "–"} tone={(b.downPrice ?? 0) > 0.5 ? "text-down" : ""} sub={b.downPrice == null ? L("belum ada order di Kuru", "no Kuru orders yet") : undefined} />
+          <Stat label={L("Harga UP", "UP price")} value={b.downPrice != null ? num(1 - b.downPrice, 2) : "–"} />
           <Stat label={L("Pasangan beredar", "Pairs outstanding")} value={num(b.supply, 0)} />
           <Stat label={L("Drawdown live / janji", "Drawdown live / declared")} value={<DDMeter live={l.liveDD} max={l.maxDD} />} />
         </StatRow>
@@ -74,6 +70,13 @@ export default async function MarketPage({ params }: { params: Promise<{ leader:
                   <td className="r">{Number.isNaN(a.size) ? L("terbaik", "best") : num(a.size, 0)}</td>
                 </tr>
               ))}
+              {!b.asks.length && !b.bids.length && (
+                <tr>
+                  <td colSpan={2} className="text-center text-ink-3">
+                    {live ? L("Belum ada order di Kuru.", "No Kuru orders yet.") : L("Belum ada seri UP/DOWN yang dicetak untuk epoch ini.", "No UP/DOWN series minted for this epoch yet.")}
+                  </td>
+                </tr>
+              )}
               {b.bids.map((x) => (
                 <tr key={"b" + x.px}>
                   <td className="text-up">{num(x.px, 2)}</td>

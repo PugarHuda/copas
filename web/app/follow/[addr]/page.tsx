@@ -2,7 +2,7 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import { getLeader } from "@/lib/copas/data";
 import { getT } from "@/lib/i18n/server";
-import { Empty, Source } from "@/components/ui";
+import { Empty } from "@/components/ui";
 import { Seal } from "@/components/Seal";
 import { DDMeter, StatusPill } from "@/components/copas";
 import { FollowTicket } from "./FollowTicket";
@@ -13,7 +13,7 @@ export default async function FollowPage({ params }: { params: Promise<{ addr: s
   const { addr } = await params;
   const { t, lang } = await getT();
   const L = (a: string, b: string) => (lang === "id" ? a : b);
-  const { leader: l, source } = await getLeader(addr);
+  const l = await getLeader(addr);
   if (!l)
     return (
       <Empty>
@@ -37,7 +37,6 @@ export default async function FollowPage({ params }: { params: Promise<{ addr: s
           <div className="mt-2 flex flex-wrap items-center gap-3">
             <StatusPill status={l.status} label={t(`status.${l.status}`)} />
             <DDMeter live={l.liveDD} max={l.maxDD} compact />
-            {source === "mock" && <Source kind="mock">{t("common.mockNote")}</Source>}
           </div>
         </div>
       </div>

@@ -1,4 +1,4 @@
-import type { Leader, LeaderStatus } from "@/lib/mock/copas";
+import type { Leader, LeaderStatus } from "@/lib/copas/contracts";
 import { pct } from "@/lib/format";
 import { Pill } from "./ui";
 

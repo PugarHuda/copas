@@ -3,7 +3,7 @@ import { createContext, useContext } from "react";
 import { useRouter } from "next/navigation";
 import { LANG_COOKIE, dicts, type DictKey, type Lang } from "./dict";
 
-const LangCtx = createContext<Lang>("id");
+const LangCtx = createContext<Lang>("en");
 
 export function I18nProvider({ lang, children }: { lang: Lang; children: React.ReactNode }) {
   return <LangCtx.Provider value={lang}>{children}</LangCtx.Provider>;

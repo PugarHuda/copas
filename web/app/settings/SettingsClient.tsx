@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { LangToggle, useL, useT } from "@/lib/i18n/client";
+import { useL, useT } from "@/lib/i18n/client";
 import { SESSION_TTL_MS, useMeraSession } from "@/lib/mera/MeraProvider";
 import { useMinutesLeft } from "@/components/AccountButton";
 import { Panel, Pill, btn } from "@/components/ui";
@@ -112,9 +112,6 @@ export function SettingsClient() {
         </button>
       </Panel>
 
-      <Panel title={t("settings.lang")}>
-        <LangToggle />
-      </Panel>
     </div>
   );
 }

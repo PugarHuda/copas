@@ -4,9 +4,10 @@ import { Panel, Source, Stat, StatRow, Empty, btn, Pill } from "@/components/ui"
 import { Seal } from "@/components/Seal";
 import { TimeChart } from "@/components/TimeChart";
 import { DDMeter, StatusPill, protection } from "@/components/copas";
-import { getLeader } from "@/lib/copas/data";
+import { getLeader, perplPositions } from "@/lib/copas/data";
 import { leaderCheckpoints, type LiveCheckpoint } from "@/lib/copas/indexer";
-import { MOCK_POSITIONS, mockCheckpoints, mockUnitCurve, type Leader } from "@/lib/mock/copas";
+import type { Leader } from "@/lib/copas/contracts";
+import type { Position } from "@/lib/perpl/onchain";
 import { walletPeriods, walletSnapshot } from "@/lib/perpl/analytics";
 import { getT } from "@/lib/i18n/server";
 import { ago, isAddress, num, pct, price, short, usd } from "@/lib/format";
@@ -19,7 +20,7 @@ type Lx = (a: string, b: string) => string;
 
 export async function generateMetadata({ params }: { params: P }): Promise<Metadata> {
   const { addr } = await params;
-  const { leader } = await getLeader(addr);
+  const leader = await getLeader(addr);
   return { title: leader?.name ?? `Shadow ${short(addr)}` };
 }
 
@@ -27,27 +28,29 @@ export default async function LeaderPage({ params }: { params: P }) {
   const { addr } = await params;
   const { t, lang } = await getT();
   const L: Lx = (a, b) => (lang === "id" ? a : b);
-  const { leader, source } = await getLeader(addr);
-  // mock leaders are never on chain: their checkpoints stay mock; chain leaders read the indexer
-  const cps: LiveCheckpoint[] | null = leader && source === "chain" ? ((await leaderCheckpoints(leader.book)) ?? []) : null;
-  if (leader) return <Bonded l={leader} source={source} cps={cps} L={L} statusLabel={t(`status.${leader.status}`)} />;
+  const leader = await getLeader(addr);
+  if (leader) {
+    const [cps, positions] = await Promise.all([leaderCheckpoints(leader.book), perplPositions(leader.book).catch(() => null)]);
+    return <Bonded l={leader} cps={cps} positions={positions} L={L} statusLabel={t(`status.${leader.status}`)} />;
+  }
   if (isAddress(addr)) return <ShadowProfile addr={addr.toLowerCase()} L={L} />;
   return <Empty>{L("Leader tidak ditemukan.", "Leader not found.")}</Empty>;
 }
 
-function Bonded({ l, source, cps: live, L, statusLabel }: { l: Leader; source: string; cps: LiveCheckpoint[] | null; L: Lx; statusLabel: string }) {
-  const curve = mockUnitCurve(l);
-  const positions = MOCK_POSITIONS[l.book] ?? [];
-  const cps: (LiveCheckpoint | ReturnType<typeof mockCheckpoints>[number])[] = live ?? mockCheckpoints(l);
+function Bonded({ l, cps, positions: read, L, statusLabel }: { l: Leader; cps: LiveCheckpoint[] | null; positions: Position[] | null; L: Lx; statusLabel: string }) {
+  // unit price and the epoch peak it is measured against, oldest first; peak = u / (1 − dd)
+  const curve = (cps ?? []).filter((c) => Number.isFinite(c.unitPrice)).reverse().map((c) => ({ t: c.t, u: c.unitPrice, hwm: c.unitPrice / (1 - c.ddPct / 100) }));
+  const positions = read ?? [];
   const prot = protection(l);
-  const effLev = Math.max(0, ...positions.map((p) => p.leverage));
+  const gross = positions.reduce((a, p) => a + p.notional, 0);
+  const effLev = l.equity > 0 ? gross / l.equity : 0; // same as the contract: gross notional / equity
   const outside = positions.filter((p) => !l.markets.includes(p.market));
-  const hoursLeft = Math.max(0, (l.epochEnd - Date.UTC(2026, 9, 4, 3)) / 3_600_000);
+  const hoursLeft = Math.max(0, (l.epochEnd - Date.now()) / 3_600_000);
   const mandate: { label: string; promise: string; now: string; ok: boolean }[] = [
     { label: L("Drawdown maks per epoch", "Max drawdown per epoch"), promise: pct(l.maxDD, 0), now: pct(l.liveDD, 1), ok: l.liveDD <= l.maxDD },
     { label: L("Leverage maks", "Max leverage"), promise: `${l.maxLeverage}x`, now: `${num(effLev, 1)}x`, ok: effLev <= l.maxLeverage },
     { label: L("Market yang diizinkan", "Allowed markets"), promise: l.markets.join(", "), now: outside.length ? outside.map((p) => p.market).join(", ") : L("semua di dalam mandat", "all inside mandate"), ok: !outside.length },
-    { label: L("Notional maks", "Max notional"), promise: usd(l.maxNotional, { dp: 0 }), now: usd(positions.reduce((a, p) => a + p.size * p.mark, 0), { dp: 0 }), ok: true },
+    { label: L("Notional maks", "Max notional"), promise: usd(l.maxNotional, { dp: 0 }), now: usd(gross, { dp: 0 }), ok: gross <= l.maxNotional },
     { label: L("Jaminan minimum", "Minimum bond"), promise: usd(Math.max(25, l.followerAum * 0.1), { dp: 0 }), now: usd(l.bond, { dp: 0 }), ok: l.bond >= Math.max(25, l.followerAum * 0.1) },
   ];
   return (
@@ -63,7 +66,7 @@ function Bonded({ l, source, cps: live, L, statusLabel }: { l: Leader; source: s
           <div className="mt-2 grid gap-1 text-xs text-ink-3">
             <span>
               LeaderBook{" "}
-              <a className="num hover:text-ink-2" href={explorerAddr(l.book)} target="_blank" rel="noreferrer">
+              <a className="num hover:text-ink-2" href={explorerAddr(l.book, copasChain.id)} target="_blank" rel="noreferrer">
                 {l.book}
               </a>
             </span>
@@ -93,19 +96,22 @@ function Bonded({ l, source, cps: live, L, statusLabel }: { l: Leader; source: s
         </div>
       </div>
 
-      <Panel title={L("Ringkasan epoch", "Epoch summary")} aside={<Source kind={source === "mock" ? "mock" : "live"}>{source === "mock" ? L("Data demo sampai kontrak di-deploy", "Demo data until contracts deploy") : "LeaderBook"}</Source>}>
+      <Panel title={L("Ringkasan epoch", "Epoch summary")} aside={<Source kind="live">LeaderBook</Source>}>
         <StatRow>
-          <Stat label={L("Harga unit", "Unit price")} value={num(l.unitPrice, 4)} sub={`${pct(l.return30d, 1, true)} 30d`} />
+          <Stat label={L("Harga unit", "Unit price")} value={num(l.unitPrice, 4)} sub={`${pct(l.returnTotal, 1, true)} ${L("sejak awal", "since start")}`} />
           <Stat label={L("Puncak epoch (HWM)", "Epoch peak (HWM)")} value={num(l.peakUnitPrice, 4)} />
           <Stat label={L("Drawdown live / janji", "Drawdown live / declared")} value={<DDMeter live={l.liveDD} max={l.maxDD} />} />
-          <Stat label={L("AUM / kapasitas", "AUM / capacity")} value={usd(l.followerAum, { dp: 0 })} sub={`${pct((l.followerAum / l.capacity) * 100, 0)} ${L("dari", "of")} ${usd(l.capacity, { dp: 0 })}`} />
+          <Stat label={L("AUM / kapasitas", "AUM / capacity")} value={usd(l.followerAum, { dp: 0 })} sub={`${l.followers != null ? `${l.followers} follower · ` : ""}${pct(l.capacity ? (l.followerAum / l.capacity) * 100 : 0, 0)} ${L("dari", "of")} ${usd(l.capacity, { dp: 0 })}`} />
           <Stat label={L("Perlindungan maks", "Max protection")} value={pct(prot, 0)} sub={L("jaminan ÷ AUM", "stake ÷ AUM")} tone={prot < 25 ? "text-warn" : ""} />
           <Stat label={`${L("Epoch", "Epoch")} ${l.epoch} ${L("berakhir", "ends in")}`} value={`${num(hoursLeft, 0)}h`} sub={`${L("panjang", "length")} ${l.epochLenH}h`} />
         </StatRow>
       </Panel>
 
       <div className="grid gap-6 lg:grid-cols-3">
-        <Panel className="lg:col-span-2" title={L("Harga unit dan high-water mark epoch", "Unit price and epoch high-water mark")}>
+        <Panel className="lg:col-span-2" title={L("Harga unit dan high-water mark epoch", "Unit price and epoch high-water mark")} aside={<Source kind="indexer">LeaderBook.Checkpoint</Source>}>
+          {curve.length < 2 ? (
+            <Empty>{cps ? L("Belum cukup checkpoint untuk grafik.", "Not enough checkpoints for a chart yet.") : L("Indexer tidak merespons; grafik dibangun dari checkpoint terindeks.", "The indexer did not respond; the chart is built from indexed checkpoints.")}</Empty>
+          ) : (
           <TimeChart
             ariaLabel="Unit price"
             format="num"
@@ -115,6 +121,7 @@ function Bonded({ l, source, cps: live, L, statusLabel }: { l: Leader; source: s
               { name: "HWM", kind: "line", color: "#d9b45c", data: curve.map((p) => ({ t: p.t, v: p.hwm })) },
             ]}
           />
+          )}
           <p className="mt-2 text-xs text-ink-3">
             {L(
               "Harga unit = equity Perpl leader ÷ unit. Setoran dan penarikan mencetak/membakar unit, jadi tidak menggeser harga. HWM direset tiap awal epoch.",
@@ -146,8 +153,10 @@ function Bonded({ l, source, cps: live, L, statusLabel }: { l: Leader; source: s
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
-        <Panel title={L("Posisi leader", "Leader positions")} pad={false} aside={<Source kind="mock">{L("Demo", "Demo")}</Source>}>
-          {positions.length ? (
+        <Panel title={L("Posisi leader", "Leader positions")} pad={false} aside={<Source kind="rpc">Perpl getPosition</Source>}>
+          {!read ? (
+            <Empty>{L("RPC Monad tidak merespons. Coba lagi sebentar.", "The Monad RPC did not respond. Try again shortly.")}</Empty>
+          ) : positions.length ? (
             <table className="data">
               <thead>
                 <tr>
@@ -162,13 +171,13 @@ function Bonded({ l, source, cps: live, L, statusLabel }: { l: Leader; source: s
               </thead>
               <tbody>
                 {positions.map((p) => (
-                  <tr key={p.market}>
+                  <tr key={p.marketId}>
                     <td>{p.market}</td>
                     <td className={p.side === "long" ? "text-up" : "text-down"}>{p.side === "long" ? "Long" : "Short"}</td>
                     <td className="r">{num(p.size, 4)}</td>
                     <td className="r">{price(p.entry)}</td>
                     <td className="r">{price(p.mark)}</td>
-                    <td className="r">{num(p.leverage, 1)}x</td>
+                    <td className="r">{Number.isFinite(p.leverage) ? `${num(p.leverage, 1)}x` : "–"}</td>
                     <td className={`r ${p.upnl >= 0 ? "text-up" : "text-down"}`}>{usd(p.upnl, { sign: true })}</td>
                   </tr>
                 ))}
@@ -187,10 +196,12 @@ function Bonded({ l, source, cps: live, L, statusLabel }: { l: Leader; source: s
         <BacktestPanel perplAddress={l.perplAccount} mandate={{ maxDDbps: l.maxDD * 100, epochLen: l.epochLenH * 3600, maxLeverageHdths: l.maxLeverage * 100 }} />
       </Panel>
 
-      {source === "chain" && <StrategyFeed book={l.book} leader={l.owner} />}
+      <StrategyFeed book={l.book} leader={l.owner} />
 
-      <Panel title={L("Checkpoint dan pelanggaran", "Checkpoints and breaches")} pad={false} aside={<Source kind={live ? "indexer" : "mock"}>LeaderBook.Checkpoint / Breached</Source>}>
-        {live && !cps.length ? (
+      <Panel title={L("Checkpoint dan pelanggaran", "Checkpoints and breaches")} pad={false} aside={<Source kind="indexer">LeaderBook.Checkpoint / Breached</Source>}>
+        {!cps ? (
+          <Empty>{L("Indexer tidak merespons. Coba lagi sebentar.", "The indexer did not respond. Try again shortly.")}</Empty>
+        ) : !cps.length ? (
           <Empty>{L("Belum ada checkpoint terindeks.", "No checkpoints indexed yet.")}</Empty>
         ) : (
         <div className="overflow-x-auto">
@@ -209,7 +220,7 @@ function Bonded({ l, source, cps: live, L, statusLabel }: { l: Leader; source: s
             <tbody>
               {cps.map((c, i) => (
                 <tr key={i}>
-                  <td className="text-ink-3">{ago(c.t, live ? Date.now() : Date.UTC(2026, 9, 4, 3))}</td>
+                  <td className="text-ink-3">{ago(c.t)}</td>
                   <td>{c.epoch}</td>
                   <td className="r">{num(c.unitPrice, 4)}</td>
                   <td className={`r ${c.ddPct > l.maxDD ? "text-down" : ""}`}>{pct(c.ddPct, 2)}</td>
@@ -217,11 +228,11 @@ function Bonded({ l, source, cps: live, L, statusLabel }: { l: Leader; source: s
                   <td>{c.breach ? <span className="text-down">✕ {L("Breach", "Breach")}: {c.breach}</span> : <span className="text-ink-3">✓ OK</span>}</td>
                   <td className="r">
                     {c.tx ? (
-                      <a href={explorerTx(c.tx, live ? copasChain.id : undefined)} className="text-xs text-ink-3 hover:text-ink-2" target="_blank" rel="noreferrer">
+                      <a href={explorerTx(c.tx, copasChain.id)} className="text-xs text-ink-3 hover:text-ink-2" target="_blank" rel="noreferrer">
                         tx
                       </a>
                     ) : (
-                      "block" in c && (
+                      c.block > 0 && (
                         <a href={`${copasChain.blockExplorers.default.url}/block/${c.block}`} className="text-xs text-ink-3 hover:text-ink-2" target="_blank" rel="noreferrer">
                           #{c.block}
                         </a>

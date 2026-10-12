@@ -1,0 +1,180 @@
+"use client";
+import { useEffect, useRef } from "react";
+import * as THREE from "three";
+
+/** Floating labelled spheres (reference: C8VN hero). Labels are Copas concepts and live markets, nothing decorative-fake. */
+const LABELS = ["BOND", "MANDATE", "SLASH", "BTC", "ETH", "MON", "SOL", "CLAIM", "COPY"];
+const RED = new Set(["SLASH", "BOND", "CLAIM"]);
+
+function sphereTexture(label: string, red: boolean) {
+  const c = document.createElement("canvas");
+  c.width = 1024;
+  c.height = 512;
+  const g = c.getContext("2d")!;
+  g.fillStyle = red ? "#8f0d08" : "#17110f";
+  g.fillRect(0, 0, c.width, c.height);
+  // dimples: the perforated look of the reference spheres
+  g.fillStyle = red ? "rgba(0,0,0,0.35)" : "rgba(255,255,255,0.07)";
+  for (let y = 12; y < c.height; y += 22)
+    for (let x = (y / 22) % 2 ? 12 : 23; x < c.width; x += 22) {
+      g.beginPath();
+      g.arc(x, y, 3.2, 0, 7);
+      g.fill();
+    }
+  g.font = "600 150px 'Barlow Condensed', 'Arial Narrow', sans-serif";
+  g.textAlign = "center";
+  g.textBaseline = "middle";
+  g.fillStyle = red ? "#ffffff" : "#e3241b";
+  g.fillText(label, c.width * 0.5, c.height * 0.5);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  t.anisotropy = 4;
+  return t;
+}
+
+export function Hero3D() {
+  const host = useRef<HTMLDivElement>(null);
+  const overlay = useRef<HTMLCanvasElement>(null);
+
+  useEffect(() => {
+    const el = host.current!;
+    const ov = overlay.current!;
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: "low-power" });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.75));
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    el.prepend(renderer.domElement);
+    renderer.domElement.setAttribute("aria-hidden", "true");
+
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(32, 1, 0.1, 100);
+    camera.position.set(0, 0, 14);
+    scene.add(new THREE.HemisphereLight(0xffffff, 0x330000, 1.1));
+    const key = new THREE.DirectionalLight(0xffffff, 2.2);
+    key.position.set(4, 6, 8);
+    scene.add(key);
+    const rim = new THREE.PointLight(0xff2a1a, 60, 30);
+    rim.position.set(-5, -2, 4);
+    scene.add(rim);
+
+    const group = new THREE.Group();
+    scene.add(group);
+    const geo = new THREE.SphereGeometry(1, 64, 48);
+    const balls = LABELS.map((label, i) => {
+      const mat = new THREE.MeshPhysicalMaterial({ map: sphereTexture(label, RED.has(label)), roughness: 0.42, metalness: 0.1, clearcoat: 0.6, clearcoatRoughness: 0.35 });
+      const m = new THREE.Mesh(geo, mat);
+      const a = (i / LABELS.length) * Math.PI * 2;
+      const r = 2.2 + (i % 3) * 0.9;
+      const s = 0.75 + ((i * 37) % 10) / 22;
+      m.scale.setScalar(s);
+      m.userData = { base: new THREE.Vector3(Math.cos(a) * r - 1.2, Math.sin(a) * r * 0.62 + 0.4, ((i * 53) % 7) - 3.5), phase: i * 1.7, label };
+      m.position.copy(m.userData.base);
+      m.rotation.y = -Math.PI / 2 + (i % 2 ? 0.4 : -0.3);
+      group.add(m);
+      return m;
+    });
+
+    const size = () => {
+      const w = el.clientWidth;
+      const h = el.clientHeight;
+      renderer.setSize(w, h, false);
+      renderer.domElement.style.width = "100%";
+      renderer.domElement.style.height = "100%";
+      camera.aspect = w / h;
+      camera.position.z = w < 640 ? 19 : 14;
+      camera.updateProjectionMatrix();
+      ov.width = w * devicePixelRatio;
+      ov.height = h * devicePixelRatio;
+    };
+    size();
+    const ro = new ResizeObserver(size);
+    ro.observe(el);
+
+    const mouse = { x: 0, y: 0 };
+    const onMove = (e: PointerEvent) => {
+      const r = el.getBoundingClientRect();
+      mouse.x = ((e.clientX - r.left) / r.width - 0.5) * 2;
+      mouse.y = ((e.clientY - r.top) / r.height - 0.5) * 2;
+    };
+    el.addEventListener("pointermove", onMove);
+
+    let visible = true;
+    const io = new IntersectionObserver(([e]) => (visible = e.isIntersecting));
+    io.observe(el);
+
+    const g2 = ov.getContext("2d")!;
+    const v = new THREE.Vector3();
+    const project = (m: THREE.Mesh) => {
+      m.getWorldPosition(v);
+      const d = v.distanceTo(camera.position);
+      v.project(camera);
+      const w = el.clientWidth;
+      const h = el.clientHeight;
+      const rad = (m.scale.x / (d * Math.tan((camera.fov * Math.PI) / 360))) * (h / 2);
+      return { x: (v.x * 0.5 + 0.5) * w, y: (-v.y * 0.5 + 0.5) * h, r: rad };
+    };
+    const drawOverlay = () => {
+      const k = devicePixelRatio;
+      g2.setTransform(k, 0, 0, k, 0, 0);
+      g2.clearRect(0, 0, ov.width, ov.height);
+      const pts = balls.map(project);
+      g2.lineWidth = 0.8;
+      g2.strokeStyle = "rgba(255,255,255,0.8)";
+      g2.beginPath();
+      for (let i = 0; i < pts.length; i++) {
+        const a = pts[i];
+        const b = pts[(i + 3) % pts.length];
+        g2.moveTo(a.x, a.y);
+        g2.lineTo(b.x, b.y);
+      }
+      g2.stroke();
+      g2.strokeStyle = "rgba(227,36,27,0.75)";
+      g2.font = "10px ui-monospace, monospace";
+      g2.fillStyle = "rgba(227,36,27,0.9)";
+      pts.forEach((p, i) => {
+        const s = p.r * 1.25;
+        g2.strokeRect(p.x - s, p.y - s * 0.8, s * 2, s * 1.6);
+        g2.fillText(String(i + 1).padStart(2, "0"), p.x - s + 3, p.y - s * 0.8 + 11);
+      });
+    };
+
+    const clock = new THREE.Clock();
+    let raf = 0;
+    const tick = () => {
+      raf = requestAnimationFrame(tick);
+      if (!visible) return;
+      const t = reduce ? 0 : clock.getElapsedTime();
+      for (const m of balls) {
+        const { base, phase } = m.userData as { base: THREE.Vector3; phase: number };
+        m.position.set(base.x + Math.sin(t * 0.35 + phase) * 0.25, base.y + Math.cos(t * 0.45 + phase) * 0.3, base.z);
+        m.rotation.x = Math.sin(t * 0.2 + phase) * 0.25;
+      }
+      group.rotation.y += ((mouse.x * 0.35 - group.rotation.y) * 0.04) || 0;
+      group.rotation.x += ((mouse.y * 0.2 - group.rotation.x) * 0.04) || 0;
+      renderer.render(scene, camera);
+      drawOverlay();
+    };
+    tick();
+
+    return () => {
+      cancelAnimationFrame(raf);
+      ro.disconnect();
+      io.disconnect();
+      el.removeEventListener("pointermove", onMove);
+      balls.forEach((b) => {
+        const mat = b.material as THREE.MeshPhysicalMaterial;
+        mat.map?.dispose();
+        mat.dispose();
+      });
+      geo.dispose();
+      renderer.dispose();
+      renderer.domElement.remove();
+    };
+  }, []);
+
+  return (
+    <div ref={host} className="absolute inset-0">
+      <canvas ref={overlay} aria-hidden className="pointer-events-none absolute inset-0 h-full w-full" />
+    </div>
+  );
+}

@@ -62,7 +62,7 @@ export function liqPrice(side: "long" | "short", q: number, mark: number, posEqu
   return p > 0 ? p : null;
 }
 
-export function toPosition(m: Market, p: RawPos, markPNS: bigint): Position {
+export function toPosition(m: Pick<Market, "id" | "name" | "pd" | "sd" | "maintLev">, p: RawPos, markPNS: bigint): Position {
   const side = p.positionType === 0 ? "long" : "short";
   const size = Number(p.lotLNS) / 10 ** m.sd;
   const mark = Number(markPNS) / 10 ** m.pd;

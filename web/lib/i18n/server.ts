@@ -1,10 +1,9 @@
 import "server-only";
-import { cookies } from "next/headers";
-import { DEFAULT_LANG, LANG_COOKIE, dicts, isLang, type DictKey, type Lang } from "./dict";
+import { DEFAULT_LANG, dicts, type DictKey, type Lang } from "./dict";
 
+// ponytail: the app ships English-only for the hackathon; ID strings stay in the dicts for later.
 export async function getLang(): Promise<Lang> {
-  const v = (await cookies()).get(LANG_COOKIE)?.value;
-  return isLang(v) ? v : DEFAULT_LANG;
+  return DEFAULT_LANG;
 }
 
 export async function getT() {
