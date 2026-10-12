@@ -26,13 +26,13 @@ export function Header() {
           <span aria-hidden className="inline-block h-2.5 w-2.5 rounded-full bg-gold" />
           <span className="display text-[26px] tracking-tight">copas</span>
         </Link>
-        <nav className="hidden items-center gap-1 lg:flex" aria-label="Main">
+        <nav className="hidden items-center gap-1 xl:flex" aria-label="Main">
           {nav.map((n) => (
             <Link
               key={n.href}
               href={n.href}
               aria-current={n.match(path) ? "page" : undefined}
-              className={`micro rounded-full px-3 py-1.5 font-medium ${n.match(path) ? "bg-ink text-bg" : "text-ink-3 hover:text-ink"}`}
+              className={`micro whitespace-nowrap rounded-full px-3 py-1.5 font-medium ${n.match(path) ? "bg-ink text-bg" : "text-ink-3 hover:text-ink"}`}
             >
               {n.label}
             </Link>
@@ -43,15 +43,15 @@ export function Header() {
             {t("nav.settings")}
           </Link>
           <AccountButton />
-          <button className="rounded border border-line px-2 py-1 text-sm lg:hidden" aria-expanded={open} aria-controls="mnav" onClick={() => setOpen(!open)}>
+          <button className="rounded border border-line px-2 py-1 text-sm xl:hidden" aria-expanded={open} aria-controls="mnav" onClick={() => setOpen(!open)}>
             Menu
           </button>
         </div>
       </div>
       {open && (
-        <nav id="mnav" className="border-t border-line px-4 py-2 lg:hidden" aria-label="Mobile">
+        <nav id="mnav" className="border-t border-line px-4 py-2 xl:hidden" aria-label="Mobile">
           {[...nav, { href: "/settings", label: t("nav.settings"), match: (p: string) => p === "/settings" }].map((n) => (
-            <Link key={n.href} href={n.href} onClick={() => setOpen(false)} className={`block py-2 text-sm ${n.match(path) ? "text-ink" : "text-ink-2"}`}>
+            <Link key={n.href} href={n.href} aria-current={n.match(path) ? "page" : undefined} onClick={() => setOpen(false)} className={`block py-2 text-sm ${n.match(path) ? "text-ink" : "text-ink-2"}`}>
               {n.label}
             </Link>
           ))}

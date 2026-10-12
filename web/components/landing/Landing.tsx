@@ -80,7 +80,7 @@ export function Landing({ stats, metrics, L }: { stats: Stats; metrics: Metrics;
             { k: "AUSD bonded", v: stats.bond == null ? "–" : fmt(stats.bond), s: stats.leaders == null ? "registry read failed" : `across ${stats.leaders} ${stats.leaders === 1 ? "leader" : "leaders"}` },
             { k: "Active followers", v: metrics ? fmt(metrics.followers) : "–", s: "follows live now" },
             { k: "Copy syncs executed", v: metrics ? fmt(metrics.syncs) : "–", s: "Synced events onchain" },
-            { k: "Slashes paid", v: metrics ? `${metrics.slashPaid.toLocaleString("en-US", { maximumFractionDigits: metrics.slashPaid < 1 ? 4 : 2 })} AUSD` : "–", s: metrics ? `${metrics.claims} ${metrics.claims === 1 ? "claim" : "claims"} by followers` : "" },
+            { k: "AUSD slashes paid", v: metrics ? metrics.slashPaid.toLocaleString("en-US", { maximumFractionDigits: metrics.slashPaid < 1 ? 4 : 2 }) : "–", s: metrics ? `${metrics.claims} ${metrics.claims === 1 ? "claim" : "claims"} by followers` : "" },
             { k: "Vaults created", v: metrics ? fmt(metrics.vaults) : "–", s: "one per follower" },
             { k: "Upkeep calls", v: metrics ? fmt(metrics.upkeep) : "–", s: "checkpoint · roll · sync" },
           ].map((m) => (

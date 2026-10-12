@@ -27,6 +27,8 @@ export default async function Seasons({ searchParams }: { searchParams: SP }) {
   const first = board ? weekStart(board.firstAt) : from;
   const season = Math.round((from - first) / WEEK) + 1; // < 1 = before the first leader existed
   const label = (n: number) => (n < 1 ? "Pre-season" : `Season ${n}`);
+  const next = Math.max(from + WEEK, first); // from any pre-season week, "next" is Season 1, not the following empty week
+  const nextSeason = Math.round((next - first) / WEEK) + 1;
   const total = rows.reduce((a, r) => ({ net: a.net + r.net, slash: a.slash + r.slashPaid, breaches: a.breaches + r.breaches, bond: a.bond + (names.get(r.book)?.bond ?? r.bond) }), { net: 0, slash: 0, breaches: 0, bond: 0 });
   const active = rows.some((r) => r.fills || r.slashPaid || r.breaches || r.perfFees);
 
@@ -46,8 +48,8 @@ export default async function Seasons({ searchParams }: { searchParams: SP }) {
             {label(season)} · {day(from)} – {day(to - 86_400)}
           </span>
           {from < current && (
-            <Link href={`/seasons?w=${day(from + WEEK)}`} className="rounded border border-line-strong px-2 py-1 text-ink-2 hover:text-ink">
-              {label(season + 1)} →
+            <Link href={`/seasons?w=${day(next)}`} className="rounded border border-line-strong px-2 py-1 text-ink-2 hover:text-ink">
+              {label(nextSeason)} →
             </Link>
           )}
         </nav>
@@ -59,16 +61,18 @@ export default async function Seasons({ searchParams }: { searchParams: SP }) {
         </Panel>
       ) : (
         <>
-          <Panel>
-            <StatRow>
-              <Stat label="Followers' net result" value={amt(total.net)} tone={tone(total.net)} />
-              <Stat label="Slashes paid to followers" value={amt(total.slash, false)} />
-              <Stat label="Breaches this season" value={total.breaches} />
-              <Stat label="Bond at stake now" value={usd(total.bond, { dp: 0 })} />
-              <Stat label="Leaders" value={rows.length} />
-              <Stat label={from === current ? "Ends" : "Ended"} value={day(to)} sub="00:00 UTC" />
-            </StatRow>
-          </Panel>
+          {rows.length > 0 && (
+            <Panel>
+              <StatRow>
+                <Stat label="Followers' net result" value={amt(total.net)} tone={tone(total.net)} />
+                <Stat label="Slashes paid to followers" value={amt(total.slash, false)} />
+                <Stat label="Breaches this season" value={total.breaches} />
+                <Stat label="Bond at stake now" value={usd(total.bond, { dp: 0 })} />
+                <Stat label="Leaders" value={rows.length} />
+                <Stat label={from === current ? "Ends" : "Ended"} value={day(to)} sub="00:00 UTC" />
+              </StatRow>
+            </Panel>
+          )}
 
           <Panel pad={false} title="Ranked by followers' net result" aside={<Source kind="indexer">Envio indexer · chain 10143 · Fill, CopyFill, Claim, Breach, Epoch, Checkpoint</Source>}>
             {!rows.length ? (
@@ -101,7 +105,7 @@ export default async function Seasons({ searchParams }: { searchParams: SP }) {
                             <Link href={`/leader/${r.book}`} className="hover:text-gold-2">
                               {l?.name ?? short(r.book)}
                             </Link>
-                            {l && <span className="ml-2 text-xs text-ink-3">{l.status}</span>}
+                            {l && <span className="ml-2 text-xs capitalize text-ink-3">{l.status}</span>}
                           </td>
                           <td className={`r num font-medium ${tone(r.net)}`}>{r.fills || r.slashPaid || r.perfFees ? amt(r.net) : "–"}</td>
                           <td className={`r num ${tone(r.tradePnl)}`}>{r.fills ? amt(r.tradePnl) : "–"}</td>
@@ -109,7 +113,7 @@ export default async function Seasons({ searchParams }: { searchParams: SP }) {
                           <td className="r num text-up">{r.slashPaid ? amt(r.slashPaid) : "–"}</td>
                           <td className="r num">
                             {r.vaults}
-                            <span className="text-xs text-ink-3"> · {r.fills} fills</span>
+                            <span className="text-xs text-ink-3"> · {r.fills} {r.fills === 1 ? "fill" : "fills"}</span>
                           </td>
                           <td className={`r num ${tone(unitRet ?? 0)}`}>{unitRet == null ? "–" : pct(unitRet, Math.abs(unitRet) < 1 ? 3 : 1, true)}</td>
                           <td className={`r num ${r.breaches ? "text-down" : "text-ink-3"}`}>{r.breaches}</td>

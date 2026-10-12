@@ -20,7 +20,8 @@ const PERIODS: { k: LbPeriod; label: string }[] = [
 export default async function SavedPage({ searchParams }: { searchParams: Promise<{ p?: string; c?: string }> }) {
   const sp = await searchParams;
   const period = (PERIODS.find((x) => x.k === sp.p)?.k ?? "month") as LbPeriod;
-  const capital = Math.min(1_000_000, Math.max(10, Number(sp.c) || 1000));
+  const c = Math.round(Number(sp.c)); // "", "abc" → default; 0, negative, huge → clamped
+  const capital = sp.c && Number.isFinite(c) ? Math.min(1_000_000, Math.max(10, c)) : 1000;
   const client = createPublicClient({ chain: copasChain, transport: http() });
   const [rows, bondBps] = await Promise.all([
     getLeaderboard(period, "pnl").catch(() => null),
@@ -72,7 +73,7 @@ export default async function SavedPage({ searchParams }: { searchParams: Promis
           <label htmlFor="c" className="text-ink-3">
             Capital you copy with (AUSD)
           </label>
-          <input id="c" name="c" type="number" min={10} max={1000000} step={10} defaultValue={capital} className="num w-32 rounded-md border border-line-strong bg-surface px-2 py-1" />
+          <input id="c" name="c" type="number" min={10} max={1000000} step={1} defaultValue={capital} className="num w-32 rounded-md border border-line-strong bg-surface px-2 py-1" />
           <button className="micro rounded-full bg-gold px-3 py-1.5 font-semibold text-gold-ink">Recalculate</button>
         </form>
         <div className="overflow-x-auto">
@@ -101,8 +102,8 @@ export default async function SavedPage({ searchParams }: { searchParams: Promis
                     </td>
                     <td className="num r text-down">{usd(r.pnl, { dp: 0 })}</td>
                     <td className="num r">{pct(r.roi, 1)}</td>
-                    <td className="num r text-down">−{usd(loss, { dp: 2 })}</td>
-                    <td className="num r text-up">+{usd(back, { dp: 2 })}</td>
+                    <td className="num r text-down">{usd(-loss, { dp: 2 })}</td>
+                    <td className="num r text-up">{usd(back, { sign: true, dp: 2 })}</td>
                     <td className="num r">{usd(back - loss, { dp: 2 })}</td>
                   </tr>
                 );

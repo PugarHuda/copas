@@ -50,7 +50,7 @@ export function ImportTrackRecord({ onApply }: { onApply: (t: Tier) => void }) {
       <p className="text-sm text-ink-2">Trade on Hyperliquid already? Paste your address to see your perps history and the Copas mandate it fits. Nothing here is signed or stored, and followers never see it as proof: on Copas only the LeaderBook record counts.</p>
       <form onSubmit={load} className="mt-3 flex flex-col gap-2 sm:flex-row">
         <label htmlFor="hl-addr" className="sr-only">Hyperliquid address</label>
-        <input id="hl-addr" placeholder="0x… Hyperliquid address" value={addr} onChange={(e) => setAddr(e.target.value)} className={input} aria-invalid={!!addr && !valid} />
+        <input id="hl-addr" placeholder="0x… Hyperliquid address" value={addr} onChange={(e) => (setAddr(e.target.value), setRes(null), setErr(""))} className={input} aria-invalid={!!addr && !valid} />
         <button type="submit" className={btn.ghost + " shrink-0"} disabled={busy || !addr}>
           {busy ? "Reading…" : "Import"}
         </button>
