@@ -5,11 +5,13 @@ import { Seal } from "@/components/Seal";
 import { TimeChart } from "@/components/TimeChart";
 import { DDMeter, StatusPill, protection } from "@/components/copas";
 import { getLeader } from "@/lib/copas/data";
+import { leaderCheckpoints, type LiveCheckpoint } from "@/lib/copas/indexer";
 import { MOCK_POSITIONS, mockCheckpoints, mockUnitCurve, type Leader } from "@/lib/mock/copas";
 import { walletPeriods, walletSnapshot } from "@/lib/perpl/analytics";
 import { getT } from "@/lib/i18n/server";
 import { ago, isAddress, num, pct, price, short, usd } from "@/lib/format";
-import { explorerAddr, explorerTx } from "@/lib/chains";
+import { copasChain, explorerAddr, explorerTx } from "@/lib/chains";
+import { StrategyFeed } from "@/components/StrategyFeed";
 import { AlignmentBadge, AnalysisPanel, AttestedBadge, BacktestPanel } from "@/components/services";
 
 type P = Promise<{ addr: string }>;
@@ -26,15 +28,17 @@ export default async function LeaderPage({ params }: { params: P }) {
   const { t, lang } = await getT();
   const L: Lx = (a, b) => (lang === "id" ? a : b);
   const { leader, source } = await getLeader(addr);
-  if (leader) return <Bonded l={leader} source={source} L={L} statusLabel={t(`status.${leader.status}`)} />;
+  // mock leaders are never on chain: their checkpoints stay mock; chain leaders read the indexer
+  const cps: LiveCheckpoint[] | null = leader && source === "chain" ? ((await leaderCheckpoints(leader.book)) ?? []) : null;
+  if (leader) return <Bonded l={leader} source={source} cps={cps} L={L} statusLabel={t(`status.${leader.status}`)} />;
   if (isAddress(addr)) return <ShadowProfile addr={addr.toLowerCase()} L={L} />;
   return <Empty>{L("Leader tidak ditemukan.", "Leader not found.")}</Empty>;
 }
 
-function Bonded({ l, source, L, statusLabel }: { l: Leader; source: string; L: Lx; statusLabel: string }) {
+function Bonded({ l, source, cps: live, L, statusLabel }: { l: Leader; source: string; cps: LiveCheckpoint[] | null; L: Lx; statusLabel: string }) {
   const curve = mockUnitCurve(l);
   const positions = MOCK_POSITIONS[l.book] ?? [];
-  const cps = mockCheckpoints(l);
+  const cps: (LiveCheckpoint | ReturnType<typeof mockCheckpoints>[number])[] = live ?? mockCheckpoints(l);
   const prot = protection(l);
   const effLev = Math.max(0, ...positions.map((p) => p.leverage));
   const outside = positions.filter((p) => !l.markets.includes(p.market));
@@ -183,7 +187,12 @@ function Bonded({ l, source, L, statusLabel }: { l: Leader; source: string; L: L
         <BacktestPanel perplAddress={l.perplAccount} mandate={{ maxDDbps: l.maxDD * 100, epochLen: l.epochLenH * 3600, maxLeverageHdths: l.maxLeverage * 100 }} />
       </Panel>
 
-      <Panel title={L("Checkpoint dan pelanggaran", "Checkpoints and breaches")} pad={false} aside={<Source kind="mock">LeaderBook.Checkpoint / Breached</Source>}>
+      {source === "chain" && <StrategyFeed book={l.book} leader={l.owner} />}
+
+      <Panel title={L("Checkpoint dan pelanggaran", "Checkpoints and breaches")} pad={false} aside={<Source kind={live ? "indexer" : "mock"}>LeaderBook.Checkpoint / Breached</Source>}>
+        {live && !cps.length ? (
+          <Empty>{L("Belum ada checkpoint terindeks.", "No checkpoints indexed yet.")}</Empty>
+        ) : (
         <div className="overflow-x-auto">
           <table className="data">
             <thead>
@@ -198,24 +207,33 @@ function Bonded({ l, source, L, statusLabel }: { l: Leader; source: string; L: L
               </tr>
             </thead>
             <tbody>
-              {cps.map((c) => (
-                <tr key={c.tx}>
-                  <td className="text-ink-3">{ago(c.t, Date.UTC(2026, 9, 4, 3))}</td>
+              {cps.map((c, i) => (
+                <tr key={i}>
+                  <td className="text-ink-3">{ago(c.t, live ? Date.now() : Date.UTC(2026, 9, 4, 3))}</td>
                   <td>{c.epoch}</td>
                   <td className="r">{num(c.unitPrice, 4)}</td>
                   <td className={`r ${c.ddPct > l.maxDD ? "text-down" : ""}`}>{pct(c.ddPct, 2)}</td>
                   <td className="r">{num(c.leverage, 1)}x</td>
                   <td>{c.breach ? <span className="text-down">✕ {L("Breach", "Breach")}: {c.breach}</span> : <span className="text-ink-3">✓ OK</span>}</td>
                   <td className="r">
-                    <a href={explorerTx(c.tx)} className="text-xs text-ink-3 hover:text-ink-2" target="_blank" rel="noreferrer">
-                      tx
-                    </a>
+                    {c.tx ? (
+                      <a href={explorerTx(c.tx, live ? copasChain.id : undefined)} className="text-xs text-ink-3 hover:text-ink-2" target="_blank" rel="noreferrer">
+                        tx
+                      </a>
+                    ) : (
+                      "block" in c && (
+                        <a href={`${copasChain.blockExplorers.default.url}/block/${c.block}`} className="text-xs text-ink-3 hover:text-ink-2" target="_blank" rel="noreferrer">
+                          #{c.block}
+                        </a>
+                      )
+                    )}
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
+        )}
       </Panel>
     </div>
   );

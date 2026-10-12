@@ -12,3 +12,6 @@ generated/
 contracts/broadcast/*/*/dry-run/
 contracts/foundry-pp/
 contracts/cache/
+
+.vercel
+.env.local

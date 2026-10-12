@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { Panel, PageHead, Source } from "@/components/ui";
 import { MOCK_PROOF } from "@/lib/mock/copas"; // MOCK until contracts deployed
 import { deployment } from "@/lib/copas/contracts";
+import { copasBreaches } from "@/lib/copas/indexer";
 import { PERPL, copasChain, explorerAddr, explorerTx, monad } from "@/lib/chains";
 import { getT } from "@/lib/i18n/server";
 import { ago, num, pct, short, usd } from "@/lib/format";
@@ -23,6 +24,9 @@ export default async function Proof() {
     ["AUSD", PERPL[monad.id].ausd, monad.id],
   ];
   const b = MOCK_PROOF.breaches[0];
+  // live breaches from the indexer once Copas is deployed; mock rows only while nothing is deployed
+  const live = deployment?.registry ? await copasBreaches() : null;
+  const breaches = live ?? MOCK_PROOF.breaches.map((x) => ({ ...x, book: x.leader.book, name: x.leader.name, ddPct: (1 - x.unit / x.peak) * 100 }));
   return (
     <div className="space-y-6">
       <PageHead
@@ -54,7 +58,10 @@ export default async function Proof() {
         </table>
       </Panel>
 
-      <Panel title={L("Breach dan potongan jaminan", "Breaches and slashes")} aside={<Source kind="mock">LeaderBook.Breached</Source>} pad={false}>
+      <Panel title={L("Breach dan potongan jaminan", "Breaches and slashes")} aside={<Source kind={live ? "indexer" : "mock"}>LeaderBook.Breached + Claimed</Source>} pad={false}>
+        {live && !live.length ? (
+          <p className="px-4 py-8 text-center text-sm text-ink-3">{L("Belum ada breach. Semua leader masih dalam mandat.", "No breaches yet. Every leader is inside its mandate.")}</p>
+        ) : (
         <table className="data">
           <thead>
             <tr>
@@ -69,11 +76,11 @@ export default async function Proof() {
             </tr>
           </thead>
           <tbody>
-            {MOCK_PROOF.breaches.map((x) => (
+            {breaches.map((x) => (
               <tr key={x.tx}>
                 <td>
-                  <Link href={`/leader/${x.leader.book}`} className="hover:text-gold-2">
-                    {x.leader.name}
+                  <Link href={`/leader/${x.book}`} className="hover:text-gold-2">
+                    {"name" in x ? x.name : short(x.book)}
                   </Link>
                 </td>
                 <td>{x.epoch}</td>
@@ -81,7 +88,7 @@ export default async function Proof() {
                 <td className="r">
                   {num(x.peak, 4)} → {num(x.unit, 4)}
                 </td>
-                <td className="r text-down">{pct((1 - x.unit / x.peak) * 100, 2)}</td>
+                <td className="r text-down">{pct(x.ddPct, 2)}</td>
                 <td className="r">{usd(x.slash)}</td>
                 <td className="r">{usd(x.claimed)}</td>
                 <td className="r">
@@ -93,6 +100,7 @@ export default async function Proof() {
             ))}
           </tbody>
         </table>
+        )}
       </Panel>
 
       <Panel title={L("Matematika yang bisa direproduksi", "Reproducible math")}>

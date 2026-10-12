@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useMeraSession } from "@/lib/mera/MeraProvider";
 import { useT } from "@/lib/i18n/client";
 import { short } from "@/lib/format";
+import { copasChain } from "@/lib/chains";
 import { btn } from "./ui";
 
 export function useMinutesLeft(expiresAt?: number) {
@@ -21,6 +22,12 @@ export function AccountButton() {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const left = useMinutesLeft(expiresAt);
+  const [drip, setDrip] = useState<string>();
+  const getTestFunds = async () => {
+    setDrip("…");
+    const r = await fetch("/api/faucet", { method: "POST", body: JSON.stringify({ address }) }).then((x) => x.json()).catch(() => ({ error: "network" }));
+    setDrip(r.error ? `✕ ${r.error}` : lang === "id" ? "✓ MON + AUSD terkirim" : "✓ MON + AUSD sent");
+  };
 
   useEffect(() => {
     const close = (e: MouseEvent) => ref.current && !ref.current.contains(e.target as Node) && setOpen(false);
@@ -43,6 +50,11 @@ export function AccountButton() {
             <div className="mt-2 text-xs text-ink-3">
               {t("auth.session")}: <span className="num text-ink-2">{left}</span> {t("auth.sessionLeft")}
             </div>
+            {copasChain.testnet && (
+              <button className={btn.ghost + " mt-3 w-full py-1.5"} onClick={getTestFunds} disabled={drip === "…"}>
+                {drip ?? (lang === "id" ? "Ambil MON + AUSD testnet" : "Get testnet MON + AUSD")}
+              </button>
+            )}
             <div className="mt-3 flex gap-2">
               <Link href="/me" className={btn.ghost + " flex-1 py-1.5"} onClick={() => setOpen(false)}>
                 {t("nav.me")}

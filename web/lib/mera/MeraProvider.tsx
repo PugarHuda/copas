@@ -38,6 +38,8 @@ type MeraState = {
   signOut: () => void;
   /** Returns a viem account allowed to sign an action of the given risk. Re-prompts when required. */
   authorize: (risk: ActionRisk) => Promise<LocalAccount>;
+  /** "Many Keys": PRF output of the same passkey under another 32-byte salt. Caller owns (and should wipe) the bytes. */
+  prf: (salt: Uint8Array) => Promise<Uint8Array>;
 };
 
 export type MeraUiError = { code: string; message: { id: string; en: string } };
@@ -214,8 +216,18 @@ export function MeraProvider({ children }: { children: React.ReactNode }) {
     [expiresAt, run, start, address],
   );
 
+  const prf = useCallback(
+    (salt: Uint8Array) =>
+      run(async () => {
+        const res = await getPasskeyPrfOutput({ rpId: rpId(), credential: credRef.current, prfSalt: salt as Uint8Array<ArrayBuffer> });
+        setStatus(sessionRef.current ? "signed-in" : "signed-out");
+        return res.prfOutput as Uint8Array;
+      }),
+    [run],
+  );
+
   return (
-    <Ctx.Provider value={{ status, address, expiresAt, error, supported, create, signIn, signOut, authorize }}>
+    <Ctx.Provider value={{ status, address, expiresAt, error, supported, create, signIn, signOut, authorize, prf }}>
       {children}
     </Ctx.Provider>
   );

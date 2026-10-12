@@ -9,7 +9,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "check": "node --experimental-strip-types lib/perpl/stats.check.ts"
+    "check": "node --experimental-strip-types lib/perpl/stats.check.ts && node --experimental-strip-types lib/mera/feed.check.ts"
   },
   "dependencies": {
     "@category-labs/mera": "^0.2.0",

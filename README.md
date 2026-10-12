@@ -30,6 +30,24 @@ Every leader posts an **AUSD bond** and declares a **mandate**: max drawdown, al
 
 Each app folder has its own README with setup, env vars, and what is live versus mocked. Deployed contract addresses go in `contracts/deployments/`.
 
+## Try it on Monad testnet
+
+Copas is live on Monad testnet (chain `10143`), trading on the Perpl testnet exchange. All addresses are in [`contracts/deployments/10143.json`](contracts/deployments/10143.json).
+
+1. Open the web app and choose **Create passkey account**. You get no seed phrase, and no key is stored on any server. Use a browser and passkey manager with WebAuthn PRF: Windows 11, iCloud Keychain, Google Password Manager or 1Password. A local Chrome desktop profile does not support PRF.
+2. Open the account menu and choose **Get testnet MON + AUSD**. You receive 1 MON for gas plus 10,000 AUSD from the Perpl testnet faucet (`0xd236c18d274e54faccc3dd9dda4b27965a73ee6c`, `requestFunds(address)`).
+3. Follow a leader from the leaderboard, open your vault in **Me**, and watch the copied position. Alternatively, open **Become a leader** to post a bond and a mandate.
+
+Live demo objects:
+
+| | Address |
+|---|---|
+| Registry | `0xA8BA57c7Af1d9A28660653E0439A180c86D03e3d` |
+| Active leader (bond 50 AUSD, BTC long copied 50% by a follower vault) | book `0xda695cB060c7e2dF0b5c36EA591eA69399463D90` |
+| Breached leader (bond slashed, follower claimed its loss) | book `0xb1B08F6a0642c51b48c1916136458A769a1c5208`, vault `0x38E8EbBD7Bd291036A0EFe4a6eFa3BCcd27D74ff` |
+
+To reproduce from scratch, run `contracts/deploy-testnet.sh`, then `script/Seed.s.sol` (bonded leader with a follower copying a trade), then `script/Breach.s.sol` (breach, slash, claim; run phase 2 one epoch later).
+
 ## Quick start
 
 ```bash
