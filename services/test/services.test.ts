@@ -350,6 +350,10 @@ describe("QA fixes", () => {
       expect(j.unavailable).toBe("llm-rate-limited");
       expect(j.analysis).toBeUndefined();
       expect(j.features.reasonsNotToFollow).toBeDefined();
+      expect(r.headers.get("cache-control")).toBe("no-store"); // fills in after the quota reset
+      const ok = await createApp({ fetch: stubFetch, now: () => NOW }).request(`/leader/${LEADER}/analysis`);
+      expect(ok.status, await ok.clone().text()).toBe(200);
+      expect(ok.headers.get("cache-control")).toContain("s-maxage=86400");
     } finally {
       delete process.env.OPENROUTER_API_KEY;
     }

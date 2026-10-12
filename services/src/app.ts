@@ -120,7 +120,14 @@ export function createApp(deps: { fetch?: Fetch; now?: () => number } = {}) {
       m = entry;
     }
     try {
-      return c.json((await m.p) as object);
+      const body = (await m.p) as { unavailable?: string };
+      // free LLM quota is 50 calls/day: a real analysis is CDN-cached for a day and served stale up to a week
+      // while one background call refreshes it; a degraded (no-LLM) answer is never cached, so it fills in after the reset
+      if (body.unavailable) {
+        if (analysisMemo.get(key) === m) analysisMemo.delete(key);
+        c.header("Cache-Control", "no-store");
+      } else c.header("Cache-Control", "public, s-maxage=86400, stale-while-revalidate=604800");
+      return c.json(body as object);
     } catch (e) {
       if (e instanceof ServiceUnavailable) return c.json({ error: e.message, missing: e.missing, features: (e as any).features }, 503);
       throw e;
