@@ -1,4 +1,6 @@
-# Hosted Copas keeper: one `pnpm tick` every 5 minutes on Monad testnet.
+# Hosted Copas keeper: `pnpm tick` every 5 minutes on Monad testnet.
+# GitHub's cron never fired for this repo, so one run loops ticks for ~5h45m and then dispatches its successor
+# (workflow_dispatch from GITHUB_TOKEN is allowed to start runs). The schedule stays as a backup starter.
 # Each run reads all leaders/vaults, sends only state-changing txs (rollEpoch, checkpoint, touch, sync)
 # through the Privy server wallet (policy-restricted, gas sponsored) and writes a job summary with explorer links.
 name: keeper
@@ -7,6 +9,10 @@ on:
   schedule:
     - cron: '2-59/5 * * * *' # offset from :00/:05, GitHub's busiest minutes
   workflow_dispatch:
+    inputs:
+      ticks:
+        description: ticks in this run (5 min apart)
+        default: '69'
 
 concurrency:
   group: keeper-tick
@@ -14,11 +20,12 @@ concurrency:
 
 permissions:
   contents: read
+  actions: write # dispatch the next run
 
 jobs:
   tick:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 355
     defaults:
       run:
         working-directory: keeper
@@ -43,7 +50,14 @@ jobs:
           path: keeper/data
           key: keeper-state-10143-${{ github.run_id }}
           restore-keys: keeper-state-10143-
-      - run: pnpm tick
+      - name: tick every 5 minutes
+        run: |
+          n=${{ inputs.ticks || '1' }}
+          for i in $(seq 1 "$n"); do
+            echo "### tick $i/$n $(date -u +%H:%M:%SZ)" >> "$GITHUB_STEP_SUMMARY"
+            pnpm tick || echo "::warning::tick $i failed"
+            [ "$i" -lt "$n" ] && sleep 300
+          done
         env: # secrets only reach the step that signs
           PRIVY_APP_ID: ${{ secrets.PRIVY_APP_ID }}
           PRIVY_APP_SECRET: ${{ secrets.PRIVY_APP_SECRET }}
@@ -57,3 +71,8 @@ jobs:
         with:
           path: keeper/data
           key: keeper-state-10143-${{ github.run_id }}-${{ github.run_attempt }}
+      - name: start the next run
+        if: success() && github.event_name == 'workflow_dispatch'
+        run: gh workflow run keeper.yml --repo "$GITHUB_REPOSITORY" -f ticks=69
+        env:
+          GH_TOKEN: ${{ github.token }}
