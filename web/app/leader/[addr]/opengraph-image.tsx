@@ -1,4 +1,5 @@
 import { ImageResponse } from "next/og";
+import { notFound } from "next/navigation";
 import { getLeader } from "@/lib/copas/data";
 
 // Shareable leader card for X / Farcaster / Telegram previews: live bond, mandate and status from the LeaderBook.
@@ -15,6 +16,7 @@ const font = () =>
 
 export default async function Image({ params }: { params: Promise<{ addr: string }> }) {
   const { addr } = await params;
+  if (!/^0x[0-9a-fA-F]{40}$/.test(addr)) notFound();
   const [l, f] = await Promise.all([getLeader(addr).catch(() => null), font()]);
   const breached = l?.status === "breached";
   const stat = (k: string, v: string) => (

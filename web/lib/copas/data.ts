@@ -1,4 +1,5 @@
 import "server-only";
+import { unstable_cache } from "next/cache";
 import { createPublicClient, erc721Abi, http, namehash, parseAbi, parseAbiItem, type Abi } from "viem";
 import { normalize } from "viem/ens";
 import { PERPL, copasChain, monad, rpcTransport } from "../chains";
@@ -17,18 +18,24 @@ const lbOf = (book: `0x${string}`) => ({ address: book, abi: copasAbi.LeaderBook
 /** Leaders from CopasRegistry. Null when the chain read fails; empty before contracts are deployed. */
 export async function getLeaders(): Promise<Leader[] | null> {
   if (!isDeployed) return [];
-  try {
+  // 20 s shared cache: every page renders the registry, and per-request reads hit public RPC rate limits.
+  // A failed read throws inside, so it is never cached.
+  return cachedLeaders().catch(() => null);
+}
+
+const cachedLeaders = unstable_cache(
+  async (): Promise<Leader[]> => {
     const reg = { address: deployment!.registry!, abi: copasAbi.CopasRegistry as Abi };
     const n = Number(await client.readContract({ ...reg, functionName: "leaderCount" }));
     const [books, stats] = await Promise.all([
       client.multicall({ contracts: Array.from({ length: n }, (_, i) => ({ ...reg, functionName: "leaderBooks", args: [BigInt(i)] })), allowFailure: false }) as Promise<`0x${string}`[]>,
       leaderStats(),
     ]);
-    return await Promise.all(books.map((b) => readLeader(b, stats)));
-  } catch {
-    return null;
-  }
-}
+    return Promise.all(books.map((b) => readLeader(b, stats)));
+  },
+  ["copas-leaders"],
+  { revalidate: 20 },
+);
 
 /** One LeaderBook, or null when the address is not a Copas leader (or the read fails). */
 export async function getLeader(book: string): Promise<Leader | null> {
