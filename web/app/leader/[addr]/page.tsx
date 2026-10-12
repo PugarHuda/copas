@@ -114,7 +114,7 @@ function Bonded({ l, cps, positions: read, L, statusLabel }: { l: Leader; cps: L
           <Stat label={L("Harga unit", "Unit price")} value={num(l.unitPrice, 4)} sub={`${pct(l.returnTotal, 1, true)} ${L("sejak awal", "since start")}`} />
           <Stat label={L("Puncak epoch (HWM)", "Epoch peak (HWM)")} value={num(l.peakUnitPrice, 4)} />
           <Stat label={L("Drawdown live / janji", "Drawdown live / declared")} value={<DDMeter live={l.liveDD} max={l.maxDD} />} />
-          <Stat label={L("AUM / kapasitas", "AUM / capacity")} value={usd(l.followerAum, { dp: 0 })} sub={`${l.followers != null ? `${l.followers} follower · ` : ""}${pct(l.capacity ? (l.followerAum / l.capacity) * 100 : 0, 0)} ${L("dari", "of")} ${usd(l.capacity, { dp: 0 })}`} />
+          <Stat label={L("AUM / kapasitas", "AUM / capacity")} value={usd(l.followerAum, { dp: 0 })} sub={`${l.followers != null ? `${l.followers} ${l.followers === 1 ? "follower" : "followers"} · ` : ""}${pct(l.capacity ? (l.followerAum / l.capacity) * 100 : 0, 0)} ${L("dari", "of")} ${usd(l.capacity, { dp: 0 })}`} />
           <Stat label={L("Perlindungan maks", "Max protection")} value={pct(prot, 0)} sub={L("jaminan ÷ AUM", "stake ÷ AUM")} tone={prot < 25 ? "text-warn" : ""} />
           <Stat label={`${L("Epoch", "Epoch")} ${l.epoch} ${L("berakhir", "ends in")}`} value={`${num(hoursLeft, 0)}h`} sub={`${L("panjang", "length")} ${l.epochLenH}h`} />
         </StatRow>
