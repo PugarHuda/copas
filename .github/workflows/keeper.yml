@@ -1,0 +1,55 @@
+# Hosted Copas keeper: one `pnpm tick` every 5 minutes on Monad testnet.
+# Each run reads all leaders/vaults, sends only state-changing txs (rollEpoch, checkpoint, touch, sync)
+# through the Privy server wallet (policy-restricted, gas sponsored) and writes a job summary with explorer links.
+name: keeper
+
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: keeper-tick
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  tick:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: keeper
+    env:
+      CHAIN_ID: '10143'
+      SIGNER_MODE: PRIVY
+      PRIVY_SPONSOR: 'true'
+      PRIVY_APP_ID: ${{ secrets.PRIVY_APP_ID }}
+      PRIVY_APP_SECRET: ${{ secrets.PRIVY_APP_SECRET }}
+      PRIVY_AUTHORIZATION_KEY: ${{ secrets.PRIVY_AUTHORIZATION_KEY }}
+      PRIVY_WALLET_ID: ${{ secrets.PRIVY_WALLET_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.21.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: keeper/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      # vault list + VaultCreated cursor, so each tick only scans the blocks since the last one
+      - uses: actions/cache/restore@v4
+        with:
+          path: keeper/data
+          key: keeper-state-10143-${{ github.run_id }}
+          restore-keys: keeper-state-10143-
+      - run: pnpm tick
+      - uses: actions/cache/save@v4
+        if: always()
+        with:
+          path: keeper/data
+          key: keeper-state-10143-${{ github.run_id }}-${{ github.run_attempt }}

@@ -2,7 +2,7 @@ import { createHmac } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import {
   alchemyTxHashes, chunkRanges, ddAlert, feedbackFor, leaderForAccount, needsUnwind, shouldCheckpoint, shouldRoll,
-  verifyAlchemySignature, vaultsToSync, STATUS, type Leader, type Vault,
+  verifyAlchemySignature, vaultsToSync, leaderTickAction, vaultSkipReason, STATUS, type Leader, type LeaderTickView, type Vault,
 } from '../src/logic.js';
 
 const L1 = '0x1111111111111111111111111111111111111111';
@@ -90,4 +90,24 @@ describe('Alchemy signature', () => {
     expect(verifyAlchemySignature(body, sig, '')).toBe(false);
   });
   it('extracts unique tx hashes', () => expect(alchemyTxHashes(JSON.parse(body))).toEqual(['0xabc', '0xdef']));
+});
+
+describe('one-shot tick decisions', () => {
+  const lv = (o: Partial<LeaderTickView> = {}): LeaderTickView => ({ epoch: 1n, epochEnd: 1000n, status: STATUS.Active, accountId: 7n, unitPrice: 2n, lastUnitPrice: 1n, priceValid: true, ...o });
+  it('rolls an ended epoch (even when breached), else checkpoints only on a price move', () => {
+    expect(leaderTickAction(lv(), 1000n).action).toBe('rollEpoch');
+    expect(leaderTickAction(lv({ status: STATUS.Breached }), 1200n).action).toBe('rollEpoch');
+    expect(leaderTickAction(lv(), 999n).action).toBe('checkpoint');
+    expect(leaderTickAction(lv({ unitPrice: 1n }), 999n).action).toBeNull();
+    expect(leaderTickAction(lv({ priceValid: false }), 999n).action).toBeNull();
+    expect(leaderTickAction(lv({ status: STATUS.Breached }), 999n).action).toBeNull();
+    expect(leaderTickAction(lv({ accountId: 0n }), 999n).action).toBeNull();
+    expect(leaderTickAction(lv({ epoch: 0n }), 5000n).action).toBeNull();
+  });
+  it('skips vaults with nothing to copy or unwind', () => {
+    expect(vaultSkipReason(vault('0xa1'))).toBeNull();
+    expect(vaultSkipReason(vault('0xa1', { following: false }))).toBeNull(); // may still hold a position to unwind
+    expect(vaultSkipReason(vault('0xa1', { following: false, accountId: 0n }))).not.toBeNull();
+    expect(vaultSkipReason(vault('0xa1', { leader: null }))).not.toBeNull();
+  });
 });

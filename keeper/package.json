@@ -8,6 +8,7 @@
   "scripts": {
     "start": "tsx src/index.ts",
     "dev": "tsx watch src/index.ts",
+    "tick": "tsx src/index.ts --once",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "privy:setup": "tsx scripts/privy-setup.ts",

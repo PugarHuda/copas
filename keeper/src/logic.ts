@@ -94,3 +94,24 @@ export function alchemyTxHashes(body: any): Hex[] {
   const acts: any[] = body?.event?.activity ?? [];
   return [...new Set(acts.map((a) => a?.hash).filter((h): h is Hex => typeof h === 'string' && h.startsWith('0x')))];
 }
+
+// ---------------------------------------------------------------- one-shot tick (`pnpm tick`)
+export type LeaderTickView = Pick<Leader, 'epoch' | 'epochEnd' | 'status' | 'accountId'> & { unitPrice: bigint; lastUnitPrice: bigint; priceValid: boolean };
+
+/** What a tick does with a leader. checkpoint() only writes state when the unit price moved (that's also the only way drawdown can breach). */
+export function leaderTickAction(l: LeaderTickView, blockTs: bigint): { action: 'rollEpoch' | 'checkpoint' | null; why: string } {
+  if (l.epoch === 0n) return { action: null, why: 'epoch not started' };
+  if (shouldRoll(l, blockTs)) return { action: 'rollEpoch', why: `epoch ${l.epoch} ended (${blockTs - l.epochEnd}s ago)` };
+  if (l.status !== STATUS.Active) return { action: null, why: `status ${['Active', 'Unbonded', 'Breached'][l.status] ?? l.status}, epoch ends in ${l.epochEnd - blockTs}s` };
+  if (l.accountId === 0n) return { action: null, why: 'no Perpl account yet' };
+  if (!l.priceValid) return { action: null, why: 'unit price invalid (no mark)' };
+  if (l.unitPrice === l.lastUnitPrice) return { action: null, why: `unit price unchanged since last checkpoint, epoch ends in ${l.epochEnd - blockTs}s` };
+  return { action: 'checkpoint', why: `unit price ${l.lastUnitPrice} -> ${l.unitPrice}` };
+}
+
+/** Reason to skip a vault entirely, or null to simulate sync(perpId) on every market (copy or unwind). */
+export function vaultSkipReason(v: Vault): string | null {
+  if (!v.leader) return 'no leader';
+  if (!v.following && v.accountId === 0n) return 'not following and no Perpl account';
+  return null;
+}

@@ -10,6 +10,7 @@ try {
   const dep = loadDeployments();
   const signer = await makeSigner();
   const keeper = new Keeper(dep, signer);
+  if (process.argv.includes('--once')) process.exit(await keeper.tick()); // `pnpm tick`: one pass, then exit
   startHttp(keeper);
   void runTelegramBot();
   await keeper.start();

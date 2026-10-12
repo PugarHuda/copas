@@ -1,4 +1,4 @@
-import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { appendFileSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { decodeFunctionResult, encodeFunctionData, getAddress, parseEventLogs, zeroAddress, type AbiEvent, type Address, type Hex, type Log } from 'viem';
 import { ABI, cfg, log, type Deployments } from './config.js';
@@ -7,7 +7,7 @@ import type { Signer } from './signer.js';
 import { alert, alertsSent, recentAlerts } from './alerts.js';
 import { feedbackCall } from './erc8004.js';
 import {
-  BREACH_REASON, STATUS, chunkRanges, ddAlert, leaderForAccount, needsUnwind, shouldCheckpoint, shouldRoll, vaultsToSync,
+  BREACH_REASON, STATUS, chunkRanges, ddAlert, leaderForAccount, leaderTickAction, vaultSkipReason, needsUnwind, shouldCheckpoint, shouldRoll, vaultsToSync,
   type Leader, type Vault,
 } from './logic.js';
 
@@ -53,6 +53,10 @@ export class Keeper {
   private lastUnwindAt = 0n;
   private stateFile = resolve(cfg.dataDir, `state-${cfg.chainId}.json`);
   private wake: () => void = () => {};
+  private pending = new Set<Promise<void>>();
+  /** Set by tick(): every job's outcome, for the run summary. */
+  journal?: { kind: string; to: Address; outcome: 'sent' | 'skipped' | 'failed' | 'dry-run'; detail: string }[];
+  dryRun = false;
 
   m = {
     startedAt: new Date().toISOString(), syncsSent: 0, syncsSkipped: 0, checkpoints: 0, rolls: 0, touches: 0, settles: 0,
@@ -130,22 +134,26 @@ export class Keeper {
   enqueue(job: Job) {
     if (this.inflight.has(job.key)) { this.inflight.set(job.key, true); return; }
     this.inflight.set(job.key, false);
-    void (async () => {
+    const note = (outcome: 'sent' | 'skipped' | 'failed' | 'dry-run', detail: string) => this.journal?.push({ kind: job.kind, to: job.to, outcome, detail });
+    const p = (async () => {
       try {
         let ret: Hex | undefined;
         try {
           ret = (await client.call({ account: this.signer.address, to: job.to, data: job.data })).data;
         } catch (e: any) {
           log(job.kind === 'feedback' ? 'warn' : 'debug', 'skip: would revert', { kind: job.kind, to: job.to, err: e?.shortMessage ?? String(e) });
+          note('skipped', `simulation reverts: ${(e?.shortMessage ?? String(e)).split('\n')[0].slice(0, 160)}`);
           return;
         }
-        if (job.skipIf && (await job.skipIf(ret))) { if (job.kind === 'sync') this.m.syncsSkipped++; return; }
+        if (job.skipIf && (await job.skipIf(ret))) { if (job.kind === 'sync') this.m.syncsSkipped++; note('skipped', job.kind === 'sync' ? 'position already equals target' : 'no state change'); return; }
+        if (this.dryRun) { note('dry-run', 'simulation ok, would send'); return; }
         const hash = await this.signer.send(job.to, job.data);
         const r = await client.waitForTransactionReceipt({ hash, timeout: 90_000 });
         const ok = r.status === 'success';
         this.m.recentTx.unshift({ kind: job.kind, to: job.to, hash, block: r.blockNumber.toString(), ok });
         this.m.recentTx.length = Math.min(this.m.recentTx.length, 30);
         log(ok ? 'info' : 'warn', 'tx', { kind: job.kind, to: job.to, hash, block: r.blockNumber, ok });
+        note(ok ? 'sent' : 'failed', hash);
         if (!ok) { this.m.txFailed++; return; }
         const counter = ({ sync: 'syncsSent', checkpoint: 'checkpoints', rollEpoch: 'rolls', touch: 'touches', settle: 'settles', feedback: 'feedbacks' } as const)[job.kind];
         this.m[counter]++;
@@ -156,13 +164,19 @@ export class Keeper {
         this.m.recentTx.unshift({ kind: job.kind, to: job.to, hash: '', ok: false, err: (e?.shortMessage ?? String(e)).slice(0, 300) });
         this.m.recentTx.length = Math.min(this.m.recentTx.length, 30);
         log('error', 'tx failed', { kind: job.kind, to: job.to, err: e?.shortMessage ?? String(e), body: e?.error });
+        note('failed', (e?.shortMessage ?? String(e)).split('\n')[0].slice(0, 200));
       } finally {
         const rerun = this.inflight.get(job.key);
         this.inflight.delete(job.key);
         if (rerun) this.enqueue(job);
       }
     })();
+    this.pending.add(p);
+    void p.finally(() => this.pending.delete(p));
   }
+
+  /** Wait until every queued job (and its reruns) has finished. */
+  async drain() { while (this.pending.size) await Promise.all(this.pending); }
 
   private call(abi: any, functionName: string, args: any[] = []) { return encodeFunctionData({ abi, functionName, args }); }
 
@@ -327,7 +341,13 @@ export class Keeper {
     const ranges = chunkRanges(from, to, cfg.logChunk);
     const out: DecodedLog[] = [];
     for (let i = 0; i < ranges.length; i += parallel) {
-      const batch = await Promise.all(ranges.slice(i, i + parallel).map(([f, t]) => client.getLogs({ address, events, fromBlock: f, toBlock: t, strict: false })));
+      const batch = await Promise.all(ranges.slice(i, i + parallel).map(async ([f, t]) => {
+        // public testnet RPC: 25 req/s, so back off and retry instead of failing a long backfill
+        for (let n = 1; ; n++) {
+          try { return await client.getLogs({ address, events, fromBlock: f, toBlock: t, strict: false }); }
+          catch (e) { if (n >= 6) throw e; await sleep(1000 * n); }
+        }
+      }));
       for (const b of batch) out.push(...(b as any));
     }
     return out;
@@ -376,6 +396,93 @@ export class Keeper {
       // WS mode wakes on every new head; HTTP mode polls. Either way at most one step runs at a time.
       await new Promise<void>((r) => { const t = setTimeout(r, cfg.wsUrl ? 10_000 : cfg.pollMs); this.wake = () => { clearTimeout(t); r(); }; });
     }
+  }
+
+  // ---------------------------------------------------------------- one-shot mode (`pnpm tick`, GitHub Actions cron)
+  /**
+   * Read everything, send only the txs that change state, wait for them, report, return an exit code.
+   * Order: rollEpoch -> (settle/feedback of finished epochs) -> checkpoint -> touch -> sync every (vault, market).
+   */
+  async tick(): Promise<number> {
+    const t0 = Date.now();
+    this.journal = [];
+    this.dryRun = ['1', 'true'].includes(String(process.env.KEEPER_DRY_RUN).toLowerCase());
+    const decisions: { what: string; decision: string }[] = [];
+    this.load();
+    await this.discoverVaults(); // incremental VaultCreated scan from the cached cursor
+    await this.refreshAll();
+    const blk = await client.getBlock({ blockTag: 'latest' });
+    log('info', 'tick', { signer: this.signer.address, mode: this.signer.mode, block: blk.number, leaders: this.leaders.size, vaults: this.vaults.size, markets: this.markets, dryRun: this.dryRun });
+
+    const views = async () => Promise.all([...this.leaders.values()].map(async (l) => {
+      const [[unitPrice, priceValid], lastUnitPrice] = await Promise.all([
+        this.read<[bigint, boolean]>(l.address, ABI.leader, 'unitPrice'),
+        this.read<bigint>(l.address, ABI.leader, 'lastUnitPrice'),
+      ]);
+      return { l, ...leaderTickAction({ ...l, unitPrice, priceValid, lastUnitPrice }, blk.timestamp) };
+    }));
+
+    // 1. roll ended epochs first: everything else depends on the current epoch
+    const rolled: { address: Address; finished: bigint }[] = [];
+    for (const { l, action, why } of await views()) {
+      if (action !== 'rollEpoch') continue;
+      decisions.push({ what: `leader ${l.address}`, decision: `rollEpoch: ${why}` });
+      rolled.push({ address: l.address, finished: l.epoch });
+      this.roll(l);
+    }
+    await this.drain();
+    if (rolled.length) await this.refreshAll();
+    for (const r of rolled) { this.settle(r.address, r.finished); await this.feedback(r.address, r.finished); }
+
+    // 2. checkpoints
+    for (const { l, action, why } of await views()) {
+      if (rolled.some((r) => r.address === l.address) && action !== 'checkpoint') continue; // rollEpoch already checkpointed
+      decisions.push({ what: `leader ${l.address}`, decision: action ? `${action}: ${why}` : `no tx: ${why}` });
+      if (action === 'checkpoint') this.checkpoint(l);
+    }
+    await this.drain();
+
+    // 3. vaults: touch (epoch bookkeeping) then sync every market; simulation + target==lot check skip the no-ops
+    for (const v of this.vaults.values()) {
+      const skip = vaultSkipReason(v);
+      decisions.push({ what: `vault ${v.address}`, decision: skip ? `no tx: ${skip}` : `following=${v.following} paused=${v.paused} leader=${v.leader}: simulate touch + sync(${this.markets.join(',')})` });
+      if (skip) continue;
+      const l = this.leaders.get(lc(v.leader!));
+      if (v.following && l) this.touch(v, l);
+    }
+    await this.drain();
+    for (const v of this.vaults.values()) if (!vaultSkipReason(v)) for (const perpId of this.markets) this.sync(v, perpId);
+    await this.drain();
+    this.save();
+
+    const failed = this.journal.filter((j) => j.outcome === 'failed').length;
+    log('info', 'tick done', { ms: Date.now() - t0, sent: this.journal.filter((j) => j.outcome === 'sent').length, failed, journal: this.journal });
+    this.writeSummary(blk.number, blk.timestamp, decisions, Date.now() - t0);
+    return failed ? 1 : 0;
+  }
+
+  private writeSummary(block: bigint, ts: bigint, decisions: { what: string; decision: string }[], ms: number) {
+    const file = process.env.GITHUB_STEP_SUMMARY;
+    if (!file) return;
+    const ex = cfg.chainId === 143 ? 'https://monadexplorer.com' : 'https://testnet.monadexplorer.com';
+    const a = (x: string) => `[\`${short(x)}\`](${ex}/address/${x})`;
+    const rows = this.journal!.map((j) => `| ${j.kind} | ${a(j.to)} | ${j.outcome} | ${/^0x[0-9a-f]{64}$/i.test(j.detail) ? `[${short(j.detail)}](${ex}/tx/${j.detail})` : j.detail.replace(/\|/g, '/')} |`);
+    appendFileSync(file, [
+      `## Copas keeper tick (chain ${cfg.chainId})`,
+      '',
+      `Block ${block} (${new Date(Number(ts) * 1000).toISOString()}) · signer ${a(this.signer.address)} (${this.signer.mode}${this.signer.mode === 'PRIVY' && cfg.privy.sponsor ? ', gas sponsored' : ''}) · ${this.leaders.size} leaders, ${this.vaults.size} vaults, markets ${this.markets.join(', ')} · ${(ms / 1000).toFixed(1)}s${this.dryRun ? ' · **DRY RUN**' : ''}`,
+      '',
+      `### Transactions (${this.journal!.filter((j) => j.outcome === 'sent').length} sent)`,
+      '',
+      '| job | target | outcome | tx / reason |', '|---|---|---|---|',
+      ...(rows.length ? rows : ['| - | - | - | nothing to simulate |']),
+      '',
+      '### Decisions',
+      '',
+      '| object | decision |', '|---|---|',
+      ...decisions.map((d) => `| ${d.what.replace(/0x[0-9a-fA-F]{40}/g, (m) => a(m))} | ${d.decision.replace(/\|/g, '/')} |`),
+      '',
+    ].join('\n'));
   }
 
   metrics() {

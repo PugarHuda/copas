@@ -23,6 +23,20 @@ pnpm start                    # needs ../contracts/deployments/<CHAIN_ID>.json
 
 Node 22+ is required because the service uses `process.loadEnvFile`. If the deployments file is missing, startup exits with a clear error. `contracts/script/Deploy.s.sol` writes that file with the keys `registry, breachMarket, agentRegistry, exchange, ausd, identity8004, block`.
 
+### Hosted tick (GitHub Actions)
+
+`pnpm tick` (`tsx src/index.ts --once`) does one full pass and exits:
+
+1. Loads `data/state-<chainId>.json` and scans `VaultCreated` logs since the saved cursor (100-block chunks, with backoff for the public RPC's 25 req/s limit; the first run backfills from `deployments.block`, about 2 minutes).
+2. Reads every leader (`registry.leaderCount/leaderBooks`) and vault.
+3. `rollEpoch()` on each leader whose `block.timestamp >= epochEnd`, then `BreachMarket.settle` (and ERC-8004 feedback, if enabled) for the finished epoch.
+4. `checkpoint()` on Active leaders whose `unitPrice()` moved since `lastUnitPrice` (otherwise the call writes nothing).
+5. `touch()` and then `sync(perpId)` on every market of every vault with a leader. Each job is simulated first. Reverts and `sync` targets equal to the current lot are skipped, so a quiet tick sends no txs.
+
+The exit code is 1 if any tx failed. `KEEPER_DRY_RUN=1` simulates everything but sends nothing. The decisions per leader and vault live in `leaderTickAction` / `vaultSkipReason` in `src/logic.ts`, which are unit-tested.
+
+`.github/workflows/keeper.yml` runs the tick every 5 minutes (GitHub's cron is best effort, so expect 5 to 15 minutes in practice) and on manual dispatch, with the Privy signer and gas sponsorship. Its secrets are `PRIVY_APP_ID`, `PRIVY_APP_SECRET`, `PRIVY_AUTHORIZATION_KEY` and `PRIVY_WALLET_ID`. `data/` is carried between runs with `actions/cache`. Each run's **job summary** lists every tx sent (with explorer links), every skipped job with the reason, and the decision for each leader and vault: see the [keeper workflow runs](https://github.com/PugarHuda/copas/actions/workflows/keeper.yml). Alerts, the HTTP endpoints and the Alchemy webhook need the long-running `pnpm start`.
+
 ### Signer modes
 
 - `LOCAL` uses `KEEPER_PRIVATE_KEY`, for dev and testnet. The wallet pays its own MON gas. Nonces are managed locally, so several txs can be in flight at once.
