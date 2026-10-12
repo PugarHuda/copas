@@ -29,24 +29,24 @@ Legenda: ✅ selesai + teruji · 🟡 dikerjakan · ⏳ menunggu (key/deploy) ·
 | D2 | Nansen discovery + alignment | 🟡 | `services/` | |
 | D3 | Agent penantang | 🟡 | `services/` | |
 | D4 | x402 bayar data | 🟡 | `services/` | |
-| E1 | Login Mera web | 🟡 | `web/lib/mera` | |
-| E2 | Session Mera | 🟡 | web | |
-| E3 | Feed strategi terenkripsi | ⬜ | web + API | Mera Many Keys |
-| E4 | Identitas follower tak tertaut | ⬜ | web | |
-| E5 | Vault kunci API | ⬜ | web | P3 |
-| E6 | Privy server wallet + policy + sponsorship + DENY demo | 🟡 | `keeper/` | butuh key Privy |
-| E7 | Blockaid | ⬜ | | P3, butuh key |
+| E1 | Login Mera web | ✅ | `web/lib/mera` | passkey PRF → HKDF → secp256k1; uji stateless (hapus data → alamat sama) lulus di produksi via `web/e2e/passkey.spec.ts` (authenticator virtual CDP dengan PRF) |
+| E2 | Session Mera | ✅ | `MeraProvider.authorize` | sesi 30 menit di memori tab untuk aksi kecil; withdraw, createVault/follow, postBond, setOperator, approve underwriter = passkey ulang (`authorize("risky")`, alamat harus sama). Mera sendiri tidak punya TTL, timer `end()` dari app |
+| E3 | Feed strategi terenkripsi | ✅ kontrak + UI · belum ada post onchain | `web/lib/mera/feed.ts`, `CopasFeed` `0x75d5…7718` | salt PRF kedua → X25519; post hanya oleh owner leader yang masuk dengan passkey; leader demo dimiliki key uji, jadi `posts()` masih kosong |
+| E4 | Identitas follower tak tertaut | ✅ | `web/lib/mera/derive.ts`, `/settings` | passkey yang sama → `secp256k1/account/1`, alamat lain tanpa tautan onchain; ganti identitas = 1 prompt passkey; e2e produksi: alamat beda, kembali ke utama = alamat awal, 1 credential |
+| E5 | Vault kunci API | ⬜ tidak dibuat | | tidak ada kunci API pengguna yang dipakai Copas, jadi vault tanpa konsumen. Mera punya `createSecretVaultWithExistingPasskey` kalau nanti dibutuhkan |
+| E6 | Privy server wallet + policy + sponsorship + DENY demo | ✅ testnet | `keeper/privy`, `keeper/src/signer.ts` | keeper hosted menandatangani lewat Privy (owner = authorization key P-256, policy ALLOW 5 fungsi keeper + giveFeedback, DENY AUSD/Perpl), gas disponsori. Webhook Privy hanya bisa dibuat di dashboard (tidak dipakai) |
+| E7 | Blockaid | ⬜ | | API Blockaid tanpa key = 401; key hanya lewat sales/demo blockaid.io. Tx plugin `mm copas` tetap discan Blockaid oleh host Agent Wallet (sisi MetaMask) |
 | F1 | Aurora deposit→follow | 🟡 | `onramp/` | butuh akses Intents Connect |
 | F2 | Socket deposit address | 🟡 | `onramp/` | |
 | F3 | Kuru Flow swap | 🟡 | `onramp/` | |
 | G1 | Indexer Envio | ✅ | `indexer/` | Envio Cloud, mainnet + testnet di head (72,5 jt event mainnet); testnet Perpl mulai blok 70.084.000 |
 | G2 | Dashboard Perpl Analytics | ✅ | `web/analytics` | + heatmap funding & OI (MarketDaily), kohort trader (Account), likuiditas order book vs tekanan likuidasi (`/book`) |
 | G3 | CRE workflow | 🟡 | `cre/` | |
-| G4 | Alert Alchemy + Telegram | 🟡 | `keeper/` | |
+| G4 | Alert Alchemy + Telegram | ✅ Telegram · ⏳ Alchemy | `web/app/api/telegram`, `web/app/api/alchemy`, `keeper/src/alerts.ts` | @copas_monad_bot: `/watch` `/unwatch` `/watching` + tombol 🔔 Watch; daftar per chat di Vercel Blob privat (`tg/watch/<chat>.json`, diuji di produksi); tick keeper kirim kartu ke channel + DM ke watcher (breach, roll, unbond, follower baru, klaim, leader baru). Alchemy: receiver `/api/alchemy` live (503 sampai env diisi), butuh akun Alchemy (daftar via browser, langkah di `keeper/README.md`) |
 | G5 | Halaman Proof | 🟡 | web | |
 | G6 | Fuzz/invariant | ✅ | `contracts/test/CopasInvariant.t.sol` | 3 invariant |
 | G7 | Portfolio BlockVision/Zerion | ⬜ | | P3 |
-| H1 | Plugin MetaMask `mm copas` | ✅ testnet | `plugin/` | 13 command diuji live via `plugin/scripts/live.ts` (host CLI butuh `mm login`) |
+| H1 | Plugin MetaMask `mm copas` | ✅ testnet | `plugin/` | 13 command diuji live via `plugin/scripts/live.ts` (host CLI butuh `mm login`). Batas outflow 24 jam disimpan lokal per mesin (`~/.copas`) |
 | H2 | Kartu profil shareable | ⬜ | web OG | |
 | H3 | Liga musiman | ⬜ | indexer + web | |
 | H4 | Referral | ✅ kontrak · 🟡 web | `FollowerVault.setReferrer` | |
