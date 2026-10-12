@@ -1,10 +1,11 @@
 import "server-only";
 import { unstable_cache } from "next/cache";
-import { getCandles, getContext, getFundingAll, getLeaderboard, getTicker, cns, toMarkets, LB_PERIODS, type LbPeriod, type Market } from "./api";
+import { getBook, getCandles, getContext, getFundingAll, getLeaderboard, getTicker, cns, toMarkets, LB_PERIODS, type LbPeriod, type Market } from "./api";
 import { accountByAddr, accountById, addressesFor, allPositions, equityCurve, exchangeInfo, perpInfos, tvlCurve, type Position } from "./onchain";
 import { BLOCKS_PER_DAY, accountWord, dataWord, decode, ev, scan, timeline } from "./logs";
 import { computeTradeStats, type Trade } from "./stats";
-import { indexerFresh, indexerUrl, indexerFlows, indexerTvlCurve, indexerWalletEquity, indexerWalletFlows, indexerWalletTrades } from "./indexer";
+import { cohorts, depth, fundingApr, liqWithin, mid, profitConcentration, slippageBps, type AccountRow } from "./riskmath";
+import { envioAll, indexerFresh, indexerUrl, indexerFlows, indexerTvlCurve, indexerWalletEquity, indexerWalletFlows, indexerWalletTrades } from "./indexer";
 
 const DAY = 86_400_000;
 /** Cache-key part so toggling the indexer env never serves entries built from the other source. */
@@ -427,3 +428,104 @@ export async function walletFlows(accountId: number) {
   const f = await rpcFlows(FLOW_DAYS);
   return { source: "rpc" as const, rows: f.all.filter((x) => x[1] === accountId).map(([t, , amount, tx]) => ({ t, amount, tx })) };
 }
+
+/* ------------------------------ risk (Envio + book) ------------------------------ */
+
+/**
+ * Per-market daily history from Envio MarketDaily (full indexed history, not the API's 128-interval window):
+ * funding APR per day, open interest and liquidated notional per day.
+ */
+export const marketHistory = unstable_cache(
+  async (days: number) => {
+    const ms = await markets();
+    const byId = new Map(ms.map((m) => [String(m.id), m]));
+    const since = Math.floor((Date.now() - days * DAY) / DAY) * 86400;
+    const rows = await envioAll<{ date: number; market_id: string; fundingEvents: number; sumFundingRatePct100k: string; openInterestCNS: string; liquidatedNotionalCNS: string; volumeCNS: string }>(
+      "MarketDaily",
+      `where: { chainId: { _eq: $chain }, date: { _gte: $since } }, order_by: [{ date: asc }, { id: asc }]`,
+      "date market_id fundingEvents sumFundingRatePct100k openInterestCNS liquidatedNotionalCNS volumeCNS",
+      { since },
+      ", $since: Int!",
+    );
+    const dates = [...new Set(rows.map((r) => r.date * 1000))].sort((a, b) => a - b);
+    const per = new Map<string, { id: number; name: string; funding: (number | null)[]; oi: number[]; liq: number[]; vol: number }>();
+    for (const r of rows) {
+      const m = byId.get(r.market_id);
+      if (!m) continue; // delisted / not in the live context
+      const s = per.get(r.market_id) ?? { id: m.id, name: m.name, funding: dates.map(() => null), oi: dates.map(() => 0), liq: dates.map(() => 0), vol: 0 };
+      const i = dates.indexOf(r.date * 1000);
+      s.funding[i] = fundingApr(Number(r.sumFundingRatePct100k), r.fundingEvents, m.fundingIntervalSec);
+      s.oi[i] = cns(r.openInterestCNS);
+      s.liq[i] = cns(r.liquidatedNotionalCNS);
+      s.vol += cns(r.volumeCNS);
+      per.set(r.market_id, s);
+    }
+    // OI is a snapshot at the day's last event: carry it over days without events
+    for (const s of per.values()) for (let i = 1; i < s.oi.length; i++) if (!s.oi[i]) s.oi[i] = s.oi[i - 1];
+    return { dates, markets: [...per.values()].filter((s) => s.vol > 0).sort((a, b) => b.oi[b.oi.length - 1] - a.oi[a.oi.length - 1]) };
+  },
+  ["perpl-market-history"],
+  { revalidate: 900 },
+);
+
+/** Every mainnet trader (Envio Account), bucketed by lifetime volume. Realized PnL after fees; open positions excluded. */
+export const traderCohorts = unstable_cache(
+  async () => {
+    const rows = await envioAll<{ volumeCNS: string; netPnlCNS: string; feesCNS: string; liquidations: number; wins: number; losses: number }>(
+      "Account",
+      `where: { chainId: { _eq: $chain }, fills: { _gt: 0 } }, order_by: { id: asc }`,
+      "volumeCNS netPnlCNS feesCNS liquidations wins losses",
+    );
+    const accts: AccountRow[] = rows.map((r) => ({ volume: cns(r.volumeCNS), netPnl: cns(r.netPnlCNS), fees: cns(r.feesCNS), liquidations: r.liquidations, wins: r.wins, losses: r.losses }));
+    return {
+      traders: accts.length,
+      profitable: accts.filter((a) => a.netPnl > 0).length,
+      netPnl: accts.reduce((s, a) => s + a.netPnl, 0),
+      fees: accts.reduce((s, a) => s + a.fees, 0),
+      top1: profitConcentration(accts, 1),
+      cohorts: cohorts(accts),
+    };
+  },
+  ["perpl-cohorts"],
+  { revalidate: 900 },
+);
+
+/**
+ * Order-book liquidity vs liquidation pressure per market: Perpl REST /book (100 levels a side) against the
+ * liquidation prices of every open position (protocolSnapshot ladder).
+ */
+export const bookRisk = unstable_cache(
+  async () => {
+    const [ms, p] = await Promise.all([markets(), protocolSnapshot()]);
+    const books = await Promise.all(ms.map((m) => getBook(m.id).catch(() => null)));
+    return ms.flatMap((m, i) => {
+      const raw = books[i];
+      if (!raw?.bid.length || !raw.ask.length) return [];
+      const lv = (x: { p: number; s: number }) => ({ p: x.p / 10 ** m.pd, s: x.s / 10 ** m.sd });
+      const b = { bid: raw.bid.map(lv), ask: raw.ask.map(lv) };
+      const md = mid(b);
+      const mark = p.rows.find((r) => r.id === m.id)?.mark || md;
+      const liq = liqWithin(p.ladder, m.id, mark, 5);
+      const bid5 = depth(b.bid, md, 5);
+      const ask5 = depth(b.ask, md, 5);
+      return [{
+        id: m.id,
+        name: m.name,
+        block: raw.sn,
+        spreadBps: ((b.ask[0].p - b.bid[0].p) / md) * 1e4,
+        bid1: depth(b.bid, md, 1),
+        ask1: depth(b.ask, md, 1),
+        bid5,
+        ask5,
+        sell10k: slippageBps(b.bid, md, 1e4),
+        buy10k: slippageBps(b.ask, md, 1e4),
+        sell100k: slippageBps(b.bid, md, 1e5),
+        buy100k: slippageBps(b.ask, md, 1e5),
+        longLiq5: liq.longs,
+        shortLiq5: liq.shorts,
+      }];
+    });
+  },
+  ["perpl-book-risk"],
+  { revalidate: 30 },
+);

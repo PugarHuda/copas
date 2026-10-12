@@ -10,6 +10,7 @@ import { ago, num, pct, price, short, usd } from "@/lib/format";
 import { explorerTx } from "@/lib/chains";
 import { getT } from "@/lib/i18n/server";
 import { LiquidationLadder, LiveMarkets, WalletSearch, Watchlist } from "./_c/client";
+import { BookRisk, Cohorts, FundingHeatmap, OiHistory } from "./_c/risk";
 
 export const metadata: Metadata = { title: "Perpl analytics" };
 export const revalidate = 30;
@@ -115,6 +116,18 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: SP
         </Suspense>
       </Panel>
 
+      <Panel title={L("Heatmap funding, 30 hari (APR rata-rata harian)", "Funding heatmap, 30 days (daily average APR)")} aside={<Source kind="indexer">Envio MarketDaily</Source>}>
+        <Suspense fallback={<Skeleton h={300} />}>
+          <FundingHeatmap L={L} idx={idx} />
+        </Suspense>
+      </Panel>
+
+      <Panel title={L("Open interest per market, 90 hari", "Open interest by market, 90 days")} aside={<Source kind="indexer">Envio MarketDaily</Source>}>
+        <Suspense fallback={<Skeleton h={280} />}>
+          <OiHistory L={L} idx={idx} />
+        </Suspense>
+      </Panel>
+
       <div className="grid gap-6 lg:grid-cols-5">
         <Panel className="lg:col-span-3" title={L("Likuidasi", "Liquidations")} aside={<Source kind={idx ? "indexer" : "rpc"}>{idx ? "Liquidation" : "PositionLiquidated"}</Source>}>
           <Suspense fallback={<Skeleton h={360} />}>
@@ -128,6 +141,12 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: SP
         </Panel>
       </div>
 
+      <Panel title={L("Likuiditas vs tekanan likuidasi", "Liquidity vs liquidation pressure")} aside={<Source kind="live">{L("Order book Perpl + posisi onchain", "Perpl order book + onchain positions")}</Source>} pad={false}>
+        <Suspense fallback={<Skeleton h={360} />}>
+          <BookRisk L={L} />
+        </Suspense>
+      </Panel>
+
       <div className="grid gap-6 lg:grid-cols-2">
         <Panel title={L("Posisi paling dekat likuidasi", "Positions closest to liquidation")} pad={false}>
           <Suspense fallback={<Skeleton h={360} />}>
@@ -140,6 +159,12 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: SP
           </Suspense>
         </Panel>
       </div>
+
+      <Panel title={L("Kohort trader: siapa yang untung di Perpl", "Trader cohorts: who makes money on Perpl")} aside={<Source kind="indexer">Envio Account</Source>} pad={false}>
+        <Suspense fallback={<Skeleton h={320} />}>
+          <Cohorts L={L} idx={idx} />
+        </Suspense>
+      </Panel>
 
       <div className="grid gap-6 lg:grid-cols-3">
         <Panel className="lg:col-span-2" title={L("Trader teratas, PnL 30 hari", "Top traders, 30-day PnL")} pad={false} aside={<Source kind="live">/trading/leaderboard</Source>}>

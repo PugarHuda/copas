@@ -73,6 +73,10 @@ export async function getCandles(market: number, res: number, from: number, to: 
   return r.d;
 }
 
+/** L2 book snapshot, up to 100 levels a side (raw price/size units, best level first). */
+export const getBook = (market: number) =>
+  perplGet<{ sn: number; bid: { p: number; s: number; o: number }[]; ask: { p: number; s: number; o: number }[] }>(`/v1/market-data/${market}/book?levels=100`, 15);
+
 /** All-market funding, at most 128 intervals of the shortest market interval per request. */
 export async function getFundingAll(from: number, to: number) {
   const r = await perplGet<{ d: Record<string, FundingEvent[]> }>(`/v1/market-data/funding/${from}-${to}`, 120);
