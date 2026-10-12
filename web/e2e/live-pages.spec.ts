@@ -246,7 +246,8 @@ test.describe("API /api/hyperliquid", () => {
 
 test("landing live metrics strip matches the indexer", async ({ page, request }) => {
   const strip = page.getByRole("region", { name: "Live protocol metrics" });
-  await gotoUntil(page, "/", () => strip.getByText("LeaderBook.bond() · Envio indexer"));
+  // both sources must answer: the indexer (counters) and the registry RPC (bond), which rate-limits now and then
+  await gotoUntil(page, "/", () => [strip.getByText("LeaderBook.bond() · Envio indexer"), strip.getByText(/^across \d+ leaders?$/)]);
   const items = strip.locator("div.grid > div");
   await expect(items).toHaveCount(6);
   for (const v of await items.locator("p.num").allInnerTexts()) expect(v.trim()).toMatch(/^\d[\d,]*(\.\d+)?$/);
