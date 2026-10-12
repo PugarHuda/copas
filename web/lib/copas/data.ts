@@ -72,3 +72,28 @@ async function readLeader(book: `0x${string}`): Promise<Leader> {
     perplAccount: book, // the LeaderBook owns its Perpl account
   };
 }
+
+const ZERO = "0x0000000000000000000000000000000000000000";
+const bookAbi = [{ type: "function", name: "bestBidAsk", stateMutability: "view", inputs: [], outputs: [{ type: "uint256" }, { type: "uint256" }] }] as const;
+
+/** Live UP/DOWN series for this or next epoch, plus Kuru top of book when DOWN is listed. Null = nothing minted yet. */
+export async function getDownMarket(book: string, epoch: number) {
+  if (!deployment?.breachMarket) return null;
+  const bm = { address: deployment.breachMarket, abi: copasAbi.BreachMarket as Abi };
+  for (const e of [epoch, epoch + 1]) {
+    const s = (await client.readContract({ ...bm, functionName: "series", args: [book, BigInt(e)] }).catch(() => null)) as
+      | { up: `0x${string}`; down: `0x${string}`; settled: boolean; breach: boolean }
+      | null;
+    if (!s || s.down === ZERO) continue;
+    const supply = A(await client.readContract({ address: s.down, abi: copasAbi.BreachToken as Abi, functionName: "totalSupply" }));
+    const market = deployment.kuruDownMarkets?.[s.down.toLowerCase()];
+    let bid = 0, ask = 0;
+    if (market) {
+      const [b, a] = (await client.readContract({ address: market, abi: bookAbi, functionName: "bestBidAsk" })) as [bigint, bigint];
+      bid = Number(b) / 1e18;
+      ask = a >= 2n ** 255n ? 0 : Number(a) / 1e18; // empty ask side reads as max uint
+    }
+    return { epoch: e, down: s.down, up: s.up, market, supply, bid, ask, settled: s.settled, breach: s.breach };
+  }
+  return null;
+}

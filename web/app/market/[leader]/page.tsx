@@ -2,10 +2,11 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import { Panel, Source, Stat, StatRow, Empty } from "@/components/ui";
 import { DDMeter } from "@/components/copas";
-import { getLeader } from "@/lib/copas/data";
-import { mockDownBook } from "@/lib/mock/copas"; // MOCK until BreachMarket + Kuru market are live
+import { getDownMarket, getLeader } from "@/lib/copas/data";
+import { mockDownBook } from "@/lib/mock/copas"; // fallback until a series is minted for this leader
 import { getT } from "@/lib/i18n/server";
 import { num, pct, usd } from "@/lib/format";
+import { copasChain, explorerAddr } from "@/lib/chains";
 
 export const metadata: Metadata = { title: "DOWN market" };
 
@@ -15,7 +16,20 @@ export default async function MarketPage({ params }: { params: Promise<{ leader:
   const L = (a: string, b: string) => (lang === "id" ? a : b);
   const { leader: l } = await getLeader(leader);
   if (!l) return <Empty>{L("Leader tidak ditemukan.", "Leader not found.")}</Empty>;
-  const b = mockDownBook(l);
+  const live = l.owner ? await getDownMarket(l.book, l.epoch).catch(() => null) : null;
+  const mock = mockDownBook(l);
+  const px = live ? (live.bid && live.ask ? (live.bid + live.ask) / 2 : live.ask || live.bid) : mock.downPrice;
+  const b = live
+    ? {
+        epoch: live.epoch,
+        downPrice: px,
+        upPrice: 1 - px,
+        supply: live.supply,
+        // ponytail: top of book only (bestBidAsk); full depth needs Kuru's L2 reader
+        asks: live.ask ? [{ px: live.ask, size: NaN }] : [],
+        bids: live.bid ? [{ px: live.bid, size: NaN }] : [],
+      }
+    : mock;
   return (
     <div className="space-y-6">
       <div>
@@ -32,7 +46,7 @@ export default async function MarketPage({ params }: { params: Promise<{ leader:
           )}
         </p>
       </div>
-      <Panel aside={<Source kind="mock">{t("common.mockNote")}</Source>} title={L("Pasar", "Market")}>
+      <Panel aside={live ? <Source kind="live">BreachMarket · Kuru</Source> : <Source kind="mock">{t("common.mockNote")}</Source>} title={L("Pasar", "Market")}>
         <StatRow>
           <Stat label={L("Peluang breach (harga DOWN)", "Breach odds (DOWN price)")} value={pct(b.downPrice * 100, 0)} tone={b.downPrice > 0.5 ? "text-down" : ""} />
           <Stat label={L("Harga UP", "UP price")} value={num(b.upPrice, 2)} />
@@ -41,7 +55,11 @@ export default async function MarketPage({ params }: { params: Promise<{ leader:
         </StatRow>
       </Panel>
       <div className="grid gap-6 lg:grid-cols-2">
-        <Panel title={L("Order book DOWN/AUSD (Kuru)", "DOWN/AUSD order book (Kuru)")} pad={false}>
+        <Panel
+          title={L("Order book DOWN/AUSD (Kuru)", "DOWN/AUSD order book (Kuru)")}
+          pad={false}
+          aside={live?.market ? <a className="text-xs underline" href={explorerAddr(live.market, copasChain.id)} target="_blank" rel="noreferrer">{live.market.slice(0, 10)}…</a> : undefined}
+        >
           <table className="data">
             <thead>
               <tr>
@@ -53,13 +71,13 @@ export default async function MarketPage({ params }: { params: Promise<{ leader:
               {[...b.asks].reverse().map((a) => (
                 <tr key={"a" + a.px}>
                   <td className="text-down">{num(a.px, 2)}</td>
-                  <td className="r">{num(a.size, 0)}</td>
+                  <td className="r">{Number.isNaN(a.size) ? L("terbaik", "best") : num(a.size, 0)}</td>
                 </tr>
               ))}
               {b.bids.map((x) => (
                 <tr key={"b" + x.px}>
                   <td className="text-up">{num(x.px, 2)}</td>
-                  <td className="r">{num(x.size, 0)}</td>
+                  <td className="r">{Number.isNaN(x.size) ? L("terbaik", "best") : num(x.size, 0)}</td>
                 </tr>
               ))}
             </tbody>
