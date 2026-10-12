@@ -370,7 +370,7 @@ function ByMarket({ s, L }: { s: TradeStats; L: Lx }) {
   );
 }
 
-/** Deterministic, rule-based read of the numbers. The Kimi analyst (SPEC D1) will replace this text, not the numbers. */
+/** Deterministic, rule-based read of the numbers. The AI analyst (SPEC D1) will replace this text, not the numbers. */
 function Insights({ s, snap, L }: { s: TradeStats; snap: AccountSnapshot; L: Lx }) {
   const out: { tone: "up" | "down" | "warn"; text: string }[] = [];
   const lev = snap.equity > 0 ? snap.positions.reduce((a, p) => a + p.notional, 0) / snap.equity : 0;
@@ -386,7 +386,7 @@ function Insights({ s, snap, L }: { s: TradeStats; snap: AccountSnapshot; L: Lx 
   if (top && s.byMarket.length > 1 && top.pnl > 0 && top.pnl > s.realized) out.push({ tone: "warn", text: L(`Semua profit bersih datang dari ${top.market}; market lain merugi.`, `All net profit comes from ${top.market}; other markets lose money.`) });
   if (!out.length) return null;
   return (
-    <Panel title={L("Insight otomatis", "Automated insights")} aside={<span>{L("Berbasis aturan · analis AI Kimi menyusul", "Rule-based · Kimi AI analyst next")}</span>}>
+    <Panel title={L("Insight otomatis", "Automated insights")} aside={<span>{L("Berbasis aturan", "Rule-based")}</span>}>
       <ul className="space-y-2 text-sm">
         {out.map((o) => (
           <li key={o.text} className="flex gap-2">

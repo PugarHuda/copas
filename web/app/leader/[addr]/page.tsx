@@ -178,7 +178,7 @@ function Bonded({ l, source, cps: live, L, statusLabel }: { l: Leader; source: s
             <Empty>{L("Tidak ada posisi terbuka.", "No open positions.")}</Empty>
           )}
         </Panel>
-        <Panel title={L("Analisis risiko AI", "AI risk analysis")} aside={<span>{L("Kimi K3 menjelaskan, kontrak mengeksekusi", "Kimi K3 explains, the contract enforces")}</span>}>
+        <Panel title={L("Analisis risiko AI", "AI risk analysis")} aside={<span>{L("AI menjelaskan, kontrak mengeksekusi", "AI explains, the contract enforces")}</span>}>
           <AnalysisPanel perplAddress={l.perplAccount} />
         </Panel>
       </div>

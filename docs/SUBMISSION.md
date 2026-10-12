@@ -31,8 +31,7 @@ On Perpl, 71% of traders lose money within 30 days, and copy-trading leaders ris
 | Mera: Best Mera-Powered UX | Passkey is the whole account layer: create/sign in, session for small actions, re-prompt for risky ones; no extension, no custody backend | `web/lib/mera` | live |
 | Mera: One Passkey, Many Keys | Second PRF salt `sha256("copas.feed.v1")` → X25519 key → encrypted leader strategy notes readable only by followers, ciphertext onchain in `CopasFeed` | `web/lib/mera/feed.ts`, `web/components/StrategyFeed.tsx`, `contracts/src/CopasFeed.sol` | live on testnet |
 | MetaMask: Best Agent Wallet Plugin | `mm copas`: 11 commands, mandatory risk limits, outflow cap | `plugin/` | works with Agent Wallet CLI |
-| Privy | Keeper server wallet with policy, gas sponsorship, DENY demo | `keeper/privy` | needs Privy app keys |
+| Privy | Keeper server wallet with policy: ALLOW `sync` (tx `0x66f9d7a7b7cb07a075e147e0e7dda414168266eb4c7d39f8e8095232d019332a`), DENY AUSD = `policy_violation` (shown on `/proof`) | `keeper/privy`, `keeper/logs/deny.json` | live on testnet; gas sponsorship pending dashboard toggle |
 | Nansen | Leader discovery and smart-money alignment (API key + x402) | `services/` (D2), hosted at https://copas-services.vercel.app/discover | live (API key, CDN-cached) |
-| Kimi | Signed risk analysis per leader | `services/` (D1) | needs Kimi key |
 
 Drop any row still marked "needs key" at submit time rather than claiming it.

@@ -1,16 +1,16 @@
 import Link from "next/link";
 import type { Metadata } from "next";
-import { Panel, PageHead, Source } from "@/components/ui";
+import { Empty, Panel, PageHead, Source } from "@/components/ui";
+import { deny } from "@/lib/copas/generated/deny";
 import { MOCK_PROOF } from "@/lib/mock/copas"; // MOCK until contracts deployed
 import { deployment } from "@/lib/copas/contracts";
 import { copasBreaches } from "@/lib/copas/indexer";
 import { PERPL, copasChain, explorerAddr, explorerTx, monad } from "@/lib/chains";
 import { getT } from "@/lib/i18n/server";
-import { ago, num, pct, short, usd } from "@/lib/format";
+import { num, pct, short, usd } from "@/lib/format";
 import { Recompute } from "./Recompute";
 
 export const metadata: Metadata = { title: "Proof" };
-const NOW = Date.UTC(2026, 9, 4, 3);
 
 export default async function Proof() {
   const { t, lang } = await getT();
@@ -135,35 +135,22 @@ export default async function Proof() {
       </Panel>
 
       <div className="grid gap-6 lg:grid-cols-2">
-        <Panel title={L("Log DENY policy Privy", "Privy policy DENY log")} aside={<Source kind="mock">Privy</Source>} pad={false}>
-          <table className="data">
-            <tbody>
-              {MOCK_PROOF.privyDeny.map((d) => (
-                <tr key={d.id}>
-                  <td className="text-ink-3">{ago(d.t, NOW)}</td>
-                  <td>{d.wallet}</td>
-                  <td className="num">{d.action}</td>
-                  <td className="text-down">{d.rule}</td>
+        <Panel title={L("Log DENY policy Privy", "Privy policy DENY log")} aside={deny ? <Source kind="live">Privy · {deny.chainId}</Source> : <Source kind="mock">Privy</Source>} pad={false}>
+          {deny ? (
+            <table className="data">
+              <tbody>
+                <tr>
+                  <td className="text-ink-3">{deny.at.slice(0, 16).replace("T", " ")}</td>
+                  <td className="num">{short(deny.wallet)}</td>
+                  <td className="num">{deny.request.call}</td>
+                  <td className={deny.outcome === "DENIED" ? "text-down" : "text-warn"}>{deny.outcome === "DENIED" ? deny.error?.code : deny.outcome}</td>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-          <p className="px-4 py-3 text-xs text-ink-3">{L("Keeper hanya boleh memanggil sync, checkpoint, rollEpoch. Transfer token dan tanda tangan pesan ditolak policy.", "The keeper may only call sync, checkpoint and rollEpoch. Token transfers and message signing are denied by policy.")}</p>
-        </Panel>
-        <Panel title={L("Signature analisis Kimi", "Kimi analysis signatures")} aside={<Source kind="mock">X-Msh-Request-Nonce</Source>} pad={false}>
-          <table className="data">
-            <tbody>
-              {MOCK_PROOF.kimi.map((k) => (
-                <tr key={k.nonce}>
-                  <td className="text-ink-3">{ago(k.t, NOW)}</td>
-                  <td>{k.leader}</td>
-                  <td className="num">{k.nonce}</td>
-                  <td className="num">{k.sigHash}</td>
-                  <td className={k.verified ? "text-up" : "text-down"}>{k.verified ? L("terverifikasi", "verified") : L("gagal", "failed")}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+              </tbody>
+            </table>
+          ) : (
+            <Empty>{L("Jalankan pnpm privy:deny-demo di keeper.", "Run pnpm privy:deny-demo in keeper.")}</Empty>
+          )}
+          <p className="px-4 py-3 text-xs text-ink-3">{L("Keeper (server wallet Privy) hanya boleh memanggil sync, checkpoint, rollEpoch di kontrak Copas. Menyentuh AUSD atau Perpl langsung ditolak policy sebelum ditandatangani.", "The keeper (a Privy server wallet) may only call sync, checkpoint and rollEpoch on Copas contracts. Touching AUSD or Perpl directly is refused by policy before signing.")}</p>
         </Panel>
       </div>
       <p className="text-xs text-ink-3">

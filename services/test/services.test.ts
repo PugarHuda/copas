@@ -12,6 +12,9 @@ import { simulate } from "../src/simulate.js";
 import { createApp } from "../src/app.js";
 import { LEADER, NOW, calls, nansen, nansen402, stubFetch, trades } from "./stub.js";
 
+// The Kimi-path tests must not pick up a developer machine's global OpenRouter key.
+delete process.env.OPENROUTER_API_KEY;
+
 const KEYS = ["KIMI_API_KEY", "NANSEN_API_KEY", "X402_PRIVATE_KEY", "NANSEN_PAYMENT_MODE", "ATTESTER_PRIVATE_KEY", "TENDERLY_ACCESS_KEY", "TENDERLY_ACCOUNT", "TENDERLY_PROJECT", "ENVIO_GRAPHQL_URL", "KIMI_LOG_PATH"];
 const TEST_PK = "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d"; // anvil #1, test only
 let saved: Record<string, string | undefined>;
@@ -272,7 +275,9 @@ describe("Envio source", () => {
     const envioFetch: typeof fetch = async (u, init) => {
       if (!String(u).startsWith("http://envio.test")) return stubFetch(u, init);
       const q = JSON.parse(String(init?.body)).query as string;
-      const data = q.includes("Account")
+      const data = q.includes("Protocol")
+        ? { Protocol: [{ lastUpdatedAt: NOW - 60 }] }
+        : q.includes("Account")
         ? { Account: [{ id: "3237" }] }
         : { Fill: [
             { id: "100-1", timestamp: NOW - 100, block: 100, txHash: "0xa", role: "TAKER", side: "BUY", pricePNS: "1000000", lotLNS: "100000", notionalCNS: "100000000", feeCNS: "34500", realizedPnlCNS: "0", market },
@@ -284,5 +289,14 @@ describe("Envio source", () => {
     expect(d.source).toBe("envio");
     expect(d.fills.map((x) => [x.price, x.size, x.positionAfter])).toEqual([[100000, 1, 1], [110000, 1, 0]]);
     expect(d.closedTrades[0].netPnl).toBeCloseTo(10 - 0.0345 - 0.03795, 9);
+  });
+
+  it("falls back to plumb while the indexer is still backfilling", async () => {
+    process.env.ENVIO_GRAPHQL_URL = "http://envio.test/v1/graphql";
+    const stale: typeof fetch = async (u, init) =>
+      String(u).startsWith("http://envio.test")
+        ? new Response(JSON.stringify({ data: { Protocol: [{ lastUpdatedAt: NOW - 30 * 86400 }] } }), { headers: { "content-type": "application/json" } })
+        : stubFetch(u, init);
+    expect((await getLeaderData(LEADER, { now: NOW, fetch: stale })).source).toBe("plumb");
   });
 });

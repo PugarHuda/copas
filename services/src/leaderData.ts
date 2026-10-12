@@ -308,12 +308,19 @@ export interface LeaderDataOpts {
   fetch?: Fetch;
 }
 
+/** A backfilling indexer has no recent fills; use it only once its last mainnet event is within a day of `to`. */
+async function envioFresh(url: string, to: number, f: Fetch): Promise<boolean> {
+  const d = await envio<{ Protocol: { lastUpdatedAt: number }[] }>(url, `{ Protocol(where: { chainId: { _eq: 143 } }) { lastUpdatedAt } }`, {}, f).catch(() => null);
+  return !!d && (d.Protocol[0]?.lastUpdatedAt ?? 0) >= to - 86400;
+}
+
 export async function getLeaderData(address: string, opts: LeaderDataOpts = {}): Promise<LeaderData> {
   const f = opts.fetch ?? fetch;
   const to = opts.now ?? Math.floor(Date.now() / 1000);
   const from = to - (opts.days ?? 30) * 86400;
   const addr = address.toLowerCase();
-  const envioUrl = env("ENVIO_GRAPHQL_URL");
+  const configured = env("ENVIO_GRAPHQL_URL");
+  const envioUrl = configured && (await envioFresh(configured, to, f)) ? configured : undefined;
   const [fills, board] = await Promise.all([
     envioUrl ? fetchEnvioFills(envioUrl, addr, from, to, f) : fetchPlumbFills(addr, from, to, f),
     fetchLeaderboard("month", "pnl", f).catch(() => [] as LeaderboardRow[]),

@@ -84,6 +84,8 @@ type Bi = { en: string; id: string };
 type Analysis = {
   analysis?: { riskLevel: "low" | "medium" | "high"; styleSummary: Bi; tilt: Bi & { detected: boolean }; drift: Bi & { detected: boolean }; weeklySummary: Bi; devilsAdvocate: (Bi & { key: string; metric: string; value: number })[] };
   features: { style: { trades: number; winRate: number; profitFactor: number | null; avgHoldHours: number; avgLeverage: number | null; label: string; topMarket: string | null; makerShare: number }; tilt: { detected: boolean }; drift: { detected: boolean }; reasonsNotToFollow: { key: string; severity: number; detail: string }[] };
+  model?: string;
+  signature?: unknown;
   signatureValid?: boolean | null;
   verifyUrl?: string;
   costUsd?: number;
@@ -141,8 +143,8 @@ export function AnalysisPanel({ perplAddress }: { perplAddress?: string }) {
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-line pt-3 text-xs text-ink-3">
         {a ? (
           <>
-            <span>Kimi K3 · {d.signatureValid ? L("signature terverifikasi", "signature verified") : L("signature belum terverifikasi", "signature not verified")}</span>
-            {d.verifyUrl && (
+            <span>{d.model ?? "AI"}{d.signature ? ` · ${d.signatureValid ? L("signature terverifikasi", "signature verified") : L("signature belum terverifikasi", "signature not verified")}` : ""}</span>
+            {d.signature && d.verifyUrl && (
               <a href={d.verifyUrl} target="_blank" rel="noreferrer" className="hover:text-ink-2">
                 {L("Cek signature", "Check signature")}
               </a>
@@ -151,7 +153,7 @@ export function AnalysisPanel({ perplAddress }: { perplAddress?: string }) {
           </>
         ) : (
           <>
-            <span>{L("Angka dihitung deterministik. Narasi Kimi butuh", "Numbers are deterministic. Kimi narration needs")} <code>KIMI_API_KEY</code>.</span>
+            <span>{L("Angka dihitung deterministik. Narasi AI butuh", "Numbers are deterministic. AI narration needs")} <code>OPENROUTER_API_KEY</code>.</span>
           </>
         )}
       </div>

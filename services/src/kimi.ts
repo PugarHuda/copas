@@ -11,6 +11,10 @@ import { type Fetch, canonicalJson, env, requireEnv, round } from "./util.js";
 
 export const kimiBase = () => env("KIMI_BASE_URL") ?? "https://api.moonshot.ai/v1";
 export const KIMI_MODEL = "kimi-k3";
+// OPENROUTER_API_KEY switches the analyst to OpenRouter free models (no Kimi request signature, $0 cost).
+const OPENROUTER = "https://openrouter.ai/api/v1";
+const OR_MODELS = () => (env("LLM_MODEL") ?? "google/gemma-4-31b-it:free,nvidia/nemotron-3-super-120b-a12b:free").split(",");
+export const llmProvider = () => (env("OPENROUTER_API_KEY") ? "openrouter" : "kimi");
 export const KIMI_PRICE = { input: 3, cachedInput: 0.3, output: 15 }; // USD per 1M tokens (platform.kimi.ai/docs/pricing/chat-k3)
 
 export interface Bilingual {
@@ -109,29 +113,31 @@ export async function analyzeLeader(
   features: Features,
   opts: { fetch?: Fetch; logPath?: string; now?: number } = {},
 ): Promise<AnalysisResult> {
-  const key = requireEnv("KIMI_API_KEY");
+  const or = llmProvider() === "openrouter";
+  const key = requireEnv(or ? "OPENROUTER_API_KEY" : "KIMI_API_KEY");
   const f = opts.fetch ?? fetch;
   const nonce = randomUUID();
   const input = canonicalJson({ leader: address, features });
-  const res = await f(`${kimiBase()}/chat/completions`, {
+  const messages = [
+    { role: "system", content: SYSTEM },
+    { role: "user", content: input },
+  ];
+  const res = await f(`${or ? OPENROUTER : kimiBase()}/chat/completions`, {
     method: "POST",
-    headers: { authorization: `Bearer ${key}`, "content-type": "application/json", "X-Msh-Request-Nonce": nonce },
-    // no temperature/top_p: K3 locks them and rejects other values
-    body: JSON.stringify({
-      model: KIMI_MODEL,
-      reasoning_effort: "high",
-      response_format: { type: "json_object" },
-      messages: [
-        { role: "system", content: SYSTEM },
-        { role: "user", content: input },
-      ],
-    }),
+    headers: { authorization: `Bearer ${key}`, "content-type": "application/json", "X-Msh-Request-Nonce": nonce, ...(or ? { "X-Title": "Copas" } : {}) },
+    // Kimi: no temperature/top_p (K3 locks them). OpenRouter: `models` = fallback chain across free models.
+    body: JSON.stringify(
+      or
+        ? { model: OR_MODELS()[0], models: OR_MODELS(), response_format: { type: "json_object" }, messages }
+        : { model: KIMI_MODEL, reasoning_effort: "high", response_format: { type: "json_object" }, messages },
+    ),
   });
-  if (!res.ok) throw new Error(`kimi ${res.status}: ${(await res.text()).slice(0, 300)}`);
+  if (!res.ok) throw new Error(`${or ? "openrouter" : "kimi"} ${res.status}: ${(await res.text()).slice(0, 300)}`);
   const ts = res.headers.get("msh-request-timestamp");
   const sg = res.headers.get("msh-request-signature");
   const signature = ts && sg ? { nonce, timestamp: Number(ts), model: KIMI_MODEL, signature: sg } : null;
   const body = (await res.json()) as any;
+  const model = or ? String(body.model ?? OR_MODELS()[0]) : KIMI_MODEL;
   const content = String(body.choices?.[0]?.message?.content ?? "{}");
   let raw: unknown = {};
   try {
@@ -140,7 +146,8 @@ export async function analyzeLeader(
     raw = {};
   }
   const analysis = guardAnalysis(raw, features);
-  const { usage, costUsd } = kimiCost(body.usage ?? {});
+  const { usage, costUsd: kimiUsd } = kimiCost(body.usage ?? {});
+  const costUsd = or ? 0 : kimiUsd;
   const signatureValid = signature ? await verifyKimiSignature(signature, f).catch(() => null) : null;
   const out: AnalysisResult = {
     analysis,
@@ -153,13 +160,13 @@ export async function analyzeLeader(
     costUsd,
     inputHash: sha256(input),
     outputHash: sha256(canonicalJson(analysis)),
-    model: KIMI_MODEL,
+    model,
   };
   const logPath = opts.logPath ?? env("KIMI_LOG_PATH") ?? "data/kimi-log.jsonl";
   mkdirSync(dirname(logPath), { recursive: true });
   appendFileSync(
     logPath,
-    JSON.stringify({ at: opts.now ?? Math.floor(Date.now() / 1000), leader: address, model: KIMI_MODEL, nonce, signature, signatureValid, inputHash: out.inputHash, outputHash: out.outputHash, usage, costUsd }) + "\n",
+    JSON.stringify({ at: opts.now ?? Math.floor(Date.now() / 1000), leader: address, model, nonce, signature, signatureValid, inputHash: out.inputHash, outputHash: out.outputHash, usage, costUsd }) + "\n",
   );
   return out;
 }

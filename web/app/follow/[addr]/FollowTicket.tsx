@@ -130,7 +130,7 @@ export function FollowTicket({ leader: l }: { leader: Leader }) {
           <BacktestPanel perplAddress={l.perplAccount} follower={bt} mandate={{ maxDDbps: l.maxDD * 100, epochLen: l.epochLenH * 3600, maxLeverageHdths: l.maxLeverage * 100 }} />
         </Panel>
 
-        <Panel title={L("Sebelum kamu ikut: argumen tandingan", "Before you follow: the case against")} aside={<span>Kimi K3</span>}>
+        <Panel title={L("Sebelum kamu ikut: argumen tandingan", "Before you follow: the case against")} aside={<span>AI · OpenRouter</span>}>
           <AnalysisPanel perplAddress={l.perplAccount} />
         </Panel>
       </div>
