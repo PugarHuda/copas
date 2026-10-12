@@ -40,7 +40,8 @@ jobs:
           node-version: 22
           cache: pnpm
           cache-dependency-path: web/pnpm-lock.yaml
-      - run: pnpm install --frozen-lockfile
+      # web/pnpm-workspace.yaml leaves native build scripts (bufferutil, keccak, …) undecided; the tests need none of them
+      - run: pnpm install --frozen-lockfile --config.strict-dep-builds=false
       - run: pnpm exec playwright install --with-deps chromium
       - run: pnpm e2e
       - if: ${{ !cancelled() }}
