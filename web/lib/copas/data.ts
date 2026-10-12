@@ -1,6 +1,7 @@
 import "server-only";
-import { createPublicClient, erc721Abi, http, parseAbiItem, type Abi } from "viem";
-import { PERPL, copasChain } from "../chains";
+import { createPublicClient, erc721Abi, http, namehash, parseAbi, parseAbiItem, type Abi } from "viem";
+import { normalize } from "viem/ens";
+import { PERPL, copasChain, monad } from "../chains";
 import { perplExchangeAbi } from "../perpl/abi";
 import { toPosition, type Position, type RawPos } from "../perpl/onchain";
 import { short } from "../format";
@@ -67,18 +68,19 @@ async function readLeader(book: `0x${string}`, stats: Awaited<ReturnType<typeof 
   const u = Number((unit as [bigint, boolean])[0]) / 1e18;
   const pk = Number(peak as bigint) / 1e18;
   const hasPool = pool && pool !== ZERO;
-  const [uw, agentId] = await Promise.all([
+  const [uw, agentId, nad] = await Promise.all([
     hasPool ? client.readContract({ address: pool as `0x${string}`, abi: copasAbi.UnderwriterPool as Abi, functionName: "assets" }).then(A) : 0,
     deployment?.agentRegistry
       ? (client.readContract({ address: deployment.agentRegistry, abi: copasAbi.AgentLeaderRegistry as Abi, functionName: "agentOf", args: [book] }) as Promise<bigint>).catch(() => 0n)
       : 0n,
+    nadName(owner as `0x${string}`),
   ]);
   const agentName = agentId ? await erc8004Name(agentId) : undefined;
   const names = Object.keys(perpIdsForChain());
   return {
     book,
     owner: owner as `0x${string}`,
-    name: agentName ?? short(book),
+    name: agentName ?? nad ?? short(book),
     agent: agentId
       ? { erc8004Id: Number(agentId), model: `operator ${short(String(operator))}` }
       : operator !== owner
@@ -106,6 +108,26 @@ async function readLeader(book: `0x${string}`, stats: Awaited<ReturnType<typeof 
     returnTotal: (u - 1) * 100,
     perplAccount: book,
   };
+}
+
+/**
+ * Nad Name Service primary name (docs.nad.domains → Contract addresses, Monad mainnet NadNameService). Read on mainnet even for
+ * testnet leaders: an EOA owner is the same key on both chains, and the testnet NNS deployment has no code. Forward-verified
+ * (name → address must round-trip) so a primary name someone set for an address they don't own never shows.
+ */
+const NNS = "0xCc7a1bfF8845573dbF0B3b96e25B9b549d4a2eC7";
+const nnsAbi = parseAbi(["function getPrimaryNameForAddress(address) view returns (string)", "function getResolvedAddress(bytes32) view returns (address)"]);
+const mainnet = createPublicClient({ chain: monad, transport: http() });
+async function nadName(addr: `0x${string}`): Promise<string | undefined> {
+  try {
+    const n = (await mainnet.readContract({ address: NNS, abi: nnsAbi, functionName: "getPrimaryNameForAddress", args: [addr] })).trim();
+    if (!n || n.length > 40) return;
+    const name = normalize(`${n}.nad`);
+    const back = await mainnet.readContract({ address: NNS, abi: nnsAbi, functionName: "getResolvedAddress", args: [namehash(name)] });
+    return back.toLowerCase() === addr.toLowerCase() ? name : undefined;
+  } catch {
+    return;
+  }
 }
 
 const MAX_META = 64 * 1024;
