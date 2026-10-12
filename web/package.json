@@ -9,7 +9,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "check": "node --experimental-strip-types lib/perpl/stats.check.ts && node --experimental-strip-types lib/mera/feed.check.ts && node --experimental-strip-types lib/hyperliquid.check.ts"
+    "e2e": "playwright test",
+    "check": "node --experimental-strip-types lib/format.check.ts && node --experimental-strip-types lib/perpl/stats.check.ts && node --experimental-strip-types lib/mera/feed.check.ts && node --experimental-strip-types lib/hyperliquid.check.ts"
   },
   "dependencies": {
     "@category-labs/mera": "^0.2.0",
@@ -25,6 +26,7 @@
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
+    "@playwright/test": "1.63.0",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",

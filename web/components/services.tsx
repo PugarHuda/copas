@@ -22,6 +22,7 @@ async function call<T>(path: string, body?: unknown): Promise<Res<T>> {
 export function friendlyError(e?: string) {
   if (!e) return "The service did not answer. Try again shortly.";
   if (/no fills/i.test(e)) return "This trader has no Perpl fills in the last 30 days, so there is nothing to replay.";
+  if (/closed trades/i.test(e)) return "Not enough closed trades to backtest yet";
   if (/bad params|invalid|must be/i.test(e)) return "These settings can't be simulated. Check the values and try again.";
   if (/unreachable|timeout|HTTP 5\d\d|fetch failed|ECONN/i.test(e)) return "The analysis service is unreachable right now. Try again shortly.";
   if (/rate|429/i.test(e)) return "Too many requests. Wait a moment and try again.";

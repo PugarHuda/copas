@@ -154,7 +154,11 @@ export default async function Proof() {
           {b ? (
             <Recompute initial={{ equity: b.equity, units: b.units, peak: b.peak, maxDD: b.maxDD, slash: b.slash, capTotal: b.capTotal, cap: b.cap, loss: b.loss }} />
           ) : (
-            <Empty>{L("Belum ada breach untuk dihitung ulang.", "No breach to recompute yet.")}</Empty>
+            <Empty>
+              {target
+                ? L("Input breach tidak terbaca dari RPC Monad. Muat ulang untuk mencoba lagi.", "Could not read the breach inputs from the Monad RPC. Reload to try again.")
+                : L("Belum ada breach untuk dihitung ulang.", "No breach to recompute yet.")}
+            </Empty>
           )}
         </div>
       </Panel>

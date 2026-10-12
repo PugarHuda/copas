@@ -4,12 +4,12 @@ const compact = new Intl.NumberFormat("en-US", { notation: "compact", maximumFra
 
 export function usd(v: number | null | undefined, opts: { compact?: boolean; sign?: boolean; dp?: number } = {}) {
   if (v == null || !Number.isFinite(v)) return "–";
-  const sign = opts.sign && v > 0 ? "+" : v < 0 ? "−" : "";
   const a = Math.abs(v);
   const body =
     opts.compact && a >= 10_000
       ? compact.format(a)
       : a.toLocaleString("en-US", { minimumFractionDigits: opts.dp ?? 2, maximumFractionDigits: opts.dp ?? 2 });
+  const sign = /[1-9]/.test(body) ? (opts.sign && v > 0 ? "+" : v < 0 ? "−" : "") : ""; // never "−$0" or "+$0.00"
   return `${sign}$${body}`;
 }
 

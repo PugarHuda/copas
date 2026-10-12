@@ -5,7 +5,7 @@ import { Panel, Source, Stat, StatRow } from "@/components/ui";
 import { getLeaderboard, type LbPeriod } from "@/lib/perpl/api";
 import { copasAbi, deployment } from "@/lib/copas/contracts";
 import { copasChain } from "@/lib/chains";
-import { num, short, usd } from "@/lib/format";
+import { num, pct, short, usd } from "@/lib/format";
 
 export const metadata: Metadata = { title: "Would Copas have saved you?" };
 export const revalidate = 300;
@@ -100,7 +100,7 @@ export default async function SavedPage({ searchParams }: { searchParams: Promis
                       </Link>
                     </td>
                     <td className="num r text-down">{usd(r.pnl, { dp: 0 })}</td>
-                    <td className="num r">{num(r.roi, 1)}%</td>
+                    <td className="num r">{pct(r.roi, 1)}</td>
                     <td className="num r text-down">−{usd(loss, { dp: 2 })}</td>
                     <td className="num r text-up">+{usd(back, { dp: 2 })}</td>
                     <td className="num r">{usd(back - loss, { dp: 2 })}</td>
