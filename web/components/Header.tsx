@@ -11,6 +11,7 @@ export function Header() {
   const [open, setOpen] = useState(false);
   const nav = [
     { href: "/", label: t("nav.leaders"), match: (p: string) => p === "/" || p.startsWith("/leader") || p.startsWith("/follow") },
+    { href: "/seasons", label: "Seasons", match: (p: string) => p.startsWith("/seasons") },
     { href: "/analytics", label: t("nav.analytics"), match: (p: string) => p.startsWith("/analytics") },
     { href: "/saved", label: "Reality check", match: (p: string) => p.startsWith("/saved") },
     { href: "/me", label: t("nav.me"), match: (p: string) => p.startsWith("/me") },

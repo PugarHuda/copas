@@ -5,6 +5,7 @@ import { Panel, Segmented, Source, Tabs, Empty, btn } from "@/components/ui";
 import { Seal } from "@/components/Seal";
 import { DDMeter, StatusPill, protection } from "@/components/copas";
 import { getLeaders } from "@/lib/copas/data";
+import { protocolMetrics } from "@/lib/copas/indexer";
 import type { Leader } from "@/lib/copas/contracts";
 import { getLeaderboard, LB_PERIODS, type LbPeriod, type LbSort } from "@/lib/perpl/api";
 import { getT } from "@/lib/i18n/server";
@@ -20,15 +21,15 @@ export default async function Home({ searchParams }: { searchParams: SP }) {
   const { t, lang } = await getT();
   const L = (a: string, b: string) => (lang === "id" ? a : b);
   const tab = sp.tab === "shadow" ? "shadow" : "bonded";
-  const read = await getLeaders();
+  const [read, metrics] = await Promise.all([getLeaders(), protocolMetrics()]);
   const leaders = read ?? [];
   const atStake = leaders.reduce((a, l) => a + l.bond + l.underwritten, 0);
   const aum = leaders.reduce((a, l) => a + l.followerAum, 0);
 
-  const stats = { leaders: leaders.length, bonded: atStake, breached: leaders.filter((l) => l.status === "breached").length, followerAum: aum };
+  const stats = { leaders: leaders.length, bonded: atStake, bond: read ? leaders.reduce((a, l) => a + l.bond, 0) : null, breached: leaders.filter((l) => l.status === "breached").length, followerAum: aum };
   return (
     <div className="space-y-8">
-      <Landing stats={stats} L={L} />
+      <Landing stats={stats} metrics={metrics} L={L} />
       <section id="leaders" className="grid scroll-mt-20 items-end gap-8 lg:grid-cols-[1fr_auto]">
         <div className="max-w-2xl">
           <h2 className="font-cond text-4xl font-semibold leading-[1.05] tracking-tight sm:text-5xl">{t("home.title")}</h2>

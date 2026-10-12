@@ -1,13 +1,15 @@
 import Link from "next/link";
 import { Hero3D } from "./Hero3D";
 
-type Stats = { leaders: number; bonded: number; breached: number; followerAum: number };
+type Stats = { leaders: number; bonded: number; bond: number | null; breached: number; followerAum: number };
+/** Lifetime indexer counters (lib/copas/indexer protocolMetrics); null when the indexer is down. */
+type Metrics = { followers: number; syncs: number; slashPaid: number; claims: number; vaults: number; upkeep: number } | null;
 type Lx = (id: string, en: string) => string;
 
 const fmt = (n: number) => n.toLocaleString("en-US", { maximumFractionDigits: 0 });
 
 /** Editorial landing above the leaderboard. Every number shown comes from the live registry (props). */
-export function Landing({ stats, L }: { stats: Stats; L: Lx }) {
+export function Landing({ stats, metrics, L }: { stats: Stats; metrics: Metrics; L: Lx }) {
   const steps = [
     {
       n: "01",
@@ -65,6 +67,30 @@ export function Landing({ stats, L }: { stats: Stats; L: Lx }) {
           <span className="micro hidden sm:inline">{L("Testnet live", "Live on testnet")} · {stats.leaders} {L("leader", stats.leaders === 1 ? "leader" : "leaders")}</span>
         </div>
         <h1 className="display pointer-events-none absolute bottom-1 right-3 text-[22vw] leading-[0.78] tracking-[-0.03em] text-[#1a1a1a] sm:right-6 sm:text-[17vw] lg:text-[220px]">copas</h1>
+      </section>
+
+      {/* live protocol metrics: bond read from every LeaderBook, the rest counted from the indexer */}
+      <section aria-label="Live protocol metrics" className="mx-2 rounded-[22px] border-[6px] border-black bg-[#111214] px-4 py-6 sm:mx-3 sm:px-8">
+        <div className="flex flex-wrap items-baseline justify-between gap-2">
+          <p className="micro text-ink-3">Live on Monad testnet</p>
+          <p className="micro text-ink-3">{metrics ? "LeaderBook.bond() · Envio indexer" : "Indexer unavailable: onchain bond only"}</p>
+        </div>
+        <div className="mt-4 grid grid-cols-2 gap-x-6 gap-y-5 sm:grid-cols-3 lg:grid-cols-6">
+          {[
+            { k: "AUSD bonded", v: stats.bond == null ? "–" : fmt(stats.bond), s: `across ${stats.leaders} ${stats.leaders === 1 ? "leader" : "leaders"}` },
+            { k: "Active followers", v: metrics ? fmt(metrics.followers) : "–", s: "follows live now" },
+            { k: "Copy syncs executed", v: metrics ? fmt(metrics.syncs) : "–", s: "Synced events onchain" },
+            { k: "Slashes paid", v: metrics ? `${metrics.slashPaid.toLocaleString("en-US", { maximumFractionDigits: metrics.slashPaid < 1 ? 4 : 2 })} AUSD` : "–", s: metrics ? `${metrics.claims} ${metrics.claims === 1 ? "claim" : "claims"} by followers` : "" },
+            { k: "Vaults created", v: metrics ? fmt(metrics.vaults) : "–", s: "one per follower" },
+            { k: "Upkeep calls", v: metrics ? fmt(metrics.upkeep) : "–", s: "checkpoint · roll · sync" },
+          ].map((m) => (
+            <div key={m.k} className="min-w-0 border-l border-white/15 pl-3">
+              <p className="display num truncate text-[34px] leading-none text-white sm:text-[40px]">{m.v}</p>
+              <p className="micro mt-1.5 text-[#ff4a3d]">{m.k}</p>
+              <p className="mt-0.5 text-[11px] text-ink-3">{m.s}</p>
+            </div>
+          ))}
+        </div>
       </section>
 
       {/* manifesto */}

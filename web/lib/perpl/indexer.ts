@@ -36,7 +36,7 @@ const PAGE = 1000;
  * Every row of `entity` matching `where`, paged by offset. The hosted schema has no `<Entity>_aggregate`,
  * so counts and sums must see all rows. ponytail: stops at `max` rows (20 requests); a server-side aggregate if that is ever hit.
  */
-async function envioAll<T>(entity: string, where: string, fields: string, vars: Record<string, unknown> = {}, decl = "", max = 20_000): Promise<T[]> {
+export async function envioAll<T>(entity: string, where: string, fields: string, vars: Record<string, unknown> = {}, decl = "", max = 20_000): Promise<T[]> {
   const out: T[] = [];
   for (let offset = 0; offset < max; offset += PAGE) {
     const d = await envioQuery<Record<string, T[]>>(`query($chain: Int!, $offset: Int!${decl}) { ${entity}(${where}, limit: ${PAGE}, offset: $offset) { ${fields} } }`, { ...vars, offset });
