@@ -109,6 +109,7 @@ type Analysis = {
   analysis?: { riskLevel: "low" | "medium" | "high"; styleSummary: Bi; tilt: Bi & { detected: boolean }; drift: Bi & { detected: boolean }; weeklySummary: Bi; devilsAdvocate: (Bi & { key: string; metric: string; value: number })[] };
   features: { style: { trades: number; winRate: number; profitFactor: number | null; avgHoldHours: number; avgLeverage: number | null; label: string; topMarket: string | null; makerShare: number }; tilt: { detected: boolean }; drift: { detected: boolean }; reasonsNotToFollow: { key: string; severity: number; detail: string }[] };
   model?: string;
+  unavailable?: string;
   signature?: unknown;
   signatureValid?: boolean | null;
   verifyUrl?: string;
@@ -177,7 +178,11 @@ export function AnalysisPanel({ perplAddress }: { perplAddress?: string }) {
           </>
         ) : (
           <>
-            <span>{L("Angka dihitung deterministik. Narasi AI butuh", "Numbers are deterministic. AI narration needs")} <code>OPENROUTER_API_KEY</code>.</span>
+            {d.unavailable ? (
+              <span>{L("Angka dihitung deterministik. Narasi AI sedang tidak tersedia (kuota penyedia model habis); coba lagi nanti.", "Numbers are deterministic. AI narration is unavailable right now (model provider quota reached); try again later.")}</span>
+            ) : (
+              <span>{L("Angka dihitung deterministik. Narasi AI butuh", "Numbers are deterministic. AI narration needs")} <code>OPENROUTER_API_KEY</code>.</span>
+            )}
           </>
         )}
       </div>

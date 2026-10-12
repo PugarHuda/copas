@@ -339,6 +339,22 @@ describe("QA fixes", () => {
     expect(d.stats.markets[0].symbol).toBe("BTC");
   });
 
+  it("LLM out of quota: analysis is 200 with deterministic features, not a 502", async () => {
+    process.env.OPENROUTER_API_KEY = "k";
+    try {
+      const capped: typeof fetch = async (u, init) =>
+        String(u).includes("openrouter.ai") ? json({ error: { message: "Rate limit exceeded: free-models-per-day", code: 429 } }, 429) : stubFetch(u, init);
+      const r = await createApp({ fetch: capped, now: () => NOW }).request(`/leader/${LEADER}/analysis`);
+      expect(r.status, await r.clone().text()).toBe(200);
+      const j = await r.json();
+      expect(j.unavailable).toBe("llm-rate-limited");
+      expect(j.analysis).toBeUndefined();
+      expect(j.features.reasonsNotToFollow).toBeDefined();
+    } finally {
+      delete process.env.OPENROUTER_API_KEY;
+    }
+  });
+
   it("Nansen out of credits: alignment is 200 + degraded, discovery still ranks", async () => {
     process.env.NANSEN_API_KEY = "k";
     const broke: typeof fetch = async (u, init) =>

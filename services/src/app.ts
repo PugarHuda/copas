@@ -43,6 +43,10 @@ export function createApp(deps: { fetch?: Fetch; now?: () => number } = {}) {
       return await analyzeLeader(d.address, features, { fetch: f, now: now() });
     } catch (e) {
       if (e instanceof ServiceUnavailable) Object.assign(e, { features });
+      // provider quota or outage (OpenRouter free tier is 50 calls/day): the deterministic features still stand, so
+      // answer 200 degraded like Nansen credits do, instead of a 502 that blanks the panel
+      const m = e instanceof Error ? /^(openrouter|kimi) (429|5\d\d):/.exec(e.message) : null;
+      if (m) return { features, unavailable: m[2] === "429" ? "llm-rate-limited" : "llm-down", error: e instanceof Error ? e.message.slice(0, 200) : "" };
       throw e;
     }
   };

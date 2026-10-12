@@ -27,7 +27,7 @@ test.describe("follow an active leader", () => {
     const ratio = page.getByLabel("Copy ratio (% of leader size)");
     await ratio.fill("");
     await expect(ratio).toHaveAttribute("aria-invalid", "true");
-    await expect(page.locator("#f-ratio-err")).toHaveText("Enter a ratio above 0%.");
+    await expect(page.locator("#f-ratio-err")).toHaveText("Enter a ratio of at least 0.01% (1 bps).");
     await expect(summary(page).locator("div", { hasText: /^Ratio/ }).locator("dd")).toHaveText("–");
     await expectSaneSummary(page);
   });
