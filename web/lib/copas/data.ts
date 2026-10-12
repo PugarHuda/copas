@@ -1,14 +1,14 @@
 import "server-only";
 import { createPublicClient, erc721Abi, http, namehash, parseAbi, parseAbiItem, type Abi } from "viem";
 import { normalize } from "viem/ens";
-import { PERPL, copasChain, monad } from "../chains";
+import { PERPL, copasChain, monad, rpcTransport } from "../chains";
 import { perplExchangeAbi } from "../perpl/abi";
 import { toPosition, type Position, type RawPos } from "../perpl/onchain";
 import { short } from "../format";
 import { copasAbi, deployment, isDeployed, perpIdsForChain, type Leader } from "./contracts";
 import { leaderStats } from "./indexer";
 
-const client = createPublicClient({ chain: copasChain, transport: http() });
+const client = createPublicClient({ chain: copasChain, transport: rpcTransport(copasChain) });
 const STATUS = ["active", "unbonded", "breached", "closed"] as const;
 const ZERO = "0x0000000000000000000000000000000000000000";
 const A = (v: unknown) => Number(v as bigint) / 1e6;

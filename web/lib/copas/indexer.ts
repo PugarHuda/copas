@@ -1,8 +1,9 @@
 import "server-only";
-import { createPublicClient, http } from "viem";
+import { unstable_cache } from "next/cache";
+import { createPublicClient } from "viem";
 import { envioAll, envioQuery, indexerConfigured } from "../perpl/indexer";
 import { perplExchangeAbi } from "../perpl/abi";
-import { PERPL, copasChain } from "../chains";
+import { PERPL, copasChain, rpcTransport } from "../chains";
 import { perpIdsForChain } from "./contracts";
 
 /**
@@ -14,9 +15,15 @@ const CHAIN = copasChain.id;
 const cns = (x: string | number) => Number(x) / 1e6;
 export const BREACH_REASON = ["", "DRAWDOWN", "LEVERAGE", "NOTIONAL", "MARKET"];
 
+/**
+ * Every Copas indexer read goes through this 15 s shared cache, keyed by the request. The hosted dev indexer answers 429
+ * once a few page renders (landing, seasons, proof each fire 6 to 10 queries) land at the same time. Failures are not cached.
+ */
+const cached = <T,>(key: unknown[], fn: () => Promise<T>) => unstable_cache(fn, ["copas-indexer", JSON.stringify(key)], { revalidate: 15 })();
+
 async function q<T>(query: string, variables: Record<string, unknown> = {}): Promise<T | null> {
   if (!indexerConfigured()) return null;
-  return envioQuery<T>(query, { ...variables, chain: CHAIN }).catch(() => null);
+  return cached([query, variables], () => envioQuery<T>(query, { ...variables, chain: CHAIN })).catch(() => null);
 }
 
 export type LiveCheckpoint = { epoch: number; t: number; unitPrice: number; ddPct: number; leverage: number; block: number; tx?: string; breach?: string };
@@ -117,7 +124,7 @@ type VaultRow = {
   claims: { amountCNS: string; timestamp: number; txHash: string; breach: { leader_id: string; epoch: number } | null }[];
 };
 
-const client = createPublicClient({ chain: copasChain, transport: http() });
+const client = createPublicClient({ chain: copasChain, transport: rpcTransport(copasChain) });
 
 /** Testnet Perpl markets are indexed without ContractAdded decimals, so read them from the exchange. */
 async function perpDecimals(ids: string[]) {
@@ -185,7 +192,8 @@ export type LiveVault = NonNullable<Awaited<ReturnType<typeof copasVault>>>;
 /* --------------------------------- protocol --------------------------------- */
 
 /** Every row of a Copas entity on this chain (paged: the hosted Hasura caps at 1000 rows and has no _aggregate). */
-const all = <T,>(entity: string, fields: string, where = "") => envioAll<T>(entity, `where: { chainId: { _eq: $chain }${where} }, order_by: { id: asc }`, fields, { chain: CHAIN });
+const all = <T,>(entity: string, fields: string, where = "") =>
+  cached([entity, fields, where], () => envioAll<T>(entity, `where: { chainId: { _eq: $chain }${where} }, order_by: { id: asc }`, fields, { chain: CHAIN }));
 
 /** Lifetime counters for the landing strip. Null when the indexer is unavailable. */
 export async function protocolMetrics() {
@@ -245,12 +253,14 @@ export async function seasonBoard(from: number, to: number): Promise<{ rows: Sea
     ]);
     const accounts = vaults.flatMap((v) => (v.perplAccount ? [v.perplAccount.id] : []));
     const fills = accounts.length
-      ? await envioAll<{ account_id: string; realizedPnlCNS: string; feeCNS: string; txHash: string }>(
-          "Fill",
-          `where: { chainId: { _eq: $chain }, account_id: { _in: $acc }, timestamp: { _gte: ${from}, _lt: ${to} } }, order_by: { id: asc }`,
-          "account_id realizedPnlCNS feeCNS txHash",
-          { chain: CHAIN, acc: accounts },
-          ", $acc: [String!]!",
+      ? await cached(["Fill", accounts, from, to], () =>
+          envioAll<{ account_id: string; realizedPnlCNS: string; feeCNS: string; txHash: string }>(
+            "Fill",
+            `where: { chainId: { _eq: $chain }, account_id: { _in: $acc }, timestamp: { _gte: ${from}, _lt: ${to} } }, order_by: { id: asc }`,
+            "account_id realizedPnlCNS feeCNS txHash",
+            { chain: CHAIN, acc: accounts },
+            ", $acc: [String!]!",
+          ),
         )
       : [];
     const txLeader = new Map(copies.filter((c) => c.leader_id).map((c) => [c.txHash, c.leader_id!]));

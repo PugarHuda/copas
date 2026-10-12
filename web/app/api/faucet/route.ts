@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
-import { createPublicClient, createWalletClient, http, isAddress, parseAbi, parseEther } from "viem";
+import { createPublicClient, createWalletClient, isAddress, parseAbi, parseEther } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
-import { monadTestnet } from "@/lib/chains";
+import { monadTestnet, rpcTransport } from "@/lib/chains";
 
 export const dynamic = "force-dynamic";
 
@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 const AUSD = "0xa9012a055bd4e0eDfF8Ce09f960291C09D5322dC";
 const AUSD_FAUCET = "0xd236c18d274e54faccc3dd9dda4b27965a73ee6c"; // requestFunds(address) -> 10k AUSD
 const abi = parseAbi(["function requestFunds(address)", "function balanceOf(address) view returns (uint256)"]);
-const pub = createPublicClient({ chain: monadTestnet, transport: http() });
+const pub = createPublicClient({ chain: monadTestnet, transport: rpcTransport(monadTestnet) });
 // ponytail: per-instance memory, resets on redeploy; a KV store if abuse ever matters on a testnet faucet
 const last = new Map<string, number>();
 
@@ -23,7 +23,7 @@ export async function POST(req: Request) {
   if (Date.now() - (last.get(a) ?? 0) < 3_600_000) return NextResponse.json({ error: "cooldown" }, { status: 429 });
   last.set(a, Date.now());
 
-  const wallet = createWalletClient({ account: privateKeyToAccount(key), chain: monadTestnet, transport: http() });
+  const wallet = createWalletClient({ account: privateKeyToAccount(key), chain: monadTestnet, transport: rpcTransport(monadTestnet) });
   try {
     // Sequential: a second tx sent before the first confirms fails with a stale nonce on Monad RPC.
     const sent: `0x${string}`[] = [];

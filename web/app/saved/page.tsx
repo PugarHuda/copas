@@ -1,10 +1,11 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { createPublicClient, http, type Abi } from "viem";
+import { unstable_cache } from "next/cache";
+import { createPublicClient, type Abi } from "viem";
 import { Panel, Source, Stat, StatRow } from "@/components/ui";
 import { getLeaderboard, type LbPeriod } from "@/lib/perpl/api";
 import { copasAbi, deployment } from "@/lib/copas/contracts";
-import { copasChain } from "@/lib/chains";
+import { copasChain, rpcTransport } from "@/lib/chains";
 import { num, pct, short, usd } from "@/lib/format";
 
 export const metadata: Metadata = { title: "Would Copas have saved you?" };
@@ -16,18 +17,27 @@ const PERIODS: { k: LbPeriod; label: string }[] = [
   { k: "all", label: "All time" },
 ];
 
+// A registry parameter that changes by governance only: one RPC read an hour, not one per request (the public testnet RPC rate-limits).
+// unstable_cache stores only resolved values, so a failed read is retried on the next request.
+const bondRatio = unstable_cache(
+  async () => {
+    if (!deployment?.registry) return null;
+    const client = createPublicClient({ chain: copasChain, transport: rpcTransport(copasChain) });
+    return Number(await client.readContract({ address: deployment.registry, abi: copasAbi.CopasRegistry as Abi, functionName: "bondRatioBps" }));
+  },
+  ["copas-bond-ratio-bps", String(copasChain.id)],
+  { revalidate: 3600 },
+);
+
 /** Live Perpl leaderboard: who lost, how much, and what the registry's real bond rule would have returned to a copier. */
 export default async function SavedPage({ searchParams }: { searchParams: Promise<{ p?: string; c?: string }> }) {
   const sp = await searchParams;
   const period = (PERIODS.find((x) => x.k === sp.p)?.k ?? "month") as LbPeriod;
   const c = Math.round(Number(sp.c)); // "", "abc" → default; 0, negative, huge → clamped
   const capital = sp.c && Number.isFinite(c) ? Math.min(1_000_000, Math.max(10, c)) : 1000;
-  const client = createPublicClient({ chain: copasChain, transport: http() });
   const [rows, bondBps] = await Promise.all([
     getLeaderboard(period, "pnl").catch(() => null),
-    deployment?.registry
-      ? client.readContract({ address: deployment.registry, abi: copasAbi.CopasRegistry as Abi, functionName: "bondRatioBps" }).then(Number).catch(() => null)
-      : Promise.resolve(null),
+    bondRatio().catch(() => null),
   ]);
 
   if (!rows) return <p className="text-sm text-down">Perpl leaderboard unreachable right now. Try again in a minute.</p>;

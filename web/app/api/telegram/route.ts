@@ -2,12 +2,12 @@ import { AsyncLocalStorage } from "node:async_hooks";
 import { timingSafeEqual } from "node:crypto";
 import { NextResponse } from "next/server";
 import { unstable_cache } from "next/cache";
-import { createPublicClient, http, type Abi } from "viem";
+import { createPublicClient, type Abi } from "viem";
 import { breachInputs, getDownMarket, getLeaders as readLeaders } from "@/lib/copas/data";
 import { WEEK, copasBreaches, seasonBoard, weekStart } from "@/lib/copas/indexer";
 import { breachMath } from "@/lib/copas/math";
 import { copasAbi, deployment, type Leader } from "@/lib/copas/contracts";
-import { copasChain, explorerTx } from "@/lib/chains";
+import { copasChain, explorerTx, rpcTransport } from "@/lib/chains";
 import { getLeaderboard, type LbPeriod } from "@/lib/perpl/api";
 import { num, pct, pctAuto, short } from "@/lib/format";
 
@@ -239,7 +239,7 @@ const PERIODS: Record<string, { k: LbPeriod; label: string }> = { week: { k: "we
 
 async function reality(chat: Chat, arg: string) {
   const p = PERIODS[arg.trim().toLowerCase()] ?? PERIODS.month;
-  const client = createPublicClient({ chain: copasChain, transport: http() });
+  const client = createPublicClient({ chain: copasChain, transport: rpcTransport(copasChain) });
   const [rows, bondBps] = await Promise.all([
     getLeaderboard(p.k, "pnl").catch(() => null),
     deployment?.registry ? client.readContract({ address: deployment.registry, abi: copasAbi.CopasRegistry as Abi, functionName: "bondRatioBps" }).then(Number).catch(() => null) : null,

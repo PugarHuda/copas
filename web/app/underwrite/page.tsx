@@ -1,16 +1,16 @@
 import type { Metadata } from "next";
-import { createPublicClient, http, type Abi } from "viem";
+import { createPublicClient, type Abi } from "viem";
 import { Empty, Panel, PageHead, Source } from "@/components/ui";
 import { getLeaders } from "@/lib/copas/data";
 import { leaderStats } from "@/lib/copas/indexer";
 import { copasAbi } from "@/lib/copas/contracts";
-import { copasChain } from "@/lib/chains";
+import { copasChain, rpcTransport } from "@/lib/chains";
 import { getT } from "@/lib/i18n/server";
 import { Pools, type PoolRow } from "./Pools";
 
 export const metadata: Metadata = { title: "Underwrite" };
 
-const client = createPublicClient({ chain: copasChain, transport: http() });
+const client = createPublicClient({ chain: copasChain, transport: rpcTransport(copasChain) });
 
 export default async function Underwrite() {
   const { t, lang } = await getT();

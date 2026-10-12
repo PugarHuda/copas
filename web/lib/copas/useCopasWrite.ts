@@ -1,11 +1,11 @@
 "use client";
 import { useCallback, useState } from "react";
-import { createPublicClient, createWalletClient, http, type Abi } from "viem";
-import { copasChain } from "../chains";
+import { createPublicClient, createWalletClient, type Abi } from "viem";
+import { copasChain, rpcTransport } from "../chains";
 import { toUiError, useMeraSession, type ActionRisk } from "../mera/MeraProvider";
 import { isDeployed } from "./contracts";
 
-export const copasPublic = createPublicClient({ chain: copasChain, transport: http() });
+export const copasPublic = createPublicClient({ chain: copasChain, transport: rpcTransport(copasChain) });
 
 type Call = { address: `0x${string}`; abi: Abi; functionName: string; args?: readonly unknown[] };
 
@@ -29,7 +29,7 @@ export function useCopasWrite() {
       setPending(true);
       try {
         const account = await authorize(risk);
-        const wallet = createWalletClient({ account, chain: copasChain, transport: http() });
+        const wallet = createWalletClient({ account, chain: copasChain, transport: rpcTransport(copasChain) });
         const h = await wallet.writeContract({ ...call, args: call.args ?? [] } as never);
         setHash(h);
         await copasPublic.waitForTransactionReceipt({ hash: h });
