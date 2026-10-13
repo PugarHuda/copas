@@ -113,6 +113,8 @@ export function backtest(fills: Fill[], follower: FollowerParams, mandateIn: Man
   const capTotal = follower.maxNotionalCNS + (optsIn.otherFollowersCapCNS ?? 0);
   const from = optsIn.from ?? fills[0].ts;
   const to = optsIn.to ?? fills[fills.length - 1].ts;
+  // request input (POST /leader/:addr/backtest): a tiny epochLen or a huge window would loop for billions of epochs
+  if (!(to >= from) || (to - from) / mandate.epochLen > 10_000) throw new Error("window must be 0..10000 epochs long");
   const opts = {
     bondCNS: Math.max(25, capTotal * 0.1),
     otherFollowersCapCNS: 0,

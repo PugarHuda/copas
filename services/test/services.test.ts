@@ -70,6 +70,12 @@ describe("backtest (C3)", () => {
   const follower = { depositCNS: 1000, ratioBps: 10_000, maxNotionalCNS: 1000, maxLeverageHdths: 1000, maxChaseBps: 2000, priceBandBps: 100, stopLossBps: 0 };
   const zero = { halfSpreadBps: 0, driftBpsPerBlock: 0, takerFeeBps: 0 };
 
+  it("rejects a request that would replay more than 10000 epochs (CPU/memory DoS)", () => {
+    const xs = [fill(10, true, 100, 1, 1), fill(20, false, 90, 1, 0, -10)];
+    expect(() => backtest(xs, follower, { maxDDbps: 500, epochLen: 0.0001 }, { leaderCapitalCNS: 100 })).toThrow(/10000 epochs/);
+    expect(() => backtest(xs, follower, { maxDDbps: 500, epochLen: 3600 }, { leaderCapitalCNS: 100, from: 0, to: 1e12 })).toThrow(/10000 epochs/);
+  });
+
   it("breach on drawdown pays min(pro-rata pot, loss) exactly like LeaderBook.claimFor", () => {
     const xs = [fill(10, true, 100, 1, 1), fill(20, false, 90, 1, 0, -10)];
     const r = backtest(xs, follower, { maxDDbps: 500, epochLen: 1000 }, { leaderCapitalCNS: 100, ...zero });
