@@ -21,7 +21,7 @@ On Perpl, 71% of traders lose money within 30 days, and copy-trading leaders ris
 - Live pages worth a look: `/saved` (live Perpl losses vs what a Copas bond returns), `/seasons` (leaders ranked by follower outcome), `/proof` (real breach math + Privy DENY), `/become-leader` (Hyperliquid track-record import)
 - Contracts: `contracts/deployments/10143.json` (registry `0xA8BA57c7Af1d9A28660653E0439A180c86D03e3d`, feed `0x75d52573C684C7799778Da633fDceB80297d7718`)
 - Verified source: every Copas contract on testnet is verified on Sourcify Monad (registry, both vault factories, leader factory, BreachMarket, AgentLeaderRegistry, CopasFeed, CopasRiskConsumer, all 5 LeaderBooks + pools, the demo FollowerVault), e.g. https://testnet.monadvision.com/address/0xA8BA57c7Af1d9A28660653E0439A180c86D03e3d. Full list with links: `docs/STATUS.md` (13 Okt)
-- Security review: `contracts/SECURITY.md`. Slither triage, fuzz and invariant tests on the money paths, and 4 findings (1 high) reproduced in `contracts/test/Security.t.sol`. Their fixes are in `contracts/security-fixes.patch`, not redeployed. Web: CSP/frame-ancestors/nosniff headers, faucet limited per IP and per address.
+- Security review: `contracts/SECURITY.md`. Slither triage, plus fuzz and invariant tests on the money paths. It found 4 issues (1 high: a vault that withdrew after unfollowing could claim the slashed pot, including underwriter money, without a real loss). All 4 are fixed and live on testnet through the new LeaderFactory `0x20E2…5907` and VaultFactory `0x33C4…2597` (Sourcify exact). A fresh vault followed a leader through the production UI after the switch. Web: CSP/frame-ancestors/nosniff headers, faucet limited per IP and per address.
 
 ## Bounties
 
