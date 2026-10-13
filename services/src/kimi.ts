@@ -1,5 +1,5 @@
 /**
- * D1/D3 LLM risk analyst (Kimi K3, or OpenRouter free models when OPENROUTER_API_KEY is set). Explains precomputed features; never decides or executes anything.
+ * D1/D3 LLM risk analyst (Kimi K3 on the Moonshot API when KIMI_API_KEY is set, else OpenRouter free models). Explains precomputed features; never decides or executes anything.
  * Every call carries X-Msh-Request-Nonce, so Kimi returns a Request Signature that anyone can check at
  * POST https://api.moonshot.ai/v1/signatures/verify. Hashes of input/output are appended to data/kimi-log.jsonl.
  */
@@ -13,10 +13,10 @@ import { type Fetch, canonicalJson, env, requireEnv, round } from "./util.js";
 
 export const kimiBase = () => env("KIMI_BASE_URL") ?? "https://api.moonshot.ai/v1";
 export const KIMI_MODEL = "kimi-k3";
-// OPENROUTER_API_KEY switches the analyst to OpenRouter free models (no Kimi request signature, $0 cost).
+// Without KIMI_API_KEY, OPENROUTER_API_KEY switches the analyst to OpenRouter free models (no Kimi request signature, $0 cost).
 const OPENROUTER = "https://openrouter.ai/api/v1";
 const OR_MODELS = () => (env("LLM_MODEL") ?? "google/gemma-4-31b-it:free,nvidia/nemotron-3-super-120b-a12b:free").split(",");
-export const llmProvider = () => (env("OPENROUTER_API_KEY") ? "openrouter" : "kimi");
+export const llmProvider = () => (!env("KIMI_API_KEY") && env("OPENROUTER_API_KEY") ? "openrouter" : "kimi");
 export const KIMI_PRICE = { input: 3, cachedInput: 0.3, output: 15 }; // USD per 1M tokens (platform.kimi.ai/docs/pricing/chat-k3)
 
 export interface Bilingual {
