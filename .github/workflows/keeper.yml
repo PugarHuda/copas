@@ -1,6 +1,6 @@
 # Hosted Copas keeper: `pnpm tick` every 5 minutes on Monad testnet.
-# GitHub's cron never fired for this repo, so one run loops ticks for ~5h45m and then dispatches its successor
-# (workflow_dispatch from GITHUB_TOKEN is allowed to start runs). The schedule stays as a backup starter.
+# GitHub's cron is unreliable for this repo, so one run loops ticks for up to 5h20m and then dispatches its successor
+# (workflow_dispatch from GITHUB_TOKEN is allowed to start runs). A scheduled run restarts the chain if it died.
 # Each run reads all leaders/vaults, sends only state-changing txs (rollEpoch, checkpoint, touch, sync)
 # through the Privy server wallet (policy-restricted, gas sponsored) and writes a job summary with explorer links.
 name: keeper
@@ -54,6 +54,10 @@ jobs:
         run: |
           n=${{ inputs.ticks || '1' }}
           for i in $(seq 1 "$n"); do
+            # wall-clock budget: 69 ticks + tick time + reputation overran the 355 min job timeout, the job was
+            # cancelled and never dispatched its successor. Stop at 5h20m so the next run always starts.
+            [ "$SECONDS" -gt 19200 ] && break
+            t0=$SECONDS
             echo "### tick $i/$n $(date -u +%H:%M:%SZ)" >> "$GITHUB_STEP_SUMMARY"
             pnpm tick || echo "::warning::tick $i failed"
             # ERC-8004 reputation for agent leaders, hourly (epochs are >= 1 h); idempotent per rater, so reruns are safe
@@ -61,7 +65,8 @@ jobs:
               pnpm exec tsx scripts/reputation.ts > reputation.log || echo "::warning::reputation $i failed"
               grep -o '0x[0-9a-f]\{64\}' reputation.log | sed 's|^|- ERC-8004 feedback https://testnet.monadscan.com/tx/|' >> "$GITHUB_STEP_SUMMARY" || true
             fi
-            [ "$i" -lt "$n" ] && sleep 300
+            # 5 min from tick start to tick start; `if` so the last iteration does not exit 1
+            if [ "$i" -lt "$n" ]; then sleep $(( 300 - (SECONDS - t0) > 0 ? 300 - (SECONDS - t0) : 0 )); fi
           done
         env: # secrets only reach the step that signs
           PRIVY_APP_ID: ${{ secrets.PRIVY_APP_ID }}
@@ -86,7 +91,11 @@ jobs:
           path: keeper/data
           key: keeper-state-10143-${{ github.run_id }}-${{ github.run_attempt }}
       - name: start the next run
-        if: success() && github.event_name == 'workflow_dispatch'
-        run: gh workflow run keeper.yml --repo "$GITHUB_REPOSITORY" -f ticks=69
+        if: success()
+        # a dispatched run hands over to its successor; a scheduled run restarts the chain only if none is alive
+        run: |
+          if [ "$GITHUB_EVENT_NAME" = workflow_dispatch ] || [ -z "$(gh run list --repo "$GITHUB_REPOSITORY" --workflow keeper.yml --event workflow_dispatch -L 5 --json status -q '.[] | select(.status != "completed") | .status')" ]; then
+            gh workflow run keeper.yml --repo "$GITHUB_REPOSITORY" -f ticks=69
+          fi
         env:
           GH_TOKEN: ${{ github.token }}

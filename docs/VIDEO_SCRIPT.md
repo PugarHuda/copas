@@ -57,5 +57,5 @@ Fill before recording: name, city, and any traction numbers (testers, follows, w
 
 ## Recording checklist
 - [ ] Breach demo phase 2 has run (`contracts/script/Breach.s.sol`, `BREACH_PHASE=2`); breach leader shows **Breached** in the web.
-- [ ] Leader page "Checkpoints and breaches" panel shows real data (currently labeled mock). If not fixed, skip that panel in the shot.
+- [x] Leader page "Checkpoints and breaches" panel shows real data from the indexer (`LeaderBook.Checkpoint` / `Breached`).
 - [ ] Upload: YouTube unlisted or Loom, ≤ 3:00 and ≤ 2:00. Links go in the submission form and the README.
