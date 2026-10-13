@@ -115,8 +115,28 @@ type Tx = { type: "eip1559"; chainId: number; to: `0x${string}`; data: `0x${stri
  * Delegated signature for one Copas transaction. Dynamic's transaction validation does not cover Monad testnet
  * ("This chain is not supported for transaction validation"), so on that answer we fall back to signing the
  * keccak pre-image of the same unsigned transaction (delegatedSignRawMessage with rawSign context) and assemble it.
- * ponytail: on testnet the call allowlist is this file (only unfollow is ever built); Dynamic's tx policy takes over on chains it validates.
+ * A raw signature bypasses Dynamic's policy, so that path enforces its own allowlist first (`rawAllowed`).
  */
+const UNFOLLOW = encodeFunctionData({ abi: VAULT, functionName: "unfollow" });
+
+/** Raw-sign allowlist: exactly `unfollow()`, no value, this chain, on a registered vault the delegating wallet owns. Returns why not, or null. */
+export async function rawAllowed(d: Pick<Delegation, "address">, tx: Pick<Tx, "chainId" | "to" | "data"> & { value?: bigint }): Promise<string | null> {
+  if (tx.chainId !== copasChain.id) return "wrong chain";
+  if (tx.data.toLowerCase() !== UNFOLLOW) return "only vault.unfollow() may be signed";
+  if (tx.value) return "value must be 0";
+  if (!deployment?.registry) return "no registry";
+  const [isVault, owner] = await pub.multicall({
+    contracts: [
+      { address: deployment.registry, abi: copasAbi.CopasRegistry as Abi, functionName: "isVault", args: [tx.to] },
+      { address: tx.to, abi: VAULT, functionName: "owner" },
+    ],
+    allowFailure: true,
+  });
+  if (isVault.result !== true) return "target is not a Copas vault";
+  if (typeof owner.result !== "string" || owner.result.toLowerCase() !== d.address.toLowerCase()) return "vault is not owned by the delegating wallet";
+  return null;
+}
+
 async function delegatedSign(d: Delegation, tx: Tx): Promise<{ signed: `0x${string}`; path: "transaction" | "raw" }> {
   const { createDelegatedEvmWalletClient, delegatedSignTransaction, delegatedSignRawMessage } = await import("@dynamic-labs-wallet/node-evm");
   const client = createDelegatedEvmWalletClient({ environmentId: DYN_ENV, apiKey: process.env.DYNAMIC_API_TOKEN! });
@@ -126,6 +146,8 @@ async function delegatedSign(d: Delegation, tx: Tx): Promise<{ signed: `0x${stri
   } catch (e) {
     if (!/not supported for transaction validation/i.test(e instanceof Error ? e.message : String(e))) throw e;
   }
+  const refused = await rawAllowed(d, tx);
+  if (refused) throw new Error(`refused by Copas raw-sign allowlist: ${refused}`);
   const unsigned = serializeTransaction(tx);
   const sig = await delegatedSignRawMessage(client, { ...auth, message: keccak256(unsigned), rawSign: { payload: unsigned, hashFunction: "keccak256" } as never });
   const signed = serializeTransaction(tx, parseSignature(sig as `0x${string}`));
