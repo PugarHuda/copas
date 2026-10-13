@@ -58,8 +58,14 @@ async function session(): Promise<{ address: `0x${string}`; account: LocalAccoun
   const account = toAccount({
     address,
     signMessage: ({ message }) => wc.signMessage({ account: wc.account, message }),
-    signTypedData: (td) => wc.signTypedData({ account: wc.account, ...(td as object) } as never),
-    signTransaction: (tx) => wc.signTransaction({ account: wc.account, chain: copasChain, ...(tx as object) } as never),
+    signTypedData: (td) => wc.signTypedData({ ...(td as object), account: wc.account } as never),
+    // viem hands the request over with `account` = this LocalAccount; it must not reach Dynamic's client or it calls back here forever
+    signTransaction: (tx) => {
+      const { account: _a, from: _f, ...rest } = tx as Record<string, unknown>;
+      void _a;
+      void _f;
+      return wc.signTransaction({ ...rest, account: wc.account, chain: copasChain } as never);
+    },
   });
   return { address, account };
 }
@@ -101,3 +107,4 @@ export async function revoke() {
   if (!wa) throw new Error("No Dynamic wallet.");
   await revokeWaasDelegation({ walletAccount: wa });
 }
+

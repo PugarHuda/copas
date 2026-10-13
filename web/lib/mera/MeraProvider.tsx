@@ -182,13 +182,11 @@ export function MeraProvider({ children }: { children: React.ReactNode }) {
       }
     },
     verifyCode: async (code: string) => {
-      setError(undefined);
-      setStatus("working");
+      setError(undefined); // the form shows its own busy state; "working" would unmount it and lose the typed code
       try {
         attachDynamic(await (await import("../dynamic/client")).verifyCode(code));
       } catch (e) {
         setError(dynError(e));
-        setStatus("signed-out");
         throw e;
       }
     },
