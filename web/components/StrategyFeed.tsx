@@ -26,22 +26,25 @@ export function StrategyFeed({ book, leader }: { book: string; leader: `0x${stri
   const isLeader = !!address && address.toLowerCase() === leader.toLowerCase();
 
   const load = useCallback(
-    async (k?: FeedKey) => {
-      if (!c) return;
+    async (k?: FeedKey): Promise<Post[]> => {
+      if (!c) return [];
       const blobs = (await copasPublic.readContract({ ...c, functionName: "posts", args: [leader] })) as `0x${string}`[];
-      setPosts(
-        await Promise.all(
-          blobs.map(async (blob) =>
-            k && address
-              ? { blob, ...(await openNote(blob, address, k).catch(() => ({ text: null, readers: blobReaders(blob) }))) }
-              : { blob, text: null, readers: blobReaders(blob) },
-          ),
+      return Promise.all(
+        blobs.map(async (blob) =>
+          k && address
+            ? { blob, ...(await openNote(blob, address, k).catch(() => ({ text: null, readers: blobReaders(blob) }))) }
+            : { blob, text: null, readers: blobReaders(blob) },
         ),
       );
     },
     [c?.address, leader, address], // eslint-disable-line react-hooks/exhaustive-deps
   );
-  useEffect(() => void load(key).catch(() => undefined), [load, key]);
+  // a keyless load still in flight must not overwrite the decrypted one that finished first
+  useEffect(() => {
+    let live = true;
+    load(key).then((p) => live && setPosts(p), () => undefined);
+    return () => void (live = false);
+  }, [load, key]);
 
   const unlock = async () => {
     setMsg(undefined);
@@ -63,7 +66,7 @@ export function StrategyFeed({ book, leader }: { book: string; leader: `0x${stri
     if (await write("small", { ...c!, functionName: "post", args: [blob] })) {
       setNote("");
       setMsg(L(`Terkirim, terenkripsi untuk ${readers.length} pembaca.`, `Posted, encrypted for ${readers.length} readers.`));
-      await load(key);
+      setPosts(await load(key));
     }
   };
 
