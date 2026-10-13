@@ -1,0 +1,226 @@
+diff --git a/contracts/src/FollowerVault.sol b/contracts/src/FollowerVault.sol
+index 65c16ad..c4a6acb 100644
+--- a/contracts/src/FollowerVault.sol
++++ b/contracts/src/FollowerVault.sol
+@@ -28,6 +28,8 @@ contract FollowerVault {
+     mapping(uint256 => uint256) public startEquity; // vault equity when epoch e was first seen
+     mapping(uint256 => int256) public netFlow; // deposits - withdrawals during epoch e
+     mapping(uint256 => uint256) public endEquity; // equity when the vault moved past epoch e
++    /// @notice Leader whose epoch e the per-epoch data above belongs to (epoch numbers repeat across leaders).
++    mapping(uint256 => address) public epochLeader;
+     uint256 public highWaterMark; // for performance fees
+     address public referrer; // earns part of the protocol's fee cut
+     /// @notice Leader terms the owner agreed to. A live mandate looser than this stops copying (target 0)
+@@ -80,6 +82,7 @@ contract FollowerVault {
+ 
+     /// @notice Loss in epoch e measured from its start, net of deposits/withdrawals.
+     function lossIn(uint256 e) public view returns (uint256) {
++        if (epochLeader[e] != address(leader)) return 0;
+         uint256 base;
+         int256 b = int256(startEquity[e]) + netFlow[e];
+         if (b <= 0) return 0;
+@@ -106,10 +109,9 @@ contract FollowerVault {
+         } else {
+             exchange.depositCollateral(amount);
+         }
+-        if (following) {
+-            _touchEpoch();
+-            netFlow[epochSeen] += int256(amount);
+-        }
++        // flows are booked even after unfollow: lossIn(epochSeen) keeps measuring against live equity
++        if (following) _touchEpoch();
++        if (epochSeen != 0) netFlow[epochSeen] += int256(amount);
+         highWaterMark += amount;
+         emit Deposited(msg.sender, amount);
+     }
+@@ -117,10 +119,8 @@ contract FollowerVault {
+     function withdraw(uint256 amount) external onlyOwner {
+         exchange.withdrawCollateral(amount);
+         ausd.transfer(owner, amount);
+-        if (following) {
+-            _touchEpoch();
+-            netFlow[epochSeen] -= int256(amount);
+-        }
++        if (following) _touchEpoch();
++        if (epochSeen != 0) netFlow[epochSeen] -= int256(amount);
+         highWaterMark = highWaterMark > amount ? highWaterMark - amount : 0;
+         emit Withdrawn(amount);
+     }
+@@ -311,7 +311,9 @@ contract FollowerVault {
+         if (eq > highWaterMark) highWaterMark = eq;
+ 
+         epochSeen = e;
++        epochLeader[e] = address(leader);
+         startEquity[e] = eq;
++        netFlow[e] = 0;
+         paused = false;
+     }
+ 
+diff --git a/contracts/src/UnderwriterPool.sol b/contracts/src/UnderwriterPool.sol
+index 61bc598..5b1dbd9 100644
+--- a/contracts/src/UnderwriterPool.sol
++++ b/contracts/src/UnderwriterPool.sol
+@@ -19,6 +19,10 @@ contract UnderwriterPool {
+     IERC20Min public immutable ausd;
+     address public immutable leaderBook;
+ 
++    /// @dev Virtual shares/assets (OpenZeppelin ERC-4626 style offset): a donation can't round a depositor
++    /// down to zero, and shares left worthless by a full slash can't dilute the next deposit. 1:1 at start.
++    uint256 internal constant V = 1e3;
++
+     uint256 public totalShares;
+     mapping(address => uint256) public sharesOf;
+     mapping(address => uint256) public pendingShares;
+@@ -40,12 +44,12 @@ contract UnderwriterPool {
+     }
+ 
+     function valueOf(address who) external view returns (uint256) {
+-        return totalShares == 0 ? 0 : sharesOf[who] * assets() / totalShares;
++        return _value(sharesOf[who]);
+     }
+ 
+     function deposit(uint256 amount) external returns (uint256 shares) {
+         uint256 a = assets();
+-        shares = totalShares == 0 || a == 0 ? amount : amount * totalShares / a;
++        shares = amount * (totalShares + V) / (a + V);
+         if (shares == 0) revert CopasErrors.BadParams();
+         ausd.transferFrom(msg.sender, address(this), amount);
+         totalShares += shares;
+@@ -65,9 +69,10 @@ contract UnderwriterPool {
+     function withdraw() external returns (uint256 amount) {
+         uint256 shares = pendingShares[msg.sender];
+         if (shares == 0) revert CopasErrors.NothingToClaim();
+-        if (ILeaderEpoch(leaderBook).epoch() < unlockEpoch[msg.sender]) revert CopasErrors.TooEarly();
++        // only in the unlock epoch itself: an open-ended unlock would be a free option to exit right before a breach
++        if (ILeaderEpoch(leaderBook).epoch() != unlockEpoch[msg.sender]) revert CopasErrors.TooEarly();
+         if (shares > sharesOf[msg.sender]) shares = sharesOf[msg.sender];
+-        amount = shares * assets() / totalShares;
++        amount = _value(shares);
+         pendingShares[msg.sender] = 0;
+         sharesOf[msg.sender] -= shares;
+         totalShares -= shares;
+@@ -75,6 +80,12 @@ contract UnderwriterPool {
+         emit Withdrawn(msg.sender, amount, shares);
+     }
+ 
++    function _value(uint256 shares) internal view returns (uint256 v) {
++        uint256 a = assets();
++        v = shares * (a + V) / (totalShares + V);
++        if (v > a) v = a; // the virtual assets are not real
++    }
++
+     /// @notice Called by the leader book on breach. Takes up to `amount`.
+     function slash(uint256 amount) external returns (uint256 taken) {
+         if (msg.sender != leaderBook) revert CopasErrors.NotLeader();
+--- a/contracts/test/Security.t.sol
++++ b/contracts/test/Security.t.sol
+@@ -10,20 +10,12 @@
+ import {MockAUSD} from "./mocks/MockPerpl.sol";
+ import {CopasErrors, Mandate} from "../src/CopasTypes.sol";
+ 
+-/// @dev Findings in contracts/SECURITY.md. `test_KNOWN_*` tests pin the behaviour of the DEPLOYED source
+-/// (the bug reproduces); the fix is in contracts/security-fixes.patch and flips each of them.
++/// @dev Findings in contracts/SECURITY.md (fixed source).
+ contract SecurityTest is CopasBase {
+     /// S-1: a withdrawal after unfollow was not booked as a flow, so lossIn() counted it as a trading loss.
+-    /// Collusion: a leader's own (sybil) vault recovers the slashed pot, underwriter money included.
+-    function test_KNOWN_S1_withdrawAfterUnfollowInflatesLoss() public {
+-        UnderwriterPool pool;
++    function test_withdrawAfterUnfollowDoesNotInflateLoss() public {
+         LeaderBook lb = _leader(1_000e6, 100e6);
+-        pool = lb.pool();
+-        vm.startPrank(uw);
+-        ausd.approve(address(pool), type(uint256).max);
+-        pool.deposit(200e6);
+-        vm.stopPrank();
+-        FollowerVault v = _vault(bob, lb, 500e6, 1_000e6); // bob = the leader's sybil, the only follower
++        FollowerVault v = _vault(bob, lb, 500e6, 1_000e6);
+         _roll(lb);
+         v.touch();
+         _leaderLong(lb, 1_000);
+@@ -31,24 +23,23 @@
+         perpl.setMark(BTC, BTC_MARK * 85 / 100);
+         lb.checkpoint();
+         v.sync(BTC); // unwound
+-        uint256 real = v.lossIn(2); // 63.75 AUSD
++        uint256 real = v.lossIn(2);
+ 
+         vm.startPrank(bob);
+         v.unfollow();
+         (uint256 eq,) = v.equity();
+         v.withdraw(eq);
+         vm.stopPrank();
+-        assertEq(v.lossIn(2), 500e6, "withdrawal counted as loss");
++        assertEq(v.lossIn(2), real, "withdrawal is not a loss");
+ 
+         uint256 b0 = ausd.balanceOf(bob);
+         v.claim(lb, 2);
+-        assertEq(ausd.balanceOf(bob) - b0, 300e6, "whole pot (bond + underwriters) instead of the real loss");
+-        assertGt(300e6, real);
++        assertEq(ausd.balanceOf(bob) - b0, real, "claim capped by the real loss");
+     }
+ 
+     /// S-2: per-epoch flow data is keyed by epoch number only, so a new leader's epoch e inherited the
+     /// previous leader's netFlow[e].
+-    function test_KNOWN_S2_staleFlowFromPreviousLeader() public {
++    function test_staleFlowFromPreviousLeaderIgnored() public {
+         LeaderBook a = _leader(1_000e6, 100e6);
+         FollowerVault v = _vault(bob, a, 500e6, 1_000e6);
+         _roll(a);
+@@ -61,11 +52,11 @@
+         vm.stopPrank();
+         _roll(b);
+         v.touch(); // epoch 2 under B, nothing traded
+-        assertEq(v.lossIn(2), 300e6, "A's deposit shows up as a loss under B");
++        assertEq(v.lossIn(2), 0, "no loss under B");
+     }
+ 
+     /// S-3: after a breach drains the pool, old (worthless) shares diluted the next depositor.
+-    function test_KNOWN_S3_poolDepositAfterWipeIsDiluted() public {
++    function test_poolDepositAfterWipeKeepsValue() public {
+         LeaderBook lb = _leader(1_000e6, 100e6);
+         UnderwriterPool pool = lb.pool();
+         vm.startPrank(uw);
+@@ -84,12 +75,12 @@
+         ausd.approve(address(pool), type(uint256).max);
+         pool.deposit(100e6);
+         vm.stopPrank();
+-        assertEq(pool.valueOf(carol), 33_333_333, "2/3 of new money goes to wiped shares");
+-        assertEq(pool.valueOf(uw), 66_666_666);
++        assertApproxEqAbs(pool.valueOf(carol), 100e6, 2e3, "new money is not shared with wiped shares");
++        assertLe(pool.valueOf(uw), 1e3);
+     }
+ 
+     /// S-3b: first-depositor donation attack. Attacker must not profit from a victim's rounding.
+-    function test_KNOWN_S3b_poolDonationAttack() public {
++    function test_poolDonationAttackUnprofitable() public {
+         LeaderBook lb = _leader(1_000e6, 100e6);
+         UnderwriterPool pool = lb.pool();
+         address attacker = makeAddr("attacker");
+@@ -104,12 +95,12 @@
+         ausd.approve(address(pool), type(uint256).max);
+         pool.deposit(150e6);
+         vm.stopPrank();
+-        assertEq(pool.valueOf(attacker), 125_000_000, "attacker takes 25 AUSD of the victim's deposit");
++        assertLe(pool.valueOf(attacker), 100e6 + 1, "attacker gains nothing from the victim");
+     }
+ 
+     /// S-4: an unlocked underwriter request stayed valid forever, i.e. a free option to exit just
+-    /// before a breach while still earning fees.
+-    function test_KNOWN_S4_poolUnlockStaysOpen() public {
++    /// before a breach while still earning fees. Withdrawal is now only possible in the unlock epoch.
++    function test_poolUnlockIsOneEpochWindow() public {
+         LeaderBook lb = _leader(1_000e6, 100e6);
+         UnderwriterPool pool = lb.pool();
+         vm.startPrank(uw);
+@@ -121,8 +112,8 @@
+         _roll(lb);
+         _roll(lb); // epoch 4: window missed
+         vm.prank(uw);
+-        pool.withdraw(); // still possible any time later
+-        assertEq(pool.totalShares(), 0);
++        vm.expectRevert(CopasErrors.TooEarly.selector);
++        pool.withdraw();
+     }
+ 
+     // ------------------------------------------------------------ fuzz: money paths
