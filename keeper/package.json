@@ -13,7 +13,8 @@
     "typecheck": "tsc --noEmit",
     "privy:setup": "tsx scripts/privy-setup.ts",
     "privy:deny-demo": "tsx scripts/privy-deny-demo.ts",
-    "dynamic:agent": "tsx scripts/dynamic-agent.ts"
+    "dynamic:agent": "tsx scripts/dynamic-agent.ts",
+    "dynamic:server": "tsx scripts/dynamic-server.ts"
   },
   "dependencies": {
     "@dynamic-labs-wallet/node": "1.1.22",

@@ -1,0 +1,7 @@
+{
+  "at": "2026-10-13T17:19:44.285Z",
+  "wallet": "0x4071aE8AC99ED6dA54438006a85687A1375dad1F",
+  "request": "AUSD.approve(0xdEaD, 1 AUSD)",
+  "outcome": "DENIED",
+  "error": "refused by Copas allowlist: only trade/checkpoint/rollEpoch on 0xE31302DA2B0dA7898416E630dA75c837139dBE1B"
+}
