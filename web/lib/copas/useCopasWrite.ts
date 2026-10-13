@@ -1,6 +1,6 @@
 "use client";
 import { useCallback, useState } from "react";
-import { createPublicClient, createWalletClient, parseEther, type Abi } from "viem";
+import { BaseError, ContractFunctionRevertedError, createPublicClient, createWalletClient, parseEther, type Abi } from "viem";
 import { copasChain, rpcTransport } from "../chains";
 import { toUiError, useMeraSession, type ActionRisk } from "../mera/MeraProvider";
 import { isDeployed } from "./contracts";
@@ -41,7 +41,10 @@ export function useCopasWrite() {
           setError("Not enough MON for gas. Use “Get testnet MON + AUSD” in the account menu, then try again.");
           return;
         }
-        setError(code === "TIMEOUT" || code === "CANCELLED" ? toUiError(e).message.en : e instanceof Error ? e.message.split("\n")[0] : String(e));
+        // a custom error missing from the ABI only has its 4-byte selector on viem's second line: keep it, it is what identifies the revert
+        const rev = e instanceof BaseError ? (e.walk((x) => x instanceof ContractFunctionRevertedError) as ContractFunctionRevertedError | null) : null;
+        const why = rev && (rev.reason ?? rev.signature);
+        setError(code === "TIMEOUT" || code === "CANCELLED" ? toUiError(e).message.en : why ? `${rev.shortMessage.split(" with")[0]}: ${why}` : e instanceof Error ? e.message.split("\n")[0] : String(e));
       } finally {
         setPending(false);
       }

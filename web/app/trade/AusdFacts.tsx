@@ -122,7 +122,14 @@ export function AusdFacts() {
           <dt className={dd}>{L("Di Monad (totalSupply onchain)", "On Monad (onchain totalSupply)")}</dt>
           <dd>{c?.main != null ? num(c.main, 0) : "…"}</dd>
           <dd className={dd}>
-            {match == null ? null : match ? <Pill tone="up">{L("cocok dengan API", "matches the API")}</Pill> : <Pill tone="warn">{L("beda dengan API", "differs from the API")}</Pill>}
+            {match == null ? null : match ? (
+              <Pill tone="up">{L("cocok dengan API", "matches the API")}</Pill>
+            ) : (
+              <Pill tone="neutral">
+                {L("chain", "chain")} {c!.main! > a!.monTotal! ? "+" : "−"}
+                {num(Math.abs(c!.main! - a!.monTotal!), 0)} {L("vs API (API di-cache)", "vs API (API is cached)")}
+              </Pill>
+            )}
           </dd>
         </div>
         <div>

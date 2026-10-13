@@ -22,6 +22,8 @@ const net = PERPL[copasChain.id as keyof typeof PERPL];
 const EX = net.exchange as `0x${string}`;
 const AUSD = net.ausd as `0x${string}`;
 const BUFFER = 0.005; // IOC limit 0.5% past the worst book level we expect to touch
+/** Perpl testnet's custom error for a refused fill (args: perpId, accountId, prices, lot, …, code 14); seen on and off since 12 Oct, see docs/STATUS.md. */
+const PERPL_NO_FILL = "0xb29d1949";
 const input = "num w-full rounded-md border border-line-strong bg-bg px-3 py-2.5 text-base focus:border-gold focus:outline-none";
 
 async function api<T>(p: string): Promise<T> {
@@ -570,7 +572,16 @@ export function TradeApp({ initial }: { initial?: string }) {
               )}
             </p>
           )}
-          {error && <p role="alert" className="mt-2 text-sm text-down">{error}</p>}
+          {error && (
+            <p role="alert" className="mt-2 text-sm text-down">
+              {error.includes(PERPL_NO_FILL)
+                ? L(
+                    `Perpl testnet menolak fill ini di simulasi (error ${PERPL_NO_FILL}, kadang terjadi saat book testnet diperbarui). Tidak ada tx terkirim, tidak ada gas terpakai. Coba lagi beberapa detik lagi.`,
+                    `Perpl testnet refused this fill in simulation (error ${PERPL_NO_FILL}, intermittent while its testnet book refreshes). No tx was sent, no gas spent. Try again in a few seconds.`,
+                  )
+                : error}
+            </p>
+          )}
           <p className="mt-3 text-xs text-ink-3">
             {L("Setiap order adalah tx onchain ke Perpl", "Every order is an onchain tx to Perpl")} <span className="num">execOrder</span> ({short(EX)}), {L("ditandatangani passkey Anda.", "signed by your passkey.")}
           </p>

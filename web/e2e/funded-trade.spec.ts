@@ -27,7 +27,7 @@ const abi = parseAbi([
 test("passkey account trades BTC on Perpl from /trade (mobile)", async ({ page, context, browserName, isMobile }) => {
   const key = process.env.FUNDER_KEY as `0x${string}` | undefined;
   test.skip(!key || !isMobile || browserName !== "chromium", "needs FUNDER_KEY and the mobile Chromium project");
-  test.setTimeout(420_000);
+  test.setTimeout(600_000);
   const cdp = await context.newCDPSession(page);
   await cdp.send("WebAuthn.enable");
   await cdp.send("WebAuthn.addVirtualAuthenticator", {
@@ -62,6 +62,22 @@ test("passkey account trades BTC on Perpl from /trade (mobile)", async ({ page, 
     }).toPass({ timeout: 150_000 });
     txs.push((await status.getByRole("link").getAttribute("href"))!.split("/tx/")[1]);
   };
+  /**
+   * Perpl testnet intermittently refuses fills in simulation with custom error 0xb29d1949 (no tx is sent, no gas spent);
+   * the app says so and a user taps again, which is what this does, a few times at most.
+   */
+  const tap = async (button: ReturnType<typeof main.getByRole>, text: string) => {
+    for (let i = 0; i < 6; i++) {
+      await button.click();
+      const refused = await expect(page.getByRole("alert").filter({ hasText: "0xb29d1949" }))
+        .toBeVisible({ timeout: 25_000 })
+        .then(() => true, () => false);
+      if (!refused) break;
+      console.log(`Perpl refused the fill (0xb29d1949), retry ${i + 1}`);
+      await page.waitForTimeout(5_000);
+    }
+    await waitTx(text);
+  };
 
   // 1. open the Perpl account with the minimum first deposit (approve + createAccount)
   await page.locator("#t-amt").fill("100");
@@ -82,16 +98,14 @@ test("passkey account trades BTC on Perpl from /trade (mobile)", async ({ page, 
   await page.locator("#t-size").fill("0.0002");
   await page.locator("#t-lev").fill("3");
   await expect(page.getByTestId("rail")).not.toContainText("✕");
-  await main.getByRole("button", { name: "Long 0.0002 BTC · 3x" }).click();
-  await waitTx("Filled 0.0002 BTC");
+  await tap(main.getByRole("button", { name: "Long 0.0002 BTC · 3x" }), "Filled 0.0002 BTC");
   const [open] = await pub.readContract({ address: EX, abi, functionName: "getPosition", args: [BTC, acct.accountId] });
   expect(open.lotLNS).toBe(20n);
   expect(open.positionType).toBe(0);
   await expect(page.getByTestId("pos-BTC")).toContainText("LONG", { timeout: 30_000 });
 
   // 4. close it (reduce-only CloseLong IOC)
-  await page.getByTestId("pos-BTC").getByRole("button", { name: "Close position" }).click();
-  await waitTx("Filled 0.0002 BTC");
+  await tap(page.getByTestId("pos-BTC").getByRole("button", { name: "Close position" }), "Filled 0.0002 BTC");
   const [closed] = await pub.readContract({ address: EX, abi, functionName: "getPosition", args: [BTC, acct.accountId] });
   expect(closed.lotLNS).toBe(0n);
 
@@ -102,14 +116,13 @@ test("passkey account trades BTC on Perpl from /trade (mobile)", async ({ page, 
   await page.locator("#t-size").fill("0.0002");
   await page.locator("#t-px").fill(String(Math.floor(markPx * 0.97)));
   await page.locator("#t-lev").fill("3");
-  await main.getByRole("button", { name: "Long 0.0002 BTC · 3x" }).click();
-  await waitTx("resting on the book");
+  await tap(main.getByRole("button", { name: "Long 0.0002 BTC · 3x" }), "resting on the book");
   const orderId = BigInt((await status.textContent())!.match(/Order #(\d+)/)![1]);
   const locks = await pub.readContract({ address: EX, abi, functionName: "getPerpOrderLocks", args: [acct.accountId, BTC] });
   expect(locks.map((l) => BigInt(l.orderLockId & 0xffff))).toContain(orderId);
   const resting = await pub.readContract({ address: EX, abi, functionName: "getOrder", args: [BTC, orderId] });
   expect(BigInt(resting.accountId)).toBe(acct.accountId);
-  expect(resting.lotLNS).toBe(20n);
+  expect(Number(resting.lotLNS)).toBe(20);
   expect(resting.orderType).toBe(0);
   expect((await pub.readContract({ address: EX, abi, functionName: "getAccountByAddr", args: [me] })).lockedBalanceCNS).toBeGreaterThan(0n);
   const row = page.getByTestId(`order-${orderId}`);
