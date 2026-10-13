@@ -1,0 +1,31 @@
+{
+  "environmentId": "efd0454a-9032-45ba-9bce-0a796254c83b",
+  "agentId": 2209,
+  "signer": "0x32E6C5D4Bf1EDC86576769f794da3Dd41c140D52",
+  "walletMetadata": {
+    "walletId": "e3d04848-d97f-4ec3-94e3-84e8aa80a905",
+    "accountAddress": "0xFF175b2dE45103e758ad5688157b6B1F09bf9E0c",
+    "chainName": "EVM",
+    "thresholdSignatureScheme": "TWO_OF_TWO",
+    "derivationPath": "{\"0\":44,\"1\":60,\"2\":0,\"3\":0,\"4\":0}",
+    "shareSetId": "24470122-7874-4af4-a4d3-08a28d826a93",
+    "externalServerKeySharesBackupInfo": {
+      "backups": {
+        "dynamic": [],
+        "googleDrive": [],
+        "iCloud": [],
+        "user": [],
+        "external": [
+          {
+            "location": "external",
+            "externalKeyShareId": null,
+            "passwordEncrypted": false
+          }
+        ],
+        "delegated": [],
+        "offlineRecovery": []
+      },
+      "passwordEncrypted": false
+    }
+  }
+}

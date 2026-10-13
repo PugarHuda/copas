@@ -13,7 +13,7 @@ const csp = [
   "font-src 'self' data:",
   `connect-src 'self' https: wss:${dev ? " http://localhost:* ws://localhost:*" : ""}`,
   "worker-src 'self' blob:",
-  "frame-src 'none'",
+  "frame-src https://*.dynamicauth.com https://*.dynamic.xyz", // Dynamic embedded-wallet frames only
   "object-src 'none'",
   "base-uri 'self'",
   "form-action 'self'",
@@ -23,6 +23,8 @@ const csp = [
 
 const nextConfig: NextConfig = {
   poweredByHeader: false,
+  // Dynamic's server SDK loads a native MPC library (linux/darwin .node), so it is required at runtime, not bundled
+  serverExternalPackages: ["@dynamic-labs-wallet/node", "@dynamic-labs-wallet/node-evm"],
   async headers() {
     return [
       {

@@ -1,0 +1,116 @@
+{
+  "at": "2026-10-13T07:45:41.819Z",
+  "walletId": "e3d04848-d97f-4ec3-94e3-84e8aa80a905",
+  "layer": {
+    "layerContent": {
+      "rules": [
+        {
+          "name": "Agent #2209: LeaderBook.trade only",
+          "chain": "EVM",
+          "ruleId": "a208e6df-6011-4f54-9f17-4faeac727391",
+          "chainIds": [
+            10143
+          ],
+          "ruleType": "allow",
+          "addresses": [
+            "0xbC277432C927996E5F91a2D356289895e1415958"
+          ],
+          "contractAbi": [
+            {
+              "name": "trade",
+              "type": "function",
+              "inputs": [
+                {
+                  "name": "perpId",
+                  "type": "uint256"
+                },
+                {
+                  "name": "orderType",
+                  "type": "uint8"
+                },
+                {
+                  "name": "lot",
+                  "type": "uint256"
+                },
+                {
+                  "name": "price",
+                  "type": "uint256"
+                },
+                {
+                  "name": "leverageHdths",
+                  "type": "uint256"
+                }
+              ],
+              "outputs": [
+                {
+                  "type": "uint256"
+                }
+              ],
+              "stateMutability": "nonpayable"
+            }
+          ],
+          "createdById": "efd0454a-9032-45ba-9bce-0a796254c83b",
+          "functionName": "trade",
+          "createdByType": "dashboardAdmin",
+          "lastModifiedById": "efd0454a-9032-45ba-9bce-0a796254c83b",
+          "lastModifiedByType": "dashboardAdmin"
+        },
+        {
+          "name": "Agent #2209: LeaderBook.checkpoint only",
+          "chain": "EVM",
+          "ruleId": "9683f506-e147-4e8d-9bc7-446ebf669853",
+          "chainIds": [
+            10143
+          ],
+          "ruleType": "allow",
+          "addresses": [
+            "0xbC277432C927996E5F91a2D356289895e1415958"
+          ],
+          "contractAbi": [
+            {
+              "name": "checkpoint",
+              "type": "function",
+              "inputs": [],
+              "outputs": [],
+              "stateMutability": "nonpayable"
+            }
+          ],
+          "createdById": "efd0454a-9032-45ba-9bce-0a796254c83b",
+          "functionName": "checkpoint",
+          "createdByType": "dashboardAdmin",
+          "lastModifiedById": "efd0454a-9032-45ba-9bce-0a796254c83b",
+          "lastModifiedByType": "dashboardAdmin"
+        },
+        {
+          "name": "Agent #2209: LeaderBook.rollEpoch only",
+          "chain": "EVM",
+          "ruleId": "3e8d1c8b-b1ed-40bf-a6ff-f703a0a2353f",
+          "chainIds": [
+            10143
+          ],
+          "ruleType": "allow",
+          "addresses": [
+            "0xbC277432C927996E5F91a2D356289895e1415958"
+          ],
+          "contractAbi": [
+            {
+              "name": "rollEpoch",
+              "type": "function",
+              "inputs": [],
+              "outputs": [],
+              "stateMutability": "nonpayable"
+            }
+          ],
+          "createdById": "efd0454a-9032-45ba-9bce-0a796254c83b",
+          "functionName": "rollEpoch",
+          "createdByType": "dashboardAdmin",
+          "lastModifiedById": "efd0454a-9032-45ba-9bce-0a796254c83b",
+          "lastModifiedByType": "dashboardAdmin"
+        }
+      ]
+    },
+    "layerId": "e662c13a-9989-4a18-ae00-c20ca1b84214",
+    "message": "Waas policy layer updated",
+    "updatedAt": "2026-10-13T07:45:41.910Z"
+  }
+}

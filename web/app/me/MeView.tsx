@@ -14,6 +14,7 @@ import type { LiveVault } from "@/lib/copas/indexer";
 import type { VaultState } from "@/lib/copas/data";
 import { ago, num, pct, price, short, usd } from "@/lib/format";
 import { copasChain, explorerTx } from "@/lib/chains";
+import { DynamicGuard } from "./DynamicGuard";
 
 type Fills = { rows: LiveVault["fills"]; src: "indexer" | "rpc" };
 
@@ -240,6 +241,8 @@ export function MeView({ live, chain, leader, fills, query, badQuery }: { live: 
           {error && error !== "contracts-not-deployed" && <p role="alert" className="text-sm text-down">{error}</p>}
         </div>
       </div>
+
+      {isOwner && <DynamicGuard vault={chain.vault} />}
 
       <Panel title={L("Bukti eksekusi per copy", "Execution proof per copy")} pad={false} aside={<Source kind={fills.src}>{fills.src === "indexer" ? "Envio CopyFill" : "FollowerVault.Synced"}</Source>}>
         {fills.rows.length ? (

@@ -14,6 +14,10 @@
   },
   "dependencies": {
     "@category-labs/mera": "^0.2.0",
+    "@dynamic-labs-sdk/client": "1.34.2",
+    "@dynamic-labs-sdk/evm": "1.34.2",
+    "@dynamic-labs-wallet/node": "1.1.22",
+    "@dynamic-labs-wallet/node-evm": "1.1.22",
     "@tanstack/react-query": "^5.104.1",
     "@vercel/blob": "^2.8.1",
     "lightweight-charts": "^5.2.1",

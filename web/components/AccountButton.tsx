@@ -6,6 +6,7 @@ import { useT } from "@/lib/i18n/client";
 import { short } from "@/lib/format";
 import { copasChain } from "@/lib/chains";
 import { btn } from "./ui";
+import { DynamicEmail } from "./DynamicEmail";
 
 export function useMinutesLeft(expiresAt?: number) {
   const [now, setNow] = useState(() => Date.now());
@@ -62,7 +63,7 @@ export function openOutsideTelegram(url: string) {
 }
 
 export function AccountButton() {
-  const { status, address, expiresAt, error, create, signIn, signOut, cancel, persona } = useMeraSession();
+  const { status, address, expiresAt, error, create, signIn, signOut, cancel, persona, kind } = useMeraSession();
   const { t, lang } = useT();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -95,7 +96,13 @@ export function AccountButton() {
           <div className="absolute right-0 mt-2 w-72 rounded-lg border border-line bg-surface p-3 text-sm shadow-xl shadow-black/40">
             <div className="num break-all text-ink-2">{address}</div>
             <div className="mt-2 text-xs text-ink-3">
-              {t("auth.session")}: <span className="num text-ink-2">{left}</span> {t("auth.sessionLeft")}
+              {kind === "dynamic" ? (
+                lang === "id" ? "Wallet tertanam Dynamic (email)" : "Dynamic embedded wallet (email)"
+              ) : (
+                <>
+                  {t("auth.session")}: <span className="num text-ink-2">{left}</span> {t("auth.sessionLeft")}
+                </>
+              )}
             </div>
             {copasChain.testnet && (
               <button className={btn.ghost + " mt-3 w-full py-1.5"} onClick={getTestFunds} disabled={drip === "…"}>
@@ -150,6 +157,7 @@ export function AccountButton() {
               </button>
             </div>
           )}
+          <DynamicEmail />
           {error && (
             <p role="alert" className="mt-3 text-xs leading-relaxed text-down">
               {error.message[lang]}

@@ -48,11 +48,20 @@ type MeraState = {
   switchPersona: (p: Persona) => Promise<void>;
   /** "Many Keys": PRF output of the same passkey under another 32-byte salt. Caller owns (and should wipe) the bytes. */
   prf: (salt: Uint8Array) => Promise<Uint8Array>;
+  /** Which wallet signs: the Mera passkey, or a Dynamic embedded (MPC) wallet signed in by email. */
+  kind: "mera" | "dynamic";
+  /** Second onboarding path: email OTP -> Dynamic embedded wallet. Same `authorize` contract for every caller. */
+  dynamic: { sendCode: (email: string) => Promise<void>; verifyCode: (code: string) => Promise<void> };
 };
 
 export type MeraUiError = { code: string; message: { id: string; en: string } };
 
 const Ctx = createContext<MeraState | null>(null);
+const DYN_KEY = "copas.dynamic";
+const dynError = (e: unknown): MeraUiError => {
+  const m = e instanceof Error ? e.message.split(/\r?\n/)[0] : String(e);
+  return { code: "DYNAMIC", message: { id: `Masuk dengan email gagal: ${m}`, en: `Email sign-in failed: ${m}` } };
+};
 
 function rpId() {
   return process.env.NEXT_PUBLIC_MERA_RP_ID || window.location.hostname;
@@ -133,6 +142,57 @@ export function MeraProvider({ children }: { children: React.ReactNode }) {
   const credRef = useRef<PasskeyCredentialMetadata | undefined>(undefined);
   const [persona, setPersona] = useState<Persona>(0);
   const personaRef = useRef<Persona>(0);
+  const [kind, setKind] = useState<"mera" | "dynamic">("mera");
+  const dynRef = useRef<LocalAccount | null>(null);
+
+  const attachDynamic = useCallback((s: { address: `0x${string}`; account: LocalAccount }) => {
+    dynRef.current = s.account;
+    setKind("dynamic");
+    setAddress(s.address);
+    setExpiresAt(undefined);
+    setStatus("signed-in");
+    try {
+      localStorage.setItem(DYN_KEY, "1");
+    } catch {
+      /* storage blocked: session lasts this tab */
+    }
+  }, []);
+
+  // A Dynamic session survives reloads (the SDK keeps it); only load the SDK when this browser used it.
+  useEffect(() => {
+    let on = false;
+    try {
+      on = localStorage.getItem(DYN_KEY) === "1";
+    } catch {}
+    if (!on) return;
+    import("../dynamic/client")
+      .then((d) => d.restore())
+      .then((s) => (s ? attachDynamic(s) : localStorage.removeItem(DYN_KEY)))
+      .catch(() => undefined);
+  }, [attachDynamic]);
+
+  const dynamic = {
+    sendCode: async (email: string) => {
+      setError(undefined);
+      try {
+        await (await import("../dynamic/client")).sendCode(email);
+      } catch (e) {
+        setError(dynError(e));
+        throw e;
+      }
+    },
+    verifyCode: async (code: string) => {
+      setError(undefined);
+      setStatus("working");
+      try {
+        attachDynamic(await (await import("../dynamic/client")).verifyCode(code));
+      } catch (e) {
+        setError(dynError(e));
+        setStatus("signed-out");
+        throw e;
+      }
+    },
+  };
 
   useEffect(() => {
     setSupported(typeof window !== "undefined" && !!window.PublicKeyCredential && window.isSecureContext);
@@ -235,6 +295,14 @@ export function MeraProvider({ children }: { children: React.ReactNode }) {
   );
 
   const signOut = useCallback(() => {
+    if (dynRef.current) {
+      dynRef.current = null;
+      setKind("mera");
+      try {
+        localStorage.removeItem(DYN_KEY);
+      } catch {}
+      import("../dynamic/client").then((d) => d.signOutDynamic()).catch(() => undefined);
+    }
     endSession();
     setExpiresAt(undefined);
     setStatus("signed-out");
@@ -242,6 +310,7 @@ export function MeraProvider({ children }: { children: React.ReactNode }) {
 
   const authorize = useCallback(
     async (risk: ActionRisk): Promise<LocalAccount> => {
+      if (dynRef.current) return dynRef.current; // Dynamic's MPC signer enforces its own session and policies
       const live = sessionRef.current && accountRef.current && expiresAt && Date.now() < expiresAt;
       if (risk === "small" && live) return accountRef.current!;
       // Risky (or no live session): fresh user-verified ceremony, must yield the same address.
@@ -282,7 +351,7 @@ export function MeraProvider({ children }: { children: React.ReactNode }) {
   );
 
   return (
-    <Ctx.Provider value={{ status, address, expiresAt, error, supported, create, signIn, signOut, cancel, authorize, prf, persona, switchPersona }}>
+    <Ctx.Provider value={{ status, address, expiresAt, error, supported, create, signIn, signOut, cancel, authorize, prf, persona, switchPersona, kind, dynamic }}>
       {children}
     </Ctx.Provider>
   );
