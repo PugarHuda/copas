@@ -202,6 +202,25 @@
  },
  {
   "type": "function",
+  "name": "epochLeader",
+  "inputs": [
+   {
+    "name": "",
+    "type": "uint256",
+    "internalType": "uint256"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "",
+    "type": "address",
+    "internalType": "address"
+   }
+  ],
+  "stateMutability": "view"
+ },
+ {
+  "type": "function",
   "name": "epochSeen",
   "inputs": [],
   "outputs": [

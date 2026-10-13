@@ -6,11 +6,16 @@
   "chainId": 10143,
   "exchange": "0x1964C32f0bE608E7D29302AFF5E61268E72080cc",
   "identity8004": "0x8004A818BFB912233c491871b3d84c89A494BD9e",
-  "leaderFactory": "0x6B721645AFaB0C37AAB52a1C33aCBDdd055aDFDF",
+  "leaderFactory": "0x20E2f0e7bD27d34Dec350F998Df68A52e31E5907",
   "registry": "0xA8BA57c7Af1d9A28660653E0439A180c86D03e3d",
-  "vaultFactory": "0x9afd589cA65466db7888705F33f3095a6EaE7F6D",
+  "vaultFactory": "0x33C477AE3DfB7Ab1C6567B451e55044C91d32597",
   "feed": "0x75d52573C684C7799778Da633fDceB80297d7718",
   "kuruDownMarkets": {
     "0xab4988b4fb3b175d7e6e2161b58f76b97caa8dca": "0x24d7B0c11D659478Bb17aAe7974CB1E088894EC2"
-  }
-}
+  },
+  "vaultFactoryV1": "0x9afd589cA65466db7888705F33f3095a6EaE7F6D",
+  "vaultFactoryNote": "12 Oct 2026: vaults from vaultFactory carry mandate consent (FollowerVault.accepted/consentOk/acceptMandate); deploy tx 0xb25f98e72228bcc62a30ceb178c62849ee65fe1cabe7a704bcc842d9fda8237d, setFactories tx 0x3086f67ba9637daf777a6af837288bfb68ea9e1f6c8c1376572bd3b3fee0d441",
+  "leaderFactoryV1": "0x6B721645AFaB0C37AAB52a1C33aCBDdd055aDFDF",
+  "vaultFactoryV2": "0x09C8EBe6e0C3dBC517120aF497f757B23D36B6fb",
+  "securityNote": "13 Oct 2026: security fixes S-1..S-4 (contracts/SECURITY.md). New leaderFactory tx 0x9ee29a48c6bbf4e3af3cfcce6c41c3004b616add095cda7fb9839c5ca8f52dca, vaultFactory tx 0xb1910cc8c0f337db211e42e05b4e8263b2b01951a44a522e9a52228476cbf512, setFactories tx 0x566dd51a2bcbb24ac238c61916fbe7ac3d3582463dac916c17438959ce46b390. Vaults/leaders created before keep the old code."
+}
