@@ -14,6 +14,7 @@ import { alignmentScore, clearNetflowCache, compositeScore, discoverLeaders, exp
 import { simulate } from "../src/simulate.js";
 import { createApp } from "../src/app.js";
 import { COPAS_ABI } from "../src/mcp.js";
+import { ORACLE_ABI, oracleCheck } from "../src/oracle.js";
 import { LEADER, NOW, calls, nansen, nansen402, stubFetch, trades } from "./stub.js";
 
 // The Kimi-path tests must not pick up a developer machine's global OpenRouter key.
@@ -593,7 +594,7 @@ describe("MCP /mcp (Streamable HTTP, stateless)", () => {
     expect(r.status).toBe(200);
     expect(r.cache).toBe("no-store");
     const tools = r.body.result.tools as any[];
-    expect(tools.map((t) => t.name).sort()).toEqual(["copas_get_leader", "copas_get_owner", "copas_get_vault", "copas_list_leaders", "copas_protocol", "monad_simulate_tx", "perpl_attest_track_record", "perpl_backtest", "perpl_discover_leaders", "perpl_leader_alignment", "perpl_leader_analysis", "perpl_leader_stats"]);
+    expect(tools.map((t) => t.name).sort()).toEqual(["copas_get_leader", "copas_get_owner", "copas_get_vault", "copas_list_leaders", "copas_protocol", "monad_simulate_tx", "oracle_check", "perpl_attest_track_record", "perpl_backtest", "perpl_discover_leaders", "perpl_leader_alignment", "perpl_leader_analysis", "perpl_leader_stats"]);
     expect(tools.every((t) => t.annotations.readOnlyHint && !t.annotations.destructiveHint)).toBe(true);
   });
 
@@ -640,5 +641,90 @@ describe("MCP /mcp (Streamable HTTP, stateless)", () => {
     const no = await call({ leaderBook: LB });
     expect(no.isError).toBe(true);
     expect(no.content[0].text).toMatch(/is not a Copas LeaderBook/);
+  });
+});
+
+describe("oracle cross-check (Pyth / Chainlink / Supra onchain)", () => {
+  const T = 1791862990; // block time of the stubbed testnet read
+  const BLOCK = 70287540n;
+  // testnet values read live on 2026-10-13: Pyth is stale (nobody pushes on testnet), Chainlink and Supra are fresh
+  let btcMark = 832069n; // priceDecimals 1
+  const PD: Record<number, [string, number, bigint]> = { 16: ["BTC", 1, 0n], 32: ["ETH", 2, 250387n], 48: ["SOL", 2, 10731n], 64: ["MON", 5, 2480n] };
+  const info = (perp: number) => {
+    const [symbol, pd, mark] = PD[perp];
+    const m = perp === 16 ? btcMark : mark;
+    return { name: symbol, symbol, priceDecimals: BigInt(pd), lotDecimals: 0n, linkFeedId: `0x${"0".repeat(64)}`, priceTolPer100K: 0n, marginTol: 0n, marginTolDecimals: 0n, refPriceMaxAgeSec: 0n, positionBalanceCNS: 0n, insuranceBalanceCNS: 0n, markPNS: m, markTimestamp: BigInt(T - 12), lastPNS: m, lastTimestamp: 0n, oraclePNS: perp === 16 ? 831988n : m, oracleTimestampSec: BigInt(T - 32), longOpenInterestLNS: 0n, shortOpenInterestLNS: 0n, fundingStartBlock: 0n, fundingRatePct100k: 0, absFundingClampPctPer100K: 0n, status: 0, basePricePNS: 0n, maxBidPriceONS: 0n, minBidPriceONS: 0n, maxAskPriceONS: 0n, minAskPriceONS: 0n, numOrders: 0n, ignOracle: false };
+  };
+  const pyth: Record<string, [bigint, bigint, number]> = { e62d: [8284009139863n, 7528607530n, T - 21911], "3149": [2761907n, 1363n, T - 1165181] }; // price, conf (expo -8), publishTime
+  const blocksSeen: (string | undefined)[] = [];
+  const rpc = (body: any) => {
+    blocksSeen.push(body.params[1]);
+    const { args } = decodeFunctionData({ abi: multicall3Abi, data: body.params[0].data });
+    const results = (args![0] as { target: string; callData: Hex }[]).map(({ target, callData }) => {
+      const t = target.toLowerCase();
+      if (t === "0x1964c32f0be608e7d29302aff5e61268e72080cc") {
+        const perp = Number(decodeFunctionData({ abi: PERPL_ABI, data: callData }).args![0]);
+        return { success: true, returnData: encodeFunctionResult({ abi: PERPL_ABI, functionName: "getPerpetualInfo", result: info(perp) as any }) };
+      }
+      const c = decodeFunctionData({ abi: ORACLE_ABI, data: callData });
+      const enc = (result: unknown) => ({ success: true, returnData: encodeFunctionResult({ abi: ORACLE_ABI, functionName: c.functionName, result } as any) });
+      if (c.functionName === "getCurrentBlockTimestamp") return enc(BigInt(T));
+      if (c.functionName === "getBlockNumber") return enc(BLOCK);
+      if (c.functionName === "getPriceUnsafe") {
+        const p = pyth[String(c.args![0]).slice(2, 6)];
+        return p ? enc({ price: p[0], conf: p[1], expo: -8, publishTime: BigInt(p[2]) }) : { success: false, returnData: "0x14aebe68" as Hex }; // PriceFeedNotFound
+      }
+      if (c.functionName === "latestRoundData") return t === "0x12c0f44368a02081ce58a936d1c1f606bb301715" ? enc([1n, 8322836913191n, 0n, BigInt(T - 601), 1n]) : enc([1n, 250000000000n, 0n, BigInt(T - 633), 1n]);
+      const pair = Number(c.args![0]); // Supra getSvalue, time in ms
+      return enc({ round: 1n, decimals: 2n, time: BigInt((T - 21) * 1000), price: pair === 18 ? 8317000n : pair === 19 ? 249844n : 10737n });
+    });
+    return { jsonrpc: "2.0", id: body.id, result: encodeFunctionResult({ abi: multicall3Abi, functionName: "aggregate3", result: results }) };
+  };
+  const json = (b: unknown) => new Response(JSON.stringify(b), { headers: { "content-type": "application/json" } });
+  const f: typeof fetch = async (u, init) => {
+    const url = String(u);
+    if (url.includes("testnet-rpc.monad.xyz")) return json(rpc(JSON.parse(String(init?.body))));
+    if (url.startsWith("http://envio.test"))
+      return json({ data: { Checkpoint: [{ epoch: 2, block: 70287540, timestamp: 1791774899, ddBps: 2 }, { epoch: 1, block: 70287536, timestamp: 1791774898, ddBps: 2 }], Breach: [{ epoch: 2, reason: 1, timestamp: 1791774899, txHash: "0x8a42" }] } });
+    return stubFetch(u, init);
+  };
+
+  it("median of fresh oracles vs the Perpl mark; stale Pyth is shown but not used; uncovered market says so", async () => {
+    btcMark = 832069n;
+    const r = await oracleCheck(10143, { fetch: f });
+    expect(r).toMatchObject({ chainId: 10143, block: 70287540, blockTime: T, status: "ok" });
+    const btc = r.markets.find((m) => m.symbol === "BTC")!;
+    expect(btc.sources.map((s) => [s.provider, s.fresh, s.independent])).toEqual([["pyth", false, true], ["chainlink", true, false], ["supra", true, true]]);
+    expect(btc.sources[0]).toMatchObject({ price: 82840.09139863, confidence: 75.2860753, ageSec: 21911 });
+    expect(btc.reference).toBeCloseTo((83228.36913191 + 83170) / 2, 6);
+    expect(btc.deviationBps).toBe(0.93);
+    expect(btc.perplOracle.deviationBps).toBe(0.97);
+    expect(r.markets.find((m) => m.symbol === "MON")).toMatchObject({ deviationBps: null, status: "no_fresh_oracle", sources: [{ provider: "pyth", fresh: false }] });
+    expect(r.summary).toMatch(/^Perpl marks were within .* bps of oracles at block 70287540.*No fresh oracle for MON\.$/);
+    // a Perpl-only dislocation: BTC mark 2% over both fresh oracles
+    btcMark = 849000n;
+    const s = await oracleCheck(10143, { fetch: f, block: 70287540 });
+    expect(s.status).toBe("spike");
+    expect(s.summary).toMatch(/^Oracle deviation spike at block 70287540: Perpl BTC mark was 2\d\d\.\d+ bps from independent oracles/);
+    expect(blocksSeen.at(-1)).toBe("0x" + (70287540).toString(16));
+    btcMark = 832069n;
+  });
+
+  it("HTTP + MCP: /oracle/check, /leader/:book/oracle checks each breach block, oracle_check tool answers the same", async () => {
+    process.env.ENVIO_GRAPHQL_URL = "http://envio.test/v1/graphql";
+    const app = createApp({ fetch: f, now: () => NOW });
+    expect((await app.request("/oracle/check?chain=1")).status).toBe(400);
+    expect((await app.request("/oracle/check?chain=10143&block=abc")).status).toBe(400);
+    const http = await (await app.request("/oracle/check?chain=10143&block=70287540")).json();
+    const LB = "0xb1b08f6a0642c51b48c1916136458a769a1c5208";
+    const ctx = await (await app.request(`/leader/${LB}/oracle`)).json();
+    // the latest checkpoint is the breaching one: one event, not two
+    expect(ctx.events).toMatchObject([{ kind: "breach", epoch: 2, reason: "drawdown", block: 70287540, txHash: "0x8a42", oracle: { status: "ok" } }]);
+    const tool = async (args: object) => {
+      const r = await app.request("/mcp", { method: "POST", headers: { "content-type": "application/json", accept: "application/json, text/event-stream" }, body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "oracle_check", arguments: args } }) });
+      return JSON.parse(((await r.json()) as any).result.content[0].text);
+    };
+    expect(await tool({ chain: 10143, block: 70287540 })).toEqual(http);
+    expect(await tool({ leaderBook: LB })).toEqual(ctx);
   });
 });

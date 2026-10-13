@@ -34,7 +34,7 @@ export const TESTNET_MARKETS: Record<number, { symbol: string; priceDecimals: nu
 
 /** Perpl Exchange per chain (docs/SPEC.md §2.2). */
 export const PERPL_EXCHANGE: Record<number, `0x${string}`> = { [MAINNET]: "0x34B6552d57a35a1D042CcAe1951BD1C370112a6F", [TESTNET]: "0x1964C32f0bE608E7D29302AFF5E61268E72080cc" };
-const MULTICALL3 = "0xcA11bde05977b3631167028862bE2a173976CA11";
+export const MULTICALL3 = "0xcA11bde05977b3631167028862bE2a173976CA11";
 export const PERPL_ABI = parseAbi([
   "struct PositionInfo { uint256 accountId; uint256 nextNodeId; uint256 prevNodeId; uint8 positionType; uint256 depositCNS; uint256 pricePNS; uint256 lotLNS; uint256 entryBlock; int256 pnlCNS; int256 deltaPnlCNS; int256 premiumPnlCNS; }",
   "function getPosition(uint256 perpId, uint256 accountId) view returns (PositionInfo positionInfo, uint256 markPricePNS, bool markPriceValid)",
@@ -241,7 +241,7 @@ const ENVIO_FILLS = `query($acc: String!, $chain: Int!, $from: Int!, $to: Int!, 
 // ponytail: per-instance memo; a shared cache (KV) if several instances still trip the limit.
 const ENVIO_MEMO_MS = 30_000;
 const envioMemo = new WeakMap<Fetch, Map<string, { at: number; p: Promise<unknown> }>>();
-async function envio<T>(url: string, query: string, variables: object, f: Fetch): Promise<T> {
+export async function envio<T>(url: string, query: string, variables: object, f: Fetch): Promise<T> {
   const body = JSON.stringify({ query, variables });
   let memo = envioMemo.get(f);
   if (!memo) envioMemo.set(f, (memo = new Map()));

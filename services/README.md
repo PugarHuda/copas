@@ -31,7 +31,9 @@ route handlers (server only, because the module reads env keys).
 | `GET /discover?limit=10` | nansen (D2, D4) | same | candidate leaders with composite scores, cost ledger |
 | `POST /simulate` body `{from,to,data,value?,chainId?}` | simulate (C4) | Tenderly optional | balance changes and decoded events |
 | `GET /attest/:addr` | attest (A7) | `ATTESTER_PRIVATE_KEY` | record, canonical JSON, keccak hash, EIP-191 signature, attester |
-| `POST /mcp` | mcp | none | Model Context Protocol (Streamable HTTP, stateless): 12 read-only tools, see section 8 |
+| `GET /oracle/check?chain=143\|10143&block=N` | oracle | none | Perpl mark vs Pyth / Chainlink / Supra read onchain, now or at a past block, see section 9 |
+| `GET /leader/:book/oracle` | oracle | `ENVIO_GRAPHQL_URL` | the oracle check at each breach block (and the latest checkpoint) of a Copas LeaderBook |
+| `POST /mcp` | mcp | none | Model Context Protocol (Streamable HTTP, stateless): 13 read-only tools, see section 8 |
 | `GET /x402/report/:addr` | x402seller (D4) | `X402_PAY_TO` | 402 until paid 0.01 testnet USDC on Monad (`eip155:10143`, USDC `0x534bâ€¦43A3`), settled by the Monad facilitator `x402-facilitator.molandak.org`; then `{attestation, analysis, paidWith}` |
 
 When a key is missing, the route returns `503 {error, missing}`. `/analysis` also returns the deterministic
@@ -133,7 +135,7 @@ before it acts. Every tool is read-only (`readOnlyHint`); none takes or holds a 
 | `copas_get_leader` | one LeaderBook (refused unless `registry.isLeaderBook`): owner/operator, current + pending mandate, bond vs min bond, fee escrow, pool |
 | `copas_get_vault` | one FollowerVault (refused unless `registry.isVault`): followed leader, copy params, accepted mandate + `consentOk`, equity, HWM |
 | `copas_get_owner` | `registry.vaultsOf` / `leadersOf` for a wallet |
-| `perpl_leader_stats`, `perpl_backtest`, `perpl_leader_analysis`, `perpl_leader_alignment`, `perpl_discover_leaders`, `perpl_attest_track_record`, `monad_simulate_tx` | the HTTP routes above, run in-process (`app.request`), so answers and errors match the API exactly |
+| `perpl_leader_stats`, `perpl_backtest`, `perpl_leader_analysis`, `perpl_leader_alignment`, `perpl_discover_leaders`, `perpl_attest_track_record`, `monad_simulate_tx`, `oracle_check` | the HTTP routes above, run in-process (`app.request`), so answers and errors match the API exactly |
 
 Onchain reads are one Multicall3 call per object through viem (`MONAD_TESTNET_RPC_URL` or the public RPC). Only the
 registry address is fixed (`contracts/deployments/10143.json`); factories, leader books and vaults are read from it.
@@ -144,8 +146,28 @@ npx @modelcontextprotocol/inspector --cli https://copas-services.vercel.app/mcp 
 claude mcp add --transport http copas https://copas-services.vercel.app/mcp
 ```
 
+### 9. Oracle cross-check of Perpl marks (`oracle.ts`)
+Perpl prices every market against its own Chainlink Data Streams reference (`PerpetualInfo.linkFeedId`, `oraclePNS`).
+`oracleCheck` compares the Perpl mark with oracles Perpl does not use, all read onchain in one Multicall3 call
+(block time from `getCurrentBlockTimestamp`, so ages are exact even at a past block; the Monad RPC serves archive state):
+
+| Chain | Pyth `0x2880aB15…7B43` `getPriceUnsafe` | Chainlink Data Feeds `latestRoundData` | Supra push `getSvalue` |
+|---|---|---|---|
+| 143 | BTC, ETH, SOL, MON, HYPE (sponsored push feeds, 1h heartbeat, seconds old in practice) | BTC, ETH, MON | none (no BTC/ETH pair on mainnet) |
+| 10143 | read, but nobody pushes on testnet: hours to days old, so shown and marked stale | BTC, ETH | BTC_USD, ETH_USD, SOL_USDT (`0xf0e852BC…33F6`) |
+
+Addresses come from docs.monad.xyz/tooling-and-infra/oracles and github.com/monad-crypto/protocols. Per market it
+returns each source's price, Pyth confidence, publish time, age, freshness (<= 1 h) and deviation in bps; the
+reference is the median of fresh sources; `status` is ok (< 30 bps), watch, spike (>= 100 bps) or no_fresh_oracle
+(ZEC, LIT, VVV, PUMP, NEAR on mainnet and MON on testnet have no fresh feed). Chainlink is flagged
+`independent: false` because Perpl's own reference is Chainlink. Pyth's Hermes HTTP API now answers 401 without a
+key, so only onchain Pyth is used. `/leader/:book/oracle` reads the leader's Breach and Checkpoint rows from Envio
+(one query) and runs the check at each breaching checkpoint's block, so a follower can tell whether a breach came
+from a market-wide move or a Perpl-only price dislocation. Live: the testnet drawdown breach of LeaderBook
+`0xb1b0…5208` at block 70287540 had every covered Perpl mark within 2.5 bps of the oracles.
+
 ## Tests
-`test/services.test.ts` (41 tests) runs against `test/fixtures`. One test calls the live facilitator's `/supported`
+`test/services.test.ts` (44 tests) runs against `test/fixtures`. One test calls the live facilitator's `/supported`
 (x402 seller 402 shape); everything else is offline:
 - Real recordings: Perpl leaderboard, plumb fills of leader `0xedcdâ€¦409b`, plumb wallet, live Nansen 402.
 - Synthetic files, marked `_note`, shaped from the official schemas: Nansen 200s, Kimi completion, Tenderly.
@@ -160,3 +182,4 @@ claude mcp add --transport http copas https://copas-services.vercel.app/mcp
 
 Not covered by tests: the `eth_simulateV1` fallback (checked live only) and real Kimi/Nansen responses (no keys
 yet). Run `pnpm fixtures` after adding keys to extend the recordings.
+- Oracle cross-check: median of fresh sources, stale Pyth excluded, spike detection, `/leader/:book/oracle` per breach block, `oracle_check` equals the routes (stubbed Multicall3 with live-read values).

@@ -7,9 +7,10 @@ import { analyzeLeader } from "./kimi.js";
 import { handleMcp } from "./mcp.js";
 import { type LeaderData, fetchEnvioAccounts, fetchLeaderboard, getLeaderData } from "./leaderData.js";
 import { NansenUnavailable, alignmentScore, compositeScore, discoverLeaders, exposureByMarket, fetchMonadNetflow, nansenClient } from "./nansen.js";
+import { leaderOracleContext, oracleCheck } from "./oracle.js";
 import { simulate } from "./simulate.js";
 import { x402Seller } from "./x402seller.js";
-import { type Fetch, ServiceUnavailable, env, isAddress } from "./util.js";
+import { type Fetch, ServiceUnavailable, env, isAddress, requireEnv } from "./util.js";
 
 export const DEFAULT_FOLLOWER: FollowerParams = { depositCNS: 100, ratioBps: 200, maxNotionalCNS: 300, maxLeverageHdths: 500, maxChaseBps: 100, priceBandBps: 50, stopLossBps: 0 };
 export const DEFAULT_MANDATE: MandateParams = { maxDDbps: 1500, epochLen: 7 * 86400 };
@@ -78,7 +79,7 @@ export function createApp(deps: { fetch?: Fetch; now?: () => number } = {}) {
     });
   }
 
-  app.get("/", (c) => c.json({ service: "@copas/services", routes: ["/leader/:addr/stats", "POST /leader/:addr/backtest", "/leader/:addr/analysis", "/leader/:addr/alignment", "/discover", "POST /simulate", "/attest/:addr", "POST /mcp (MCP Streamable HTTP, read-only tools)", ...(seller ? ["GET /x402/report/:addr (x402, Monad testnet USDC)"] : [])] }));
+  app.get("/", (c) => c.json({ service: "@copas/services", routes: ["/leader/:addr/stats", "POST /leader/:addr/backtest", "/leader/:addr/analysis", "/leader/:addr/alignment", "/discover", "POST /simulate", "/attest/:addr", "/oracle/check?chain=143|10143&block=N", "/leader/:book/oracle", "POST /mcp (MCP Streamable HTTP, read-only tools)", ...(seller ? ["GET /x402/report/:addr (x402, Monad testnet USDC)"] : [])] }));
 
   app.get("/leader/:addr/stats", async (c) => {
     const d = await leader(c.req.param("addr"), Number(c.req.query("days") ?? 30));
@@ -175,6 +176,22 @@ export function createApp(deps: { fetch?: Fetch; now?: () => number } = {}) {
     const tx = await c.req.json();
     if (!isAddress(tx?.from ?? "") || !isAddress(tx?.to ?? "")) throw new BadRequest("from/to must be addresses");
     return c.json(await simulate(tx, { fetch: f }));
+  });
+
+  // Perpl mark vs Pyth / Chainlink / Supra onchain, now or at a past block (e.g. a checkpoint or breach)
+  app.get("/oracle/check", async (c) => {
+    const chain = Number(c.req.query("chain") ?? 143);
+    const b = c.req.query("block");
+    if (chain !== 143 && chain !== 10143) throw new BadRequest("chain must be 143 or 10143");
+    if (b != null && !/^\d{1,12}$/.test(b)) throw new BadRequest("block must be a block number");
+    if (b == null) c.header("Cache-Control", "public, s-maxage=15");
+    else c.header("Cache-Control", "public, s-maxage=86400"); // a past block never changes
+    return c.json(await oracleCheck(chain, { block: b == null ? undefined : Number(b), fetch: f }));
+  });
+
+  app.get("/leader/:addr/oracle", async (c) => {
+    c.header("Cache-Control", "public, s-maxage=60");
+    return c.json(await leaderOracleContext(requireEnv("ENVIO_GRAPHQL_URL"), addr(c.req.param("addr")), f));
   });
 
   app.get("/attest/:addr", async (c) => c.json(await attest(addr(c.req.param("addr")), { fetch: f, now: now() })));
