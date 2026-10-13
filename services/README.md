@@ -151,10 +151,10 @@ Perpl prices every market against its own Chainlink Data Streams reference (`Per
 `oracleCheck` compares the Perpl mark with oracles Perpl does not use, all read onchain in one Multicall3 call
 (block time from `getCurrentBlockTimestamp`, so ages are exact even at a past block; the Monad RPC serves archive state):
 
-| Chain | Pyth `0x2880aB15…7B43` `getPriceUnsafe` | Chainlink Data Feeds `latestRoundData` | Supra push `getSvalue` |
+| Chain | Pyth `0x2880aB15â€¦7B43` `getPriceUnsafe` | Chainlink Data Feeds `latestRoundData` | Supra push `getSvalue` |
 |---|---|---|---|
 | 143 | BTC, ETH, SOL, MON, HYPE (sponsored push feeds, 1h heartbeat, seconds old in practice) | BTC, ETH, MON | none (no BTC/ETH pair on mainnet) |
-| 10143 | read, but nobody pushes on testnet: hours to days old, so shown and marked stale | BTC, ETH | BTC_USD, ETH_USD, SOL_USDT (`0xf0e852BC…33F6`) |
+| 10143 | read, but nobody pushes on testnet: hours to days old, so shown and marked stale | BTC, ETH | BTC_USD, ETH_USD, SOL_USDT (`0xf0e852BCâ€¦33F6`) |
 
 Addresses come from docs.monad.xyz/tooling-and-infra/oracles and github.com/monad-crypto/protocols. Per market it
 returns each source's price, Pyth confidence, publish time, age, freshness (<= 1 h) and deviation in bps; the
@@ -164,7 +164,7 @@ reference is the median of fresh sources; `status` is ok (< 30 bps), watch, spik
 key, so only onchain Pyth is used. `/leader/:book/oracle` reads the leader's Breach and Checkpoint rows from Envio
 (one query) and runs the check at each breaching checkpoint's block, so a follower can tell whether a breach came
 from a market-wide move or a Perpl-only price dislocation. Live: the testnet drawdown breach of LeaderBook
-`0xb1b0…5208` at block 70287540 had every covered Perpl mark within 2.5 bps of the oracles.
+`0xb1b0â€¦5208` at block 70287540 had every covered Perpl mark within 2.5 bps of the oracles.
 
 ## Tests
 `test/services.test.ts` (44 tests) runs against `test/fixtures`. One test calls the live facilitator's `/supported`
