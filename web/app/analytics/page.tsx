@@ -9,6 +9,7 @@ import { indexerFresh, indexerSyncedAt } from "@/lib/perpl/indexer";
 import { ago, num, pct, price, short, usd } from "@/lib/format";
 import { explorerTx } from "@/lib/chains";
 import { getT } from "@/lib/i18n/server";
+import { OracleCheckPanel } from "@/components/OracleCheck";
 import { LiquidationLadder, LiveMarkets, WalletSearch, Watchlist } from "./_c/client";
 import { BookRisk, Cohorts, FundingHeatmap, OiHistory } from "./_c/risk";
 
@@ -146,6 +147,8 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: SP
           <BookRisk L={L} />
         </Suspense>
       </Panel>
+
+      <OracleCheckPanel chain={143} L={L} />
 
       <div className="grid gap-6 lg:grid-cols-2">
         <Panel title={L("Posisi paling dekat likuidasi", "Positions closest to liquidation")} pad={false}>

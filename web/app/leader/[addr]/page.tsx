@@ -14,6 +14,7 @@ import { getT } from "@/lib/i18n/server";
 import { ago, isAddress, num, pct, pctAuto, price, short, usd } from "@/lib/format";
 import { copasChain, explorerAddr, explorerTx } from "@/lib/chains";
 import { StrategyFeed } from "@/components/StrategyFeed";
+import { OracleCheckPanel } from "@/components/OracleCheck";
 import { AlignmentBadge, AnalysisPanel, AttestedBadge, BacktestPanel } from "@/components/services";
 
 type P = Promise<{ addr: string }>;
@@ -368,6 +369,8 @@ function Bonded({ l, cps, positions: read, L, statusLabel }: { l: Leader; cps: L
         </div>
         )}
       </Panel>
+
+      <OracleCheckPanel chain={copasChain.id} book={l.book} L={L} />
     </div>
   );
 }
