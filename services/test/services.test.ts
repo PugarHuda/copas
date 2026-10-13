@@ -331,12 +331,12 @@ describe("Envio source", () => {
     const notFound = (envioDown: boolean): typeof fetch => async (u) =>
       String(u).startsWith("http://envio.test")
         ? envioDown
-          ? new Response("rate limited", { status: 429 })
+          ? new Response("down", { status: 503 })
           : new Response(JSON.stringify({ data: { Account: [], Protocol: [{ lastUpdatedAt: NOW - 30 * 86400 }] } }), { headers: { "content-type": "application/json" } })
         : new Response(JSON.stringify({ error: "ACCOUNT_NOT_FOUND" }), { status: 404 });
     const d = await getLeaderData(LEADER, { now: NOW, fetch: notFound(false) });
     expect([d.source, d.fills.length]).toEqual(["plumb", 0]);
-    await expect(getLeaderData(LEADER, { now: NOW, fetch: notFound(true) })).rejects.toThrow(/envio\.test.*429/);
+    await expect(getLeaderData(LEADER, { now: NOW, fetch: notFound(true) })).rejects.toThrow(/envio\.test.*503/);
   });
 });
 

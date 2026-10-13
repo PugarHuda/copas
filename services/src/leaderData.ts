@@ -258,8 +258,8 @@ async function envio<T>(url: string, query: string, variables: object, f: Fetch)
 async function envioPost<T>(url: string, body: string, f: Fetch): Promise<T> {
   for (let i = 0; ; i++) {
     const r = await f(url, { method: "POST", headers: { "content-type": "application/json" }, body });
-    if (r.status === 429 && i < 3) {
-      await new Promise((ok) => setTimeout(ok, Math.min(2000, Number(r.headers.get("retry-after")) * 1000 || 300 * 2 ** i)));
+    if (r.status === 429 && i < 5) {
+      await new Promise((ok) => setTimeout(ok, Math.min(3000, Number(r.headers.get("retry-after")) * 1000 || 400 * 2 ** i) * (0.5 + Math.random()) /* jitter: instances retry apart */));
       continue;
     }
     if (!r.ok) throw new Error(`POST ${url} -> ${r.status} ${(await r.text()).slice(0, 200)}`);
