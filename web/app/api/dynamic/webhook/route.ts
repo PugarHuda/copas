@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getAddress } from "viem";
-import { dropDelegation, dynamicWallet, saveDelegation, verifyWebhook } from "@/lib/dynamic/server";
+import { dropDelegation, dynamicMessage, dynamicWallet, saveDelegation, verifyWebhook } from "@/lib/dynamic/server";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -18,13 +18,19 @@ type Body = {
 export async function POST(req: Request) {
   const raw = await req.text();
   const sig = verifyWebhook(raw, req.headers.get("x-dynamic-signature-256"));
-  if (sig === "unset") return NextResponse.json({ error: "webhook secret not configured" }, { status: 503 });
-  if (sig !== true) return NextResponse.json({ error: "bad signature" }, { status: 401 });
+  if (sig === false) return NextResponse.json({ error: "bad signature" }, { status: 401 });
   let body: Body;
   try {
     body = JSON.parse(raw);
   } catch {
     return NextResponse.json({ error: "bad json" }, { status: 400 });
+  }
+  if (sig === "unset") {
+    // No HMAC secret configured (the API does not expose it): fail closed unless Dynamic's own delivery log has this
+    // exact message, and then act on Dynamic's copy, not on what was posted.
+    const confirmed = await dynamicMessage(body as Record<string, unknown>);
+    if (!confirmed) return NextResponse.json({ error: "unverified" }, { status: 401 });
+    body = confirmed as Body;
   }
   const d = body.data;
   if (body.eventName === "wallet.delegation.created" && d?.walletId && d.publicKey && d.encryptedDelegatedShare && d.encryptedWalletApiKey) {

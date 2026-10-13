@@ -18,6 +18,26 @@ const pub = createPublicClient({ chain: copasChain, transport: rpcTransport(copa
 
 export { verifyWebhook } from "./webhookSig";
 
+// The webhook Copas registered (POST /environments/{env}/webhooks) for wallet.delegation.created/revoked.
+const WEBHOOK_ID = process.env.DYNAMIC_WEBHOOK_ID ?? "67018494-494f-4e40-a9e4-e10ba639edf9";
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * Without a shared secret the request body is never trusted: the claimed message must be in Dynamic's delivery log
+ * for our webhook (admin API, our API token, TLS), and the copy Dynamic returns is what we act on.
+ */
+export async function dynamicMessage(claim: { webhookId?: unknown; messageId?: unknown; eventId?: unknown }) {
+  if (claim.webhookId !== WEBHOOK_ID || typeof claim.messageId !== "string" || !UUID.test(claim.messageId)) return null;
+  const r = await fetch(`https://app.dynamicauth.com/api/v0/environments/${DYN_ENV}/webhooks/${WEBHOOK_ID}/messages/${claim.messageId}`, {
+    headers: { authorization: `Bearer ${process.env.DYNAMIC_API_TOKEN}` },
+    cache: "no-store",
+  });
+  if (!r.ok) return null;
+  const j = (await r.json()) as { data?: { request?: { body?: Record<string, unknown> } }[] };
+  const body = j.data?.find((d) => d.request?.body)?.request?.body;
+  return body && body.eventId === claim.eventId && body.messageId === claim.messageId ? body : null;
+}
+
 type WalletInfo = { address?: string; delegated: boolean | null };
 /** Wallet record from Dynamic's admin API: who owns a walletId, and whether a delegated share still exists for it. */
 export async function dynamicWallet(walletId: string): Promise<WalletInfo | null> {
