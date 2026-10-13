@@ -1,28 +1,9 @@
-import { test, expect, checkPage, noOverflow, gotoUntil, ACTIVE, BREACHED, VAULT } from "./fixtures";
+import { test, expect, checkPage, noOverflow, gotoUntil, ROUTES, ACTIVE } from "./fixtures";
 
 /**
  * Every route once per viewport: no console errors / failed requests (fixture guard), no forbidden text,
  * no horizontal scroll, no skeleton still pulsing after 20 s, and every internal link it renders resolves.
  */
-const ROUTES: [string, string][] = [
-  ["/", "h1"],
-  [`/leader/${ACTIVE}`, "h1"],
-  [`/leader/${BREACHED}`, "h1"],
-  [`/follow/${ACTIVE}`, "h1"],
-  [`/follow/${BREACHED}`, "h1"],
-  [`/market/${ACTIVE}`, "h1"],
-  ["/me", "h1"],
-  [`/me?vault=${VAULT}`, "h1"],
-  ["/saved", "h1"],
-  ["/seasons", "h1"],
-  ["/proof", "h1"],
-  ["/become-leader", "h1"],
-  ["/underwrite", "h1"],
-  ["/analytics", "h1"],
-  ["/analytics/compare", "h1"],
-  ["/settings", "h1"],
-];
-
 for (const [path, ready] of ROUTES) {
   test(`crawl ${path}`, async ({ page, request }) => {
     test.setTimeout(180_000);

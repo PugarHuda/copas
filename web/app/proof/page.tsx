@@ -38,7 +38,7 @@ export default async function Proof() {
         )}
       />
       <Panel title={L("Alamat kontrak", "Contract addresses")} pad={false}>
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto" tabIndex={0}>
         <table className="data">
           <tbody>
             {addrs.map(([name, a, chain]) => (
@@ -67,7 +67,7 @@ export default async function Proof() {
         ) : !live.length ? (
           <p className="px-4 py-8 text-center text-sm text-ink-3">{L("Belum ada breach. Semua leader masih dalam mandat.", "No breaches yet. Every leader is inside its mandate.")}</p>
         ) : (
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto" tabIndex={0}>
         <table className="data">
           <thead>
             <tr>
@@ -78,7 +78,7 @@ export default async function Proof() {
               <th className="r">Drawdown</th>
               <th className="r">{L("Dipotong", "Slashed")}</th>
               <th className="r">{L("Diklaim", "Claimed")}</th>
-              <th />
+              <th><span className="sr-only">Detail</span></th>
             </tr>
           </thead>
           <tbody>
@@ -166,7 +166,7 @@ export default async function Proof() {
       <div className="grid gap-6 lg:grid-cols-2">
         <Panel title={L("Log DENY policy Privy", "Privy policy DENY log")} aside={deny && <Source kind="live">Privy · {deny.chainId}</Source>} pad={false}>
           {deny ? (
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto" tabIndex={0}>
             <table className="data">
               <tbody>
                 <tr>

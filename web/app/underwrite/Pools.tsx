@@ -75,7 +75,7 @@ export function Pools({ rows }: { rows: PoolRow[] }) {
   return (
     <div className="grid gap-6 lg:grid-cols-[1fr_340px]">
       <Panel pad={false}>
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto" tabIndex={0}>
           <table className="data">
             <thead>
               <tr>

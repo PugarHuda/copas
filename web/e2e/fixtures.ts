@@ -4,6 +4,26 @@ export const ACTIVE = "0xda695cB060c7e2dF0b5c36EA591eA69399463D90";
 export const BREACHED = "0xb1B08F6a0642c51b48c1916136458A769a1c5208";
 export const VAULT = "0x38E8EbBD7Bd291036A0EFe4a6eFa3BCcd27D74ff";
 
+/** Every route with the selector that means "rendered" (crawl + a11y specs). */
+export const ROUTES: [string, string][] = [
+  ["/", "h1"],
+  [`/leader/${ACTIVE}`, "h1"],
+  [`/leader/${BREACHED}`, "h1"],
+  [`/follow/${ACTIVE}`, "h1"],
+  [`/follow/${BREACHED}`, "h1"],
+  [`/market/${ACTIVE}`, "h1"],
+  ["/me", "h1"],
+  [`/me?vault=${VAULT}`, "h1"],
+  ["/saved", "h1"],
+  ["/seasons", "h1"],
+  ["/proof", "h1"],
+  ["/become-leader", "h1"],
+  ["/underwrite", "h1"],
+  ["/analytics", "h1"],
+  ["/analytics/compare", "h1"],
+  ["/settings", "h1"],
+];
+
 /** Text that must never reach a user. */
 const FORBIDDEN = [/\bNaN\b/, /\bundefined\b/, /\bInfinity\b/, /\bmock\b/i, /demo data/i, /coming soon/i, /\bTODO\b/, /\bKimi\b/i, /lorem/i, /[−+-]\$0(?:\.0+)?(?![.,]?\d)/ /* signed zero money: "−$0" */];
 

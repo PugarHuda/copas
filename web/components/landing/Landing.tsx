@@ -138,7 +138,7 @@ export function Landing({ stats, metrics, L }: { stats: Stats; metrics: Metrics;
       <section className="relative mx-2 overflow-hidden rounded-[22px] border-[6px] border-black bg-[#d81f16] px-4 py-16 text-center text-white sm:mx-3 sm:py-20">
         <div aria-hidden className="absolute -right-24 -top-24 h-72 w-72 rounded-full bg-black/15 blur-2xl" />
         <div aria-hidden className="absolute -bottom-28 -left-16 h-80 w-80 rounded-full bg-black/20 blur-2xl" />
-        <p className="micro relative opacity-80">BOND | MANDATE | SLASH | CLAIM</p>
+        <p className="micro relative">BOND | MANDATE | SLASH | CLAIM</p>
         <div className="bracket relative mx-auto mt-3 inline-block py-2">
           <h2 className="display text-[clamp(40px,6.5vw,88px)]">
             {L("Ikuti leader", "Follow a leader")}

@@ -79,7 +79,7 @@ export function LiveMarkets({ rows, meta }: { rows: MarketRow[]; meta: Meta[] })
   );
   return (
     <div>
-      <div className="overflow-x-auto">
+      <div className="overflow-x-auto" tabIndex={0}>
         <table className="data">
           <thead>
             <tr>

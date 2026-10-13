@@ -71,11 +71,11 @@ function PendingMandate({ p, L }: { p: Pending; L: Lx }) {
       title={L(`Perubahan mandat terjadwal: berlaku epoch ${p.effectiveEpoch}`, `Mandate change scheduled for epoch ${p.effectiveEpoch}`)}
       aside={<Source kind="rpc">LeaderBook.pendingMandate</Source>}
     >
-      <div className="overflow-x-auto">
+      <div className="overflow-x-auto" tabIndex={0}>
         <table className="data">
           <thead>
             <tr>
-              <th />
+              <th><span className="sr-only">Term</span></th>
               <th className="r">{L("Sekarang", "Now")}</th>
               <th className="r">{L("Berikutnya", "Next")}</th>
             </tr>
@@ -278,7 +278,7 @@ function Bonded({ l, cps, positions: read, L, statusLabel }: { l: Leader; cps: L
           {!read ? (
             <Empty>{L("RPC Monad tidak merespons. Coba lagi sebentar.", "The Monad RPC did not respond. Try again shortly.")}</Empty>
           ) : positions.length ? (
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto" tabIndex={0}>
             <table className="data">
               <thead>
                 <tr>
@@ -327,7 +327,7 @@ function Bonded({ l, cps, positions: read, L, statusLabel }: { l: Leader; cps: L
         ) : !cps.length ? (
           <Empty>{L("Belum ada checkpoint terindeks.", "No checkpoints indexed yet.")}</Empty>
         ) : (
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto" tabIndex={0}>
           <table className="data">
             <thead>
               <tr>
@@ -337,7 +337,7 @@ function Bonded({ l, cps, positions: read, L, statusLabel }: { l: Leader; cps: L
                 <th className="r">Drawdown</th>
                 <th className="r">Lev.</th>
                 <th>{L("Hasil", "Result")}</th>
-                <th />
+                <th><span className="sr-only">Detail</span></th>
               </tr>
             </thead>
             <tbody>
@@ -410,7 +410,7 @@ async function ShadowProfile({ addr, L }: { addr: string; L: Lx }) {
       </Panel>
       <Panel title={L("Posisi terbuka", "Open positions")} pad={false} aside={<Source kind="live">getPosition</Source>}>
         {snap?.positions.length ? (
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto" tabIndex={0}>
           <table className="data">
             <thead>
               <tr>

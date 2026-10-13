@@ -169,7 +169,7 @@ async function Shadow({ period, sort, L, t }: { period: LbPeriod; sort: LbSort; 
       {!rows ? (
         <Empty>{L("Leaderboard Perpl tidak merespons. Coba lagi sebentar.", "The Perpl leaderboard did not respond. Try again shortly.")}</Empty>
       ) : (
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto" tabIndex={0}>
           <table className="data">
             <thead>
               <tr>
@@ -179,7 +179,7 @@ async function Shadow({ period, sort, L, t }: { period: LbPeriod; sort: LbSort; 
                 <th className="r">ROI</th>
                 <th className="r">{t("common.volume")}</th>
                 <th className="r">{L("Status", "Status")}</th>
-                <th />
+                <th><span className="sr-only">Detail</span></th>
               </tr>
             </thead>
             <tbody>

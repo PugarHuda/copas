@@ -21,14 +21,14 @@ export async function FundingHeatmap({ L, idx }: { L: Lx; idx: boolean }) {
   const day = (t: number) => new Date(t).toISOString().slice(5, 10);
   return (
     <>
-      <div className="overflow-x-auto">
+      <div className="overflow-x-auto" tabIndex={0}>
         <table className="w-full border-separate border-spacing-[2px] text-[11px]">
           <thead>
             <tr>
               <th className="sticky left-0 bg-surface pr-2 text-left font-normal text-ink-3">Market</th>
               {h.dates.map((t, i) => (
                 <th key={t} className="w-6 font-normal text-ink-3">
-                  {i % 5 === 0 ? day(t) : ""}
+                  {i % 5 === 0 ? day(t) : <span className="sr-only">{day(t)}</span>}
                 </th>
               ))}
               <th className="pl-2 text-right font-normal text-ink-3">{L("Rata2 30h", "30d avg")}</th>
@@ -97,7 +97,7 @@ export async function BookRisk({ L }: { L: Lx }) {
   const tone = (c: number | null) => (c == null ? "text-ink-3" : c < 1 ? "text-down" : c < 3 ? "text-warn" : "text-up");
   return (
     <>
-      <div className="overflow-x-auto">
+      <div className="overflow-x-auto" tabIndex={0}>
         <table className="data">
           <thead>
             <tr>
@@ -160,7 +160,7 @@ export async function Cohorts({ L, idx }: { L: Lx; idx: boolean }) {
         <Stat label={L("Total PnL bersih", "Total net PnL")} value={usd(c.netPnl, { compact: true, sign: true })} tone={c.netPnl >= 0 ? "text-up" : "text-down"} sub={`${L("Fee dibayar", "Fees paid")} ${usd(c.fees, { compact: true })}`} />
         <Stat label={L("Profit diambil top 1%", "Profit taken by top 1%")} value={pct(c.top1, 0)} />
       </div>
-      <div className="overflow-x-auto">
+      <div className="overflow-x-auto" tabIndex={0}>
         <table className="data">
           <thead>
             <tr>

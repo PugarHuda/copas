@@ -86,7 +86,7 @@ export default async function SavedPage({ searchParams }: { searchParams: Promis
           <input id="c" name="c" type="number" min={10} max={1000000} step={1} defaultValue={capital} className="num w-32 rounded-md border border-line-strong bg-surface px-2 py-1" />
           <button className="micro rounded-full bg-gold px-3 py-1.5 font-semibold text-gold-ink">Recalculate</button>
         </form>
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto" tabIndex={0}>
           <table className="data">
             <thead>
               <tr>

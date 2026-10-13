@@ -30,19 +30,19 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
               </div>
               <div>
                 <p className="micro text-ink-3">{lang === "id" ? "Bukti" : "Proof"}</p>
-                <a className="mt-2 block text-sm text-ink-2 hover:text-ink" href="/proof">
+                <a className="mt-1.5 block py-0.5 text-sm text-ink-2 hover:text-ink" href="/proof">
                   {lang === "id" ? "Breach & potongan" : "Breaches & slashes"}
                 </a>
-                <a className="block text-sm text-ink-2 hover:text-ink" href="https://github.com/PugarHuda/copas" target="_blank" rel="noreferrer">
+                <a className="block py-0.5 text-sm text-ink-2 hover:text-ink" href="https://github.com/PugarHuda/copas" target="_blank" rel="noreferrer">
                   GitHub
                 </a>
               </div>
               <div>
                 <p className="micro text-ink-3">{lang === "id" ? "Data" : "Data"}</p>
-                <a className="mt-2 block text-sm text-ink-2 hover:text-ink" href="/analytics">
+                <a className="mt-1.5 block py-0.5 text-sm text-ink-2 hover:text-ink" href="/analytics">
                   {lang === "id" ? "Analitik Perpl" : "Perpl analytics"}
                 </a>
-                <a className="block text-sm text-ink-2 hover:text-ink" href="https://app.perpl.xyz" target="_blank" rel="noreferrer">
+                <a className="block py-0.5 text-sm text-ink-2 hover:text-ink" href="https://app.perpl.xyz" target="_blank" rel="noreferrer">
                   Perpl
                 </a>
               </div>

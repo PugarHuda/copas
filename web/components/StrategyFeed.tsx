@@ -102,8 +102,8 @@ export function StrategyFeed({ book, leader }: { book: string; leader: `0x${stri
         </div>
       )}
       {(msg || error) && <p className="mt-2 text-xs text-ink-2">{msg ?? error}</p>}
+      {posts.length === 0 && <Empty>{L("Belum ada catatan.", "No notes yet.")}</Empty>}
       <ul className="mt-4 grid gap-2">
-        {posts.length === 0 && <Empty>{L("Belum ada catatan.", "No notes yet.")}</Empty>}
         {[...posts].reverse().map((p, i) => (
           <li key={p.blob.slice(0, 40) + i} className="rounded-md border border-line p-3 text-sm">
             {p.text ?? <span className="text-ink-3">🔒 {L(`Terenkripsi untuk ${p.readers} pembaca`, `Encrypted for ${p.readers} readers`)}</span>}

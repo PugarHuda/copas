@@ -135,7 +135,7 @@ export function MeView({ live, chain, leader, fills, query, badQuery }: { live: 
       <div className="grid gap-6 lg:grid-cols-3">
         <Panel className="lg:col-span-2" title={L("Posisi tersalin", "Copied positions")} pad={false} aside={<Source kind="rpc">Perpl getPosition</Source>}>
           {rows.length ? (
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto" tabIndex={0}>
               <table className="data">
                 <thead>
                   <tr>
@@ -145,7 +145,7 @@ export function MeView({ live, chain, leader, fills, query, badQuery }: { live: 
                     <th className="r">{L("Masuk", "Entry")}</th>
                     <th className="r">Mark</th>
                     <th className="r">uPnL</th>
-                    <th />
+                    <th><span className="sr-only">Detail</span></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -243,7 +243,7 @@ export function MeView({ live, chain, leader, fills, query, badQuery }: { live: 
 
       <Panel title={L("Bukti eksekusi per copy", "Execution proof per copy")} pad={false} aside={<Source kind={fills.src}>{fills.src === "indexer" ? "Envio CopyFill" : "FollowerVault.Synced"}</Source>}>
         {fills.rows.length ? (
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto" tabIndex={0}>
             <table className="data">
               <thead>
                 <tr>
@@ -253,7 +253,7 @@ export function MeView({ live, chain, leader, fills, query, badQuery }: { live: 
                   <th className="r">{L("Posisimu: dari → target", "Yours: from → target")}</th>
                   <th className="r">Mark</th>
                   <th className="r">{L("Blok", "Block")}</th>
-                  <th />
+                  <th><span className="sr-only">Detail</span></th>
                 </tr>
               </thead>
               <tbody>

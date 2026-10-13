@@ -437,7 +437,7 @@ async function RiskTable({ kind, L }: { kind: "atRisk" | "largest"; L: Lx }) {
   const p = await protocolSnapshot();
   const rows = p[kind];
   return (
-    <div className="overflow-x-auto">
+    <div className="overflow-x-auto" tabIndex={0}>
       <table className="data">
         <thead>
           <tr>
@@ -477,7 +477,7 @@ async function RiskTable({ kind, L }: { kind: "atRisk" | "largest"; L: Lx }) {
 async function TopTraders({ L }: { L: Lx }) {
   const rows = (await getLeaderboard("month", "pnl")).slice(0, 12);
   return (
-    <div className="overflow-x-auto">
+    <div className="overflow-x-auto" tabIndex={0}>
       <table className="data">
         <thead>
           <tr>

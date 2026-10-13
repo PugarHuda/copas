@@ -153,7 +153,7 @@ function Overview({ snap, L }: { snap: AccountSnapshot; L: Lx }) {
 function Positions({ snap, L }: { snap: AccountSnapshot; L: Lx }) {
   if (!snap.positions.length) return <Empty>{L("Tidak ada posisi terbuka.", "No open positions.")}</Empty>;
   return (
-    <div className="overflow-x-auto">
+    <div className="overflow-x-auto" tabIndex={0}>
       <table className="data">
         <thead>
           <tr>
@@ -200,7 +200,7 @@ async function Periods({ address, L }: { address: string; L: Lx }) {
   const rows = await walletPeriods(address);
   const names: Record<string, string> = { day: "24h", week: "7d", "2weeks": "14d", month: "30d", all: L("Semua", "All") };
   return (
-    <div className="overflow-x-auto">
+    <div className="overflow-x-auto" tabIndex={0}>
     <table className="data">
       <thead>
         <tr>
@@ -335,7 +335,7 @@ async function Trades({ accountId, snap, L }: { accountId: number; snap: Account
                   <th className="r">{L("Notional maks", "Max notional")}</th>
                   <th className="r">{L("Lama", "Held")}</th>
                   <th className="r">PnL</th>
-                  <th />
+                  <th><span className="sr-only">Detail</span></th>
                 </tr>
               </thead>
               <tbody>

@@ -79,7 +79,7 @@ export default async function Seasons({ searchParams }: { searchParams: SP }) {
             {!rows.length ? (
               <Empty>No leaders existed in this season.</Empty>
             ) : (
-              <div className="overflow-x-auto">
+              <div className="overflow-x-auto" tabIndex={0}>
                 <table className="data">
                   <thead>
                     <tr>
@@ -134,7 +134,7 @@ export default async function Seasons({ searchParams }: { searchParams: SP }) {
       <Panel title="How a season is scored">
         <div className="space-y-3 text-sm leading-relaxed text-ink-2">
           <p>A season is one calendar week, Monday 00:00 UTC to the next Monday. For each leader, over the season:</p>
-          <pre className="num overflow-x-auto rounded-md border border-line bg-bg p-3 text-xs text-ink">
+          <pre tabIndex={0} className="num overflow-x-auto rounded-md border border-line bg-bg p-3 text-xs text-ink">
             {`followers' net = Σ follower-vault fills (realizedPnl − fee)
                + Σ slash claims paid out of this leader's bond
                − Σ performance fees of this leader's epochs that ended in the season`}

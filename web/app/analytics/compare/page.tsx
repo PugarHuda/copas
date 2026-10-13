@@ -77,11 +77,11 @@ export default async function Compare({ searchParams }: { searchParams: Promise<
       ) : (
         <>
           <Panel pad={false} title={L("Berdampingan", "Side by side")} aside={<Source kind="live">onchain + /trading/leaderboard</Source>}>
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto" tabIndex={0}>
               <table className="data">
                 <thead>
                   <tr>
-                    <th />
+                    <th><span className="sr-only">Metric</span></th>
                     {ok.map((d, i) => (
                       <th key={d.w} className="r">
                         <Link href={`/analytics/wallet/${d.snap!.address.toLowerCase()}`} className="num inline-flex items-center gap-1.5 text-ink hover:text-gold-2">
