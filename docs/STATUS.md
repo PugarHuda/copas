@@ -25,7 +25,7 @@ Legenda: ✅ selesai + teruji · 🟡 dikerjakan · ⏳ menunggu (key/deploy) ·
 | C6 | Auto-unfollow | 🟡 | keeper + kontrak (target 0 saat Unbonded/Breached) | |
 | C7 | Bukti eksekusi | 🟡 | indexer + web | |
 | C8 | Klaim slashing | ✅ | `FollowerVault.claim` | |
-| D1 | Analis LLM + receipt | ✅ live | `services/src/kimi.ts` | OpenRouter free model; receipt EIP-191 oleh attester atas hash input/output. Batas free tier 50 req/hari |
+| D1 | Analis LLM + receipt | ✅ live | `services/src/kimi.ts` | Kimi K3 lewat API resmi Moonshot (13 Okt): Request Signature terverifikasi, ~$0,008 per analisis; OpenRouter hanya fallback. Artikel `docs/KIMI.md` |
 | D2 | Nansen discovery + alignment | ⏳ kredit habis | `services/src/nansen.ts` | API key 403 insufficient_credits; x402 Nansen hanya USDC mainnet. Produksi tampil tanpa data Nansen |
 | D3 | Agent penantang | ✅ live | `services/src/features.ts`, `kimi.ts` | `devilsAdvocate`: 3 alasan tidak follow dari ranking deterministik |
 | D4 | x402 bayar data | ✅ testnet | `services/src/x402seller.ts`, `scripts/x402-pay.ts` | `GET /x402/report/:addr` (0.01 USDC testnet, facilitator Monad molandak). Pembayaran nyata settle: tx `0x5d9c18d9819552d7979f5fc6819b2ead3a4da01471056ac5463729864e20e1f5` (dikirim facilitator `0x7f6a…Db86`). USDC testnet didapat dengan jual 0,8 MON di book Kuru MON/USDC testnet `0x1f57a841…ae92` (tx `0x87ebe28c…0807`). Sisi klien Nansen (mainnet) tetap belum jalan |
