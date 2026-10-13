@@ -10,7 +10,8 @@ export const dynamic = "force-dynamic";
 // Testnet only: gas MON from our key + 10k AUSD from the Perpl testnet faucet contract, so judges can try Copas.
 const AUSD = "0xa9012a055bd4e0eDfF8Ce09f960291C09D5322dC";
 const AUSD_FAUCET = "0xd236c18d274e54faccc3dd9dda4b27965a73ee6c"; // requestFunds(address) -> 10k AUSD
-const abi = parseAbi(["function requestFunds(address)", "function balanceOf(address) view returns (uint256)"]);
+const abi = parseAbi(["function requestFunds(address)", "function balanceOf(address) view returns (uint256)", "function transfer(address,uint256) returns (bool)"]);
+const FALLBACK_AUSD = 1_000_000_000n; // 1,000 AUSD (6 decimals): covers Perpl's 100 AUSD first deposit plus trading
 const pub = createPublicClient({ chain: monadTestnet, transport: rpcTransport(monadTestnet) });
 const DAY = 86_400_000;
 const PER_IP_PER_DAY = 3; // fresh addresses are free to make, so the IP is what bounds the MON we give away
@@ -49,7 +50,13 @@ export async function POST(req: Request) {
     const confirm = async (h: `0x${string}`) => (sent.push(h), pub.waitForTransactionReceipt({ hash: h }));
     if ((await pub.getBalance({ address: a })) < parseEther("0.5")) await confirm(await wallet.sendTransaction({ to: a, value: parseEther("1") }));
     if ((await pub.readContract({ address: AUSD, abi, functionName: "balanceOf", args: [a] })) < 500_000_000n)
-      await confirm(await wallet.writeContract({ address: AUSD_FAUCET, abi, functionName: "requestFunds", args: [a] }));
+      // the Perpl faucet rate-limits each caller (MaxFrequencyExceeded), so two judges a minute apart would fail:
+      // fall back to a direct transfer from this key's own AUSD float
+      await confirm(
+        await wallet
+          .writeContract({ address: AUSD_FAUCET, abi, functionName: "requestFunds", args: [a] })
+          .catch(() => wallet.writeContract({ address: AUSD, abi, functionName: "transfer", args: [a, FALLBACK_AUSD] })),
+      );
     return NextResponse.json({ txs: sent });
   } catch (e) {
     last.delete(a);
