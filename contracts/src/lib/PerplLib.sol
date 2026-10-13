@@ -95,5 +95,7 @@ library PerplLib {
         o.expiryBlock = block.number + 20;
         o.immediateOrCancel = true;
         o.leverageHdths = leverageHdths;
+        // Perpl's market default; 0 refuses any fill that must collateralize negative PnL vs mark (most shorts)
+        o.maxNegPnlCollatBPS = 1000;
     }
 }

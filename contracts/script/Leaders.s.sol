@@ -22,7 +22,7 @@ contract Leaders is Script {
     IPerplExchange ex;
     IERC20Min ausd;
 
-    function run() external {
+    function run() external virtual {
         string memory dep = vm.readFile(string.concat("deployments/", vm.toString(block.chainid), ".json"));
         reg = CopasRegistry(vm.parseJsonAddress(dep, ".registry"));
         ex = IPerplExchange(vm.parseJsonAddress(dep, ".exchange"));
