@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { isAddress, getAddress } from "viem";
-import { delegatedForbidden, delegatedUnfollow, guardChecks, loadDelegation } from "@/lib/dynamic/server";
+import { delegatedProbe, delegatedUnfollow, guardChecks, loadDelegation } from "@/lib/dynamic/server";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -19,8 +19,8 @@ export async function GET(req: Request) {
 /**
  * POST {address}: runs the guard. Anyone may call it (the keeper, the user, a judge): it only acts when a protective
  * rule holds, and the only thing it can sign is unfollow() on that owner's own vault.
- * POST {address, probe: "withdraw"}: asks Dynamic to sign vault.withdraw with the same delegated share; the delegated
- * signer's policy must refuse. Nothing is broadcast.
+ * POST {address, probe: "withdraw" | "unfollow"}: asks Dynamic to sign that vault call with the delegated share and
+ * reports Dynamic's answer (withdraw must be refused). Nothing is broadcast.
  */
 export async function POST(req: Request) {
   const body = (await req.json().catch(() => ({}))) as { address?: string; probe?: string };
@@ -29,10 +29,10 @@ export async function POST(req: Request) {
   const d = await loadDelegation(address);
   if (!d) return NextResponse.json({ error: "no-delegation" }, { status: 404 });
   const checks = await guardChecks(address);
-  if (body.probe === "withdraw") {
+  if (body.probe === "withdraw" || body.probe === "unfollow") {
     const v = checks[0]?.vault;
     if (!v) return NextResponse.json({ error: "no-vault" }, { status: 404 });
-    return NextResponse.json({ probe: "vault.withdraw(1)", vault: v, ...(await delegatedForbidden(d, v)) });
+    return NextResponse.json({ probe: body.probe === "withdraw" ? "vault.withdraw(1)" : "vault.unfollow()", signedOnly: true, vault: v, ...(await delegatedProbe(d, v, body.probe)) });
   }
   const acted = [];
   for (const c of checks.filter((c) => c.reason)) {

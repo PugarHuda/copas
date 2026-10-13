@@ -131,11 +131,11 @@ export async function delegatedUnfollow(d: Delegation, vault: `0x${string}`) {
   return { hash, status: r.status };
 }
 
-/** Delegated signing of a call the delegated-signer policy does not allow (vault.withdraw). Dynamic must refuse it. */
-export async function delegatedForbidden(d: Delegation, vault: `0x${string}`) {
+/** Asks Dynamic to sign (never broadcast) a vault call with the delegated share: withdraw must be refused by policy. */
+export async function delegatedProbe(d: Delegation, vault: `0x${string}`, fn: "withdraw" | "unfollow") {
   const { createDelegatedEvmWalletClient, delegatedSignTransaction } = await import("@dynamic-labs-wallet/node-evm");
   const client = createDelegatedEvmWalletClient({ environmentId: DYN_ENV, apiKey: process.env.DYNAMIC_API_TOKEN! });
-  const data = encodeFunctionData({ abi: VAULT, functionName: "withdraw", args: [1n] });
+  const data = fn === "withdraw" ? encodeFunctionData({ abi: VAULT, functionName: "withdraw", args: [1n] }) : encodeFunctionData({ abi: VAULT, functionName: "unfollow" });
   const nonce = await pub.getTransactionCount({ address: d.address, blockTag: "pending" });
   const fees = await pub.estimateFeesPerGas();
   try {
@@ -148,6 +148,6 @@ export async function delegatedForbidden(d: Delegation, vault: `0x${string}`) {
     });
     return { outcome: "SIGNED" as const }; // never broadcast
   } catch (e) {
-    return { outcome: "DENIED" as const, error: (e instanceof Error ? e.message : String(e)).split("\n")[0].slice(0, 300) };
+    return { outcome: "REFUSED" as const, error: (e instanceof Error ? e.message : String(e)).split("\n")[0].slice(0, 300) };
   }
 }
