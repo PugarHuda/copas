@@ -3,8 +3,8 @@ import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { getLeader, maxVaultDeposit, minVaultOpen } from "@/lib/copas/data";
 import { getT } from "@/lib/i18n/server";
-import { isAddress } from "@/lib/format";
-import { Empty, Panel, btn } from "@/components/ui";
+import { isAddress, short } from "@/lib/format";
+import { Empty, Panel, PageHead, Unreachable, btn } from "@/components/ui";
 import { Seal } from "@/components/Seal";
 import { DDMeter, StatusPill } from "@/components/copas";
 import { FollowTicket } from "./FollowTicket";
@@ -23,14 +23,24 @@ export default async function FollowPage({ params }: { params: P }) {
   const { t, lang } = await getT();
   const L = (a: string, b: string) => (lang === "id" ? a : b);
   const [l, maxDeposit, minDeposit] = await Promise.all([getLeader(addr), maxVaultDeposit(), minVaultOpen()]);
+  if (l === undefined) return <Unreachable title={L(`Ikuti ${short(addr)}`, `Follow ${short(addr)}`)}>{L("RPC Monad tidak merespons. Muat ulang sebentar lagi.", "The Monad RPC did not respond. Reload in a moment.")}</Unreachable>;
   if (!l)
     return (
-      <Empty>
-        {L("Hanya leader berjaminan yang bisa diikuti. ", "Only bonded leaders can be followed. ")}
-        <Link href="/" className="underline">
-          {t("nav.leaders")}
-        </Link>
-      </Empty>
+      <div className="space-y-6">
+        <PageHead title={L(`Ikuti ${short(addr)}`, `Follow ${short(addr)}`)} />
+        <Panel>
+          <Empty>
+            {L("Hanya leader berjaminan yang bisa diikuti. ", "Only bonded leaders can be followed. ")}
+            <Link href={`/leader/${addr}`} className="underline">
+              {L("Lihat performa Perpl-nya", "See their Perpl record")}
+            </Link>
+            {" · "}
+            <Link href="/" className="underline">
+              {t("nav.leaders")}
+            </Link>
+          </Empty>
+        </Panel>
+      </div>
     );
   return (
     <div className="space-y-6">

@@ -2,7 +2,7 @@ import Link from "next/link";
 import { Suspense } from "react";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
-import { Panel, Source, Stat, StatRow, Empty, Bar } from "@/components/ui";
+import { Panel, Source, Stat, StatRow, Empty, Bar, Unreachable } from "@/components/ui";
 import { TimeChart } from "@/components/TimeChart";
 import { FLOW_DAYS, walletEquityCurve, walletFlows, walletPeriods, walletSnapshot, walletTrades } from "@/lib/perpl/analytics";
 import type { AccountSnapshot } from "@/lib/perpl/onchain";
@@ -29,7 +29,7 @@ export default async function WalletPage({ params }: { params: P }) {
   const L: Lx = (a, b) => (lang === "id" ? a : b);
 
   const snap = await walletSnapshot(addr.toLowerCase()).catch(() => undefined);
-  if (snap === undefined) return <Empty>{L("RPC Monad tidak merespons. Muat ulang sebentar lagi.", "The Monad RPC did not respond. Reload in a moment.")}</Empty>;
+  if (snap === undefined) return <Unreachable title={isAccountId(addr) ? `#${addr}` : short(addr)}>{L("RPC Monad tidak merespons. Muat ulang sebentar lagi.", "The Monad RPC did not respond. Reload in a moment.")}</Unreachable>;
   if (!snap)
     return (
       <div className="space-y-6">

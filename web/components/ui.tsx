@@ -92,6 +92,18 @@ export function Empty({ children }: { children: ReactNode }) {
   return <div className="px-4 py-8 text-center text-sm text-ink-3">{children}</div>;
 }
 
+/** A page whose main read failed: keeps the page's h1 and says what to do, instead of rendering a misleading empty state. */
+export function Unreachable({ title, children }: { title: ReactNode; children: ReactNode }) {
+  return (
+    <div className="space-y-6">
+      <PageHead title={title} />
+      <Panel>
+        <Empty>{children}</Empty>
+      </Panel>
+    </div>
+  );
+}
+
 export function PageHead({ title, lede, children }: { title: ReactNode; lede?: ReactNode; children?: ReactNode }) {
   return (
     <div className="mb-6 flex flex-wrap items-end justify-between gap-4">

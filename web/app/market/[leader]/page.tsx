@@ -1,11 +1,11 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
-import { Panel, Source, Stat, StatRow } from "@/components/ui";
+import { Panel, Source, Stat, StatRow, Unreachable } from "@/components/ui";
 import { DDMeter } from "@/components/copas";
 import { getDownMarket, getLeader } from "@/lib/copas/data";
 import { getT } from "@/lib/i18n/server";
-import { num, pct, usd } from "@/lib/format";
+import { num, pct, short, usd } from "@/lib/format";
 import { copasChain, explorerAddr, explorerTx, rpcTransport } from "@/lib/chains";
 import { readDepth, readFills } from "@/lib/copas/kuru";
 import { createPublicClient } from "viem";
@@ -21,6 +21,7 @@ export default async function MarketPage({ params }: { params: Promise<{ leader:
   const { lang } = await getT();
   const L = (a: string, b: string) => (lang === "id" ? a : b);
   const l = await getLeader(leader);
+  if (l === undefined) return <Unreachable title={short(leader)}>{L("RPC Monad tidak merespons. Muat ulang sebentar lagi.", "The Monad RPC did not respond. Reload in a moment.")}</Unreachable>;
   if (!l) notFound();
   const live = await getDownMarket(l.book, l.epoch).catch(() => null);
   // no px until DOWN trades on Kuru: odds are shown only when there is a book

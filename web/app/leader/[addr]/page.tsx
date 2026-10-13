@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
-import { Panel, Source, Stat, StatRow, Empty, btn, Pill } from "@/components/ui";
+import { Panel, Source, Stat, StatRow, Empty, btn, Pill, Unreachable } from "@/components/ui";
 import { Seal } from "@/components/Seal";
 import { TimeChart } from "@/components/TimeChart";
 import { DDMeter, StatusPill, protection } from "@/components/copas";
@@ -23,7 +23,7 @@ export async function generateMetadata({ params }: { params: P }): Promise<Metad
   const { addr } = await params;
   if (!isAddress(addr)) return { title: "Not found" };
   const leader = await getLeader(addr);
-  return { title: leader?.name ?? `Shadow ${short(addr)}` };
+  return { title: leader?.name ?? (leader === null ? `Shadow ${short(addr)}` : short(addr)) };
 }
 
 export default async function LeaderPage({ params }: { params: P }) {
@@ -32,6 +32,8 @@ export default async function LeaderPage({ params }: { params: P }) {
   const { t, lang } = await getT();
   const L: Lx = (a, b) => (lang === "id" ? a : b);
   const leader = await getLeader(addr);
+  // unreadable is not "not bonded": never show a bonded leader as a shadow trader because the RPC hiccuped
+  if (leader === undefined) return <Unreachable title={short(addr)}>{L("RPC Monad tidak merespons. Muat ulang sebentar lagi.", "The Monad RPC did not respond. Reload in a moment.")}</Unreachable>;
   if (leader) {
     const [cps, positions, pending, rep] = await Promise.all([
       leaderCheckpoints(leader.book),

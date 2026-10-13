@@ -38,14 +38,15 @@ const cachedLeaders = unstable_cache(
 );
 
 /** One LeaderBook, or null when the address is not a Copas leader (or the read fails). */
-export async function getLeader(book: string): Promise<Leader | null> {
+/** The bonded leader at `book`; null when it is not a LeaderBook, undefined when the RPC could not answer (not the same thing). */
+export async function getLeader(book: string): Promise<Leader | null | undefined> {
   if (!isDeployed || !/^0x[0-9a-fA-F]{40}$/.test(book)) return null;
   try {
     const ok = await client.readContract({ address: deployment!.registry!, abi: copasAbi.CopasRegistry as Abi, functionName: "isLeaderBook", args: [book] });
     if (!ok) return null;
     return await readLeader(book as `0x${string}`, await leaderStats());
   } catch {
-    return null;
+    return undefined;
   }
 }
 
