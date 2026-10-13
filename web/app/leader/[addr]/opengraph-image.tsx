@@ -17,7 +17,9 @@ const font = () =>
 export default async function Image({ params }: { params: Promise<{ addr: string }> }) {
   const { addr } = await params;
   if (!/^0x[0-9a-fA-F]{40}$/.test(addr)) notFound();
-  const [l, f] = await Promise.all([getLeader(addr).catch(() => null), font()]);
+  const [l, f] = await Promise.all([getLeader(addr), font()]);
+  // RPC down: fail (a 500 is not cached, crawlers retry) instead of a cached "NO ACTIVE BOND" card for a bonded leader
+  if (l === undefined) throw new Error("Monad RPC did not answer");
   const breached = l?.status === "breached";
   const stat = (k: string, v: string) => (
     <div style={{ display: "flex", flexDirection: "column", marginRight: 56 }}>

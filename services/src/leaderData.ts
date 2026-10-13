@@ -495,7 +495,9 @@ export interface FillsResult extends FillPage {
 export async function fetchFills(address: string, from: number, to: number, f: Fetch = fetch): Promise<FillsResult> {
   const url = env("ENVIO_GRAPHQL_URL");
   let envioErr: Error | undefined;
-  const acc = url ? await fetchEnvioAccount(url, address, f).catch((e: Error) => ((envioErr = e), null)) : null;
+  const acc = url ? await fetchEnvioAccount(url, address, f)
+    .catch(() => fetchEnvioAccount(url, address, f)) // one retry: Envio's hosted endpoint drops the odd request under bursts
+    .catch((e: Error) => ((envioErr = e), null)) : null;
   if (url && acc?.chainId === TESTNET) return { ...(await fetchEnvioFills(url, acc, from, to, f)), source: "envio", chainId: TESTNET, envioAccount: acc };
   if (url && (!acc || acc.fills <= ENVIO_MAX_ROWS) && (await envioFresh(url, to, f))) {
     const page = acc ? await fetchEnvioFills(url, acc, from, to, f) : { fills: [], complete: true };
