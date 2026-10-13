@@ -236,14 +236,37 @@ const ENVIO_FILLS = `query($acc: String!, $chain: Int!, $from: Int!, $to: Int!, 
     market { perpId symbol priceDecimals lotDecimals }
   } }`;
 
+// Envio's hosted endpoint answers 429 to bursts (one leader page fires stats, backtest, alignment and attest at once):
+// identical queries in flight or under 30 s old share one request, and a 429 is retried with backoff.
+// ponytail: per-instance memo; a shared cache (KV) if several instances still trip the limit.
+const ENVIO_MEMO_MS = 30_000;
+const envioMemo = new WeakMap<Fetch, Map<string, { at: number; p: Promise<unknown> }>>();
 async function envio<T>(url: string, query: string, variables: object, f: Fetch): Promise<T> {
-  const j = await getJson<{ data?: T; errors?: { message: string }[] }>(
-    url,
-    { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ query, variables }) },
-    f,
-  );
-  if (j.errors?.length) throw new Error(`envio: ${j.errors[0].message}`);
-  return j.data as T;
+  const body = JSON.stringify({ query, variables });
+  let memo = envioMemo.get(f);
+  if (!memo) envioMemo.set(f, (memo = new Map()));
+  const key = `${url} ${body}`;
+  const now = Date.now();
+  const hit = memo.get(key);
+  if (hit && now - hit.at < ENVIO_MEMO_MS) return hit.p as Promise<T>;
+  for (const [k, v] of memo) if (now - v.at >= ENVIO_MEMO_MS) memo.delete(k);
+  const entry = { at: now, p: envioPost<T>(url, body, f) };
+  memo.set(key, entry);
+  entry.p.catch(() => memo!.get(key) === entry && memo!.delete(key)); // errors are never memoized
+  return entry.p;
+}
+async function envioPost<T>(url: string, body: string, f: Fetch): Promise<T> {
+  for (let i = 0; ; i++) {
+    const r = await f(url, { method: "POST", headers: { "content-type": "application/json" }, body });
+    if (r.status === 429 && i < 3) {
+      await new Promise((ok) => setTimeout(ok, Math.min(2000, Number(r.headers.get("retry-after")) * 1000 || 300 * 2 ** i)));
+      continue;
+    }
+    if (!r.ok) throw new Error(`POST ${url} -> ${r.status} ${(await r.text()).slice(0, 200)}`);
+    const j = (await r.json()) as { data?: T; errors?: { message: string }[] };
+    if (j.errors?.length) throw new Error(`envio: ${j.errors[0].message}`);
+    return j.data as T;
+  }
 }
 
 /**
@@ -495,9 +518,7 @@ export interface FillsResult extends FillPage {
 export async function fetchFills(address: string, from: number, to: number, f: Fetch = fetch): Promise<FillsResult> {
   const url = env("ENVIO_GRAPHQL_URL");
   let envioErr: Error | undefined;
-  const acc = url ? await fetchEnvioAccount(url, address, f)
-    .catch(() => fetchEnvioAccount(url, address, f)) // one retry: Envio's hosted endpoint drops the odd request under bursts
-    .catch((e: Error) => ((envioErr = e), null)) : null;
+  const acc = url ? await fetchEnvioAccount(url, address, f).catch((e: Error) => ((envioErr = e), null)) : null;
   if (url && acc?.chainId === TESTNET) return { ...(await fetchEnvioFills(url, acc, from, to, f)), source: "envio", chainId: TESTNET, envioAccount: acc };
   if (url && (!acc || acc.fills <= ENVIO_MAX_ROWS) && (await envioFresh(url, to, f))) {
     const page = acc ? await fetchEnvioFills(url, acc, from, to, f) : { fills: [], complete: true };

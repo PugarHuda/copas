@@ -311,6 +311,21 @@ describe("Envio source", () => {
     expect((await getLeaderData(LEADER, { now: NOW, fetch: stale })).source).toBe("plumb");
   });
 
+  it("Envio 429 is retried, and identical concurrent queries share one request", async () => {
+    process.env.ENVIO_GRAPHQL_URL = "http://envio.test/v1/graphql";
+    let accountQueries = 0;
+    const limited: typeof fetch = async (u, init) => {
+      if (!String(u).startsWith("http://envio.test")) return stubFetch(u, init);
+      const q = JSON.parse(String(init?.body)).query as string;
+      if (q.includes("Account") && ++accountQueries === 1) return new Response("slow down", { status: 429, headers: { "retry-after": "0" } });
+      const data = q.includes("Account") ? { Account: [{ id: "7", chainId: 10143, fills: 0, closedTrades: 0, wins: 0, netPnlCNS: "0", maxDrawdownCNS: "0", firstSeenAt: NOW, lastSeenAt: NOW }] } : { Fill: [] };
+      return new Response(JSON.stringify({ data }), { headers: { "content-type": "application/json" } });
+    };
+    const [a, b] = await Promise.all([getLeaderData(LEADER, { now: NOW, fetch: limited }), getLeaderData(LEADER, { now: NOW, fetch: limited })]);
+    expect([a.source, b.source]).toEqual(["envio", "envio"]);
+    expect(accountQueries).toBe(2); // the 429 and its retry, shared by both callers
+  });
+
   it("plumb ACCOUNT_NOT_FOUND: empty history when Envio answered, Envio's error when Envio failed (may be a testnet LeaderBook)", async () => {
     process.env.ENVIO_GRAPHQL_URL = "http://envio.test/v1/graphql";
     const notFound = (envioDown: boolean): typeof fetch => async (u) =>
