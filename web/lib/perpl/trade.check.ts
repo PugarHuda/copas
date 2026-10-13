@@ -1,11 +1,19 @@
 // Run: node --experimental-strip-types lib/perpl/trade.check.ts
 import assert from "node:assert/strict";
-import { checkMandate, drawdown, looser, toLNS, toPNS, touch, walk, DEFAULT_MANDATE, type TMarket } from "./trade.ts";
+import { checkMandate, drawdown, looser, orderDesc, toLNS, toPNS, toTMarkets, touch, walk, DEFAULT_MANDATE, type TMarket } from "./trade.ts";
 
-const btc: TMarket = { id: 16, sym: "BTC", pd: 1, sd: 5, maxLev: 15, maintLev: 25, takerBp: 3.45, maxSlipBps: 1000 };
+const btc: TMarket = { id: 16, sym: "BTC", pd: 1, sd: 5, maxLev: 15, maintLev: 25, takerBp: 3.45, maxSlipBps: 1000, mnpBps: 1000 };
 assert.equal(toPNS(83137.3, btc), 831373n);
 assert.equal(toLNS(0.0001, btc), 10n);
 assert.equal(toLNS(0.000109, btc), 10n); // floors to a whole lot
+
+// maxNegPnlCollatBPS 0 makes Perpl refuse every taker fill on the wrong side of mark (0xb29d1949, code 14): never send 0
+const ioc = { perpId: 16, orderType: 1, pricePNS: 830000n, lotLNS: 20n, leverageHdths: 300n, ioc: true };
+assert.equal(orderDesc(ioc, 100n).maxNegPnlCollatBPS, 1000n);
+assert.equal(orderDesc({ ...ioc, mnpBps: 500 }, 100n).maxNegPnlCollatBPS, 500n);
+const cfg = { is_open: true, price_decimals: 1, size_decimals: 5, initial_margin: 1500, maintenance_margin: 2500, taker_fee: 345 };
+assert.equal(toTMarkets({ markets: [{ id: 16, symbol: "BTC", config: cfg }] })[0].mnpBps, 1000);
+assert.equal(toTMarkets({ markets: [{ id: 16, symbol: "BTC", order_max_neg_pnl_collat_bps: 2000, config: cfg }] })[0].mnpBps, 2000);
 
 assert.deepEqual(walk([{ p: 101, s: 1 }, { p: 102, s: 1 }], 2), { avg: 101.5, worst: 102 });
 assert.equal(walk([{ p: 101, s: 1 }], 2), null);

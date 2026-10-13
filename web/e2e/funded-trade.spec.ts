@@ -62,20 +62,9 @@ test("passkey account trades BTC on Perpl from /trade (mobile)", async ({ page, 
     }).toPass({ timeout: 150_000 });
     txs.push((await status.getByRole("link").getAttribute("href"))!.split("/tx/")[1]);
   };
-  /**
-   * Perpl testnet intermittently refuses fills in simulation with custom error 0xb29d1949 (no tx is sent, no gas spent);
-   * the app says so and a user taps again, which is what this does, a few times at most.
-   */
+  // No retry: 0xb29d1949 (TakerOrderSettlementFailed) came from sending maxNegPnlCollatBPS 0, fixed in lib/perpl/trade.ts.
   const tap = async (button: ReturnType<typeof main.getByRole>, text: string) => {
-    for (let i = 0; i < 6; i++) {
-      await button.click();
-      const refused = await expect(page.getByRole("alert").filter({ hasText: "0xb29d1949" }))
-        .toBeVisible({ timeout: 25_000 })
-        .then(() => true, () => false);
-      if (!refused) break;
-      console.log(`Perpl refused the fill (0xb29d1949), retry ${i + 1}`);
-      await page.waitForTimeout(5_000);
-    }
+    await button.click();
     await waitTx(text);
   };
 

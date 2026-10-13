@@ -22,7 +22,7 @@ const net = PERPL[copasChain.id as keyof typeof PERPL];
 const EX = net.exchange as `0x${string}`;
 const AUSD = net.ausd as `0x${string}`;
 const BUFFER = 0.005; // IOC limit 0.5% past the worst book level we expect to touch
-/** Perpl testnet's custom error for a refused fill (args: perpId, accountId, prices, lot, …, code 14); seen on and off since 12 Oct, see docs/STATUS.md. */
+/** Perpl TakerOrderSettlementFailed(perpId, accountId, entry/collat/pnl price, filled, unfillable, resultCode) from dex-sdk Errors.abi.json. */
 const PERPL_NO_FILL = "0xb29d1949";
 const input = "num w-full rounded-md border border-line-strong bg-bg px-3 py-2.5 text-base focus:border-gold focus:outline-none";
 
@@ -213,7 +213,7 @@ export function TradeApp({ initial }: { initial?: string }) {
       address: EX,
       abi: perplTradeAbi as Abi,
       functionName: "execOrder",
-      args: [orderDesc({ perpId: m!.id, orderType: o.orderType, pricePNS: o.pricePNS, lotLNS: o.lotLNS, leverageHdths: BigInt(Math.round(o.lev * 100)), ioc: o.ioc, orderId: o.orderId }, block)],
+      args: [orderDesc({ perpId: m!.id, orderType: o.orderType, pricePNS: o.pricePNS, lotLNS: o.lotLNS, leverageHdths: BigInt(Math.round(o.lev * 100)), ioc: o.ioc, orderId: o.orderId, mnpBps: m!.mnpBps }, block)],
     });
     if (!h) return;
     const r = await copasPublic.getTransactionReceipt({ hash: h });
@@ -576,8 +576,8 @@ export function TradeApp({ initial }: { initial?: string }) {
             <p role="alert" className="mt-2 text-sm text-down">
               {error.includes(PERPL_NO_FILL)
                 ? L(
-                    `Perpl testnet menolak fill ini di simulasi (error ${PERPL_NO_FILL}, kadang terjadi saat book testnet diperbarui). Tidak ada tx terkirim, tidak ada gas terpakai. Coba lagi beberapa detik lagi.`,
-                    `Perpl testnet refused this fill in simulation (error ${PERPL_NO_FILL}, intermittent while its testnet book refreshes). No tx was sent, no gas spent. Try again in a few seconds.`,
+                    `Perpl menolak settlement fill ini di simulasi (TakerOrderSettlementFailed ${PERPL_NO_FILL}: rugi terhadap harga mark melebihi batas order). Tidak ada tx terkirim, tidak ada gas terpakai. Coba lagi atau kecilkan ukuran.`,
+                    `Perpl refused to settle this fill in simulation (TakerOrderSettlementFailed ${PERPL_NO_FILL}: the loss vs mark exceeds the order's limit). No tx was sent, no gas spent. Try again or reduce size.`,
                   )
                 : error}
             </p>

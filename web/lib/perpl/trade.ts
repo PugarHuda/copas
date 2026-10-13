@@ -42,9 +42,10 @@ export type TMarket = {
   maintLev: number; // maintenance, x
   takerBp: number;
   maxSlipBps: number;
+  mnpBps: number; // order_max_neg_pnl_collat_bps
 };
 
-type Ctx = { markets: { id: number; symbol: string; order_max_market_slippage_bps?: number; config: { is_open: boolean; price_decimals: number; size_decimals: number; initial_margin: number; maintenance_margin: number; taker_fee: number } }[] };
+type Ctx = { markets: { id: number; symbol: string; order_max_market_slippage_bps?: number; order_max_neg_pnl_collat_bps?: number; config: { is_open: boolean; price_decimals: number; size_decimals: number; initial_margin: number; maintenance_margin: number; taker_fee: number } }[] };
 export const toTMarkets = (c: Ctx): TMarket[] =>
   c.markets
     .filter((m) => m.config.is_open)
@@ -57,6 +58,7 @@ export const toTMarkets = (c: Ctx): TMarket[] =>
       maintLev: m.config.maintenance_margin / 100,
       takerBp: m.config.taker_fee / 100,
       maxSlipBps: m.order_max_market_slippage_bps ?? 100,
+      mnpBps: m.order_max_neg_pnl_collat_bps ?? DEFAULT_MNP_BPS,
     }));
 
 export const toPNS = (p: number, m: TMarket) => BigInt(Math.round(p * 10 ** m.pd));
@@ -64,7 +66,15 @@ export const toLNS = (s: number, m: TMarket) => BigInt(Math.floor(s * 10 ** m.sd
 export const fromPNS = (v: bigint | number, m: TMarket) => Number(v) / 10 ** m.pd;
 export const fromLNS = (v: bigint | number, m: TMarket) => Number(v) / 10 ** m.sd;
 
-export type OrderInput = { perpId: number; orderType: number; pricePNS: bigint; lotLNS: bigint; leverageHdths: bigint; ioc: boolean; orderId?: bigint; expiryBlock?: bigint };
+/**
+ * maxNegPnlCollatBPS: how much negative PnL vs the mark price (bps of the resulting position's notional) a fill may
+ * collateralize. 0 is NOT "default" onchain, it means "refuse any fill below mark for a short / above mark for a long":
+ * Perpl then reverts TakerOrderSettlementFailed (0xb29d1949, resultCode 14) whenever the book sits on the wrong side of
+ * the mark, which on testnet flips block to block. 1000 = Perpl's market default and dex-sdk DEFAULT_MAX_NEG_PNL_COLLAT_BPS.
+ */
+export const DEFAULT_MNP_BPS = 1000;
+
+export type OrderInput = { perpId: number; orderType: number; pricePNS: bigint; lotLNS: bigint; leverageHdths: bigint; ioc: boolean; orderId?: bigint; expiryBlock?: bigint; mnpBps?: number };
 /** OrderDesc for execOrder. IOC orders expire 20 blocks out (Perpl order_ttl_blocks); resting limits never (expiry 0). */
 export function orderDesc(o: OrderInput, block: bigint) {
   return {
@@ -82,7 +92,7 @@ export function orderDesc(o: OrderInput, block: bigint) {
     leverageHdths: o.leverageHdths,
     lastExecutionBlock: 0n,
     amountCNS: 0n,
-    maxNegPnlCollatBPS: 0n,
+    maxNegPnlCollatBPS: BigInt(o.mnpBps ?? DEFAULT_MNP_BPS),
   };
 }
 
