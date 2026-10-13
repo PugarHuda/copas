@@ -36,6 +36,8 @@ Explorer: `https://testnet.monadexplorer.com/address/<addr>`
 
 **Cut list if over time:** drop the `mm copas` shot first, then shorten `/analytics` to 5 s.
 
+**Mobile trade shot (Agora bounty, record on a phone or at 390px, ~25 s; separate clip or replaces the `mm copas` shot):** home-screen Copas icon opens `/trade` standalone → passkey sign-in → Funds shows wallet AUSD and Perpl balance → Long 0.0002 BTC 3x, rail shows ✓ Market / Leverage / Notional / Drawdown → passkey signs, "Filled" + tx link → position card with PnL and liq. price → Close position. VO: "Copas is also a mobile app. My passkey is the account, AUSD is the margin, and the order goes straight to Perpl. Before I sign, it is checked against my own mandate, the same rules a bonded leader keeps. Keep them, and I can bond this mandate and let others copy me."
+
 ---
 
 ## 2. Pitch (target 1:50)
