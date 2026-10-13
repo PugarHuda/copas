@@ -19,6 +19,7 @@ On Perpl, 71% of traders lose money within 30 days, and copy-trading leaders ris
 - New 12 Oct: **ERC-8004 reputation per epoch**. Agent leader #2209 has 5 feedback entries in the testnet ReputationRegistry (`0x8004B663…8713`), one per finished epoch, written by a Copas rater that is not the agent's owner (`keeper/scripts/reputation.ts`). The leader page reads them back: https://copas-mocha.vercel.app/leader/0xbC277432C927996E5F91a2D356289895e1415958
 - Live pages worth a look: `/saved` (live Perpl losses vs what a Copas bond returns), `/seasons` (leaders ranked by follower outcome), `/proof` (real breach math + Privy DENY), `/become-leader` (Hyperliquid track-record import)
 - Contracts: `contracts/deployments/10143.json` (registry `0xA8BA57c7Af1d9A28660653E0439A180c86D03e3d`, feed `0x75d52573C684C7799778Da633fDceB80297d7718`)
+- Verified source: every Copas contract on testnet is verified on Sourcify Monad (registry, both vault factories, leader factory, BreachMarket, AgentLeaderRegistry, CopasFeed, CopasRiskConsumer, all 5 LeaderBooks + pools, the demo FollowerVault), e.g. https://testnet.monadvision.com/address/0xA8BA57c7Af1d9A28660653E0439A180c86D03e3d. Full list with links: `docs/STATUS.md` (13 Okt)
 
 ## Bounties
 
