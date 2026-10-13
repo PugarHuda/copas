@@ -119,7 +119,7 @@ type Analysis = {
 };
 
 export function useAnalysis(addr?: string) {
-  return useQuery({ queryKey: ["analysis", addr], queryFn: () => call<Analysis>(`leader/${addr}/analysis`), enabled: !!addr, staleTime: 300_000 });
+  return useQuery({ queryKey: ["analysis", addr], queryFn: () => call<Analysis>(`leader/${addr?.toLowerCase()}/analysis`) /* one CDN cache entry per leader: each miss is an LLM call */, enabled: !!addr, staleTime: 300_000 });
 }
 
 export function AnalysisPanel({ perplAddress }: { perplAddress?: string }) {
