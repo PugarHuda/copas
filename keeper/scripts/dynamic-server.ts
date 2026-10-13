@@ -1,5 +1,5 @@
 // pnpm dynamic:server <step> — Dynamic server wallet (environment API token) as LeaderBook operator. steps: create | policy | unpolicy | signtest <chainId> | trade <orderType> <lot> | deny
-import { readFileSync, writeFileSync, appendFileSync, existsSync } from 'node:fs';
+import { readFileSync, writeFileSync, appendFileSync, chmodSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { createPublicClient, encodeFunctionData, http, parseAbi, type Address, type Hex } from 'viem';
 import { DynamicEvmWalletClient } from '@dynamic-labs-wallet/node-evm';
@@ -21,7 +21,9 @@ const step = process.argv[2];
 if (step === 'create') {
   const { walletMetadata, externalServerKeyShares } = await client.createWalletAccount({ thresholdSignatureScheme: ThresholdSignatureScheme.TWO_OF_TWO, backUpToDynamic: false });
   writeFileSync(FILE, JSON.stringify({ environmentId: ENV, leaderBook: LEADER, walletMetadata }, null, 2));
-  appendFileSync(resolve(cfg.ROOT, '.env'), `\nDYNAMIC_SERVER_KEYSHARES=${Buffer.from(JSON.stringify(externalServerKeyShares)).toString('base64')}\n`);
+  const envPath = resolve(cfg.ROOT, '.env');
+  appendFileSync(envPath, `\nDYNAMIC_SERVER_KEYSHARES=${Buffer.from(JSON.stringify(externalServerKeyShares)).toString('base64')}\n`, { mode: 0o600 });
+  chmodSync(envPath, 0o600); // a key share is half of the wallet: owner-only
   console.log('server wallet', walletMetadata.accountAddress, walletMetadata.walletId);
 } else {
   const { walletMetadata } = JSON.parse(readFileSync(FILE, 'utf8'));
