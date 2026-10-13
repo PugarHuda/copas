@@ -47,13 +47,14 @@ export default async function Compare({ searchParams }: { searchParams: Promise<
     ["Profit factor", (d) => (d.stats?.profitFactor == null ? "–" : Number.isFinite(d.stats.profitFactor) ? num(d.stats.profitFactor, 2) : "∞")],
     [L("Trade", "Trades"), (d) => d.stats?.trades ?? "–"],
   ];
-  const indexed = ok
-    .filter((d) => d.curve && d.curve.length > 1 && d.curve[0].equity > 0)
+  // USD change, not an index: equity / start blows up (×1000s) when an account starts the window near $0 and then deposits
+  const change = ok
+    .filter((d) => d.curve && d.curve.length > 1)
     .map((d) => ({
       name: short(d.snap!.address),
       kind: "line" as const,
       color: COLORS[ok.indexOf(d)],
-      data: d.curve!.map((p) => ({ t: p.t, v: (p.equity / d.curve![0].equity) * 100 })),
+      data: d.curve!.map((p) => ({ t: p.t, v: p.equity - d.curve![0].equity })),
     }));
   return (
     <div className="space-y-6">
@@ -106,9 +107,9 @@ export default async function Compare({ searchParams }: { searchParams: Promise<
               </table>
             </div>
           </Panel>
-          <Panel title={L("Equity 5 hari, diindeks ke 100", "5-day equity, indexed to 100")}>
-            {indexed.length ? <TimeChart ariaLabel="Indexed equity" height={260} format="num" series={indexed} /> : <Empty>–</Empty>}
-            <p className="mt-2 text-xs text-ink-3">{L("Setiap kurva dibagi equity awalnya, jadi akun besar dan kecil bisa dibandingkan pada satu sumbu.", "Each curve is divided by its starting equity, so large and small accounts share one axis.")}</p>
+          <Panel title={L("Perubahan equity 5 hari", "5-day equity change")}>
+            {change.length ? <TimeChart ariaLabel="Equity change" height={260} format="usd" series={change} /> : <Empty>–</Empty>}
+            <p className="mt-2 text-xs text-ink-3">{L("Equity dikurangi equity di awal jendela, dalam AUSD. Termasuk deposit dan penarikan.", "Equity minus equity at the start of the window, in AUSD. Deposits and withdrawals are included.")}</p>
           </Panel>
         </>
       )}
