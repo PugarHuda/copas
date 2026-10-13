@@ -4,7 +4,7 @@ import "server-only";
 // vault when a protective rule holds. Dynamic's delegated-signer policy (seeded by the client) refuses anything else.
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from "node:crypto";
 import { del, get, put } from "@vercel/blob";
-import { createPublicClient, encodeFunctionData, type Abi } from "viem";
+import { createPublicClient, encodeFunctionData, keccak256, parseSignature, recoverTransactionAddress, serializeTransaction, type Abi } from "viem";
 import { copasChain, rpcTransport } from "../chains";
 import { copasAbi, deployment } from "../copas/contracts";
 
@@ -109,45 +109,55 @@ export async function guardChecks(owner: `0x${string}`): Promise<GuardCheck[]> {
   return out;
 }
 
-/** Signs `vault.unfollow()` with the delegated share and broadcasts it. */
-export async function delegatedUnfollow(d: Delegation, vault: `0x${string}`) {
-  const { createDelegatedEvmWalletClient, delegatedSignTransaction } = await import("@dynamic-labs-wallet/node-evm");
+type Tx = { type: "eip1559"; chainId: number; to: `0x${string}`; data: `0x${string}`; nonce: number; gas: bigint; maxFeePerGas: bigint; maxPriorityFeePerGas: bigint };
+
+/**
+ * Delegated signature for one Copas transaction. Dynamic's transaction validation does not cover Monad testnet
+ * ("This chain is not supported for transaction validation"), so on that answer we fall back to signing the
+ * keccak pre-image of the same unsigned transaction (delegatedSignRawMessage with rawSign context) and assemble it.
+ * ponytail: on testnet the call allowlist is this file (only unfollow is ever built); Dynamic's tx policy takes over on chains it validates.
+ */
+async function delegatedSign(d: Delegation, tx: Tx): Promise<{ signed: `0x${string}`; path: "transaction" | "raw" }> {
+  const { createDelegatedEvmWalletClient, delegatedSignTransaction, delegatedSignRawMessage } = await import("@dynamic-labs-wallet/node-evm");
   const client = createDelegatedEvmWalletClient({ environmentId: DYN_ENV, apiKey: process.env.DYNAMIC_API_TOKEN! });
-  const data = encodeFunctionData({ abi: VAULT, functionName: "unfollow" });
-  const [nonce, gas, fees] = await Promise.all([
-    pub.getTransactionCount({ address: d.address, blockTag: "pending" }),
-    pub.estimateGas({ account: d.address, to: vault, data }),
-    pub.estimateFeesPerGas(),
-  ]);
-  const signed = await delegatedSignTransaction(client, {
-    walletId: d.walletId,
-    shareSetId: d.shareSetId,
-    walletApiKey: d.walletApiKey,
-    keyShare: d.keyShare as never,
-    transaction: { type: "eip1559", chainId: copasChain.id, to: vault, data, nonce, gas: (gas * 13n) / 10n, maxFeePerGas: fees.maxFeePerGas, maxPriorityFeePerGas: fees.maxPriorityFeePerGas },
-  });
-  const hash = await pub.sendRawTransaction({ serializedTransaction: signed as `0x${string}` });
-  const r = await pub.waitForTransactionReceipt({ hash });
-  return { hash, status: r.status };
+  const auth = { walletId: d.walletId, shareSetId: d.shareSetId, walletApiKey: d.walletApiKey, keyShare: d.keyShare as never };
+  try {
+    return { signed: (await delegatedSignTransaction(client, { ...auth, transaction: tx })) as `0x${string}`, path: "transaction" };
+  } catch (e) {
+    if (!/not supported for transaction validation/i.test(e instanceof Error ? e.message : String(e))) throw e;
+  }
+  const unsigned = serializeTransaction(tx);
+  const sig = await delegatedSignRawMessage(client, { ...auth, message: keccak256(unsigned), rawSign: { payload: unsigned, hashFunction: "keccak256" } as never });
+  const signed = serializeTransaction(tx, parseSignature(sig as `0x${string}`));
+  if ((await recoverTransactionAddress({ serializedTransaction: signed as never })).toLowerCase() !== d.address.toLowerCase()) throw new Error("raw signature does not recover to the wallet");
+  return { signed, path: "raw" };
 }
 
-/** Asks Dynamic to sign (never broadcast) a vault call with the delegated share: withdraw must be refused by policy. */
+async function txFor(d: Delegation, vault: `0x${string}`, data: `0x${string}`, estimate: boolean): Promise<Tx> {
+  const [nonce, fees, gas] = await Promise.all([
+    pub.getTransactionCount({ address: d.address, blockTag: "pending" }),
+    pub.estimateFeesPerGas(),
+    estimate ? pub.estimateGas({ account: d.address, to: vault, data }) : Promise.resolve(250_000n),
+  ]);
+  return { type: "eip1559", chainId: copasChain.id, to: vault, data, nonce, gas: estimate ? (gas * 13n) / 10n : gas, maxFeePerGas: fees.maxFeePerGas, maxPriorityFeePerGas: fees.maxPriorityFeePerGas };
+}
+
+/** Signs `vault.unfollow()` with the delegated share and broadcasts it. */
+export async function delegatedUnfollow(d: Delegation, vault: `0x${string}`) {
+  const tx = await txFor(d, vault, encodeFunctionData({ abi: VAULT, functionName: "unfollow" }), true);
+  const { signed, path } = await delegatedSign(d, tx);
+  const hash = await pub.sendRawTransaction({ serializedTransaction: signed });
+  const r = await pub.waitForTransactionReceipt({ hash });
+  return { hash, status: r.status, path };
+}
+
+/** Asks Dynamic to sign (never broadcast) a vault call with the delegated share and reports the answer. */
 export async function delegatedProbe(d: Delegation, vault: `0x${string}`, fn: "withdraw" | "unfollow") {
-  const { createDelegatedEvmWalletClient, delegatedSignTransaction } = await import("@dynamic-labs-wallet/node-evm");
-  const client = createDelegatedEvmWalletClient({ environmentId: DYN_ENV, apiKey: process.env.DYNAMIC_API_TOKEN! });
   const data = fn === "withdraw" ? encodeFunctionData({ abi: VAULT, functionName: "withdraw", args: [1n] }) : encodeFunctionData({ abi: VAULT, functionName: "unfollow" });
-  const nonce = await pub.getTransactionCount({ address: d.address, blockTag: "pending" });
-  const fees = await pub.estimateFeesPerGas();
   try {
-    await delegatedSignTransaction(client, {
-      walletId: d.walletId,
-      shareSetId: d.shareSetId,
-      walletApiKey: d.walletApiKey,
-      keyShare: d.keyShare as never,
-      transaction: { type: "eip1559", chainId: copasChain.id, to: vault, data, nonce, gas: 300_000n, maxFeePerGas: fees.maxFeePerGas, maxPriorityFeePerGas: fees.maxPriorityFeePerGas },
-    });
-    return { outcome: "SIGNED" as const }; // never broadcast
+    const { path } = await delegatedSign(d, await txFor(d, vault, data, false));
+    return { outcome: "SIGNED" as const, path }; // never broadcast
   } catch (e) {
-    return { outcome: "REFUSED" as const, error: (e instanceof Error ? e.message : String(e)).split("\n")[0].slice(0, 300) };
+    return { outcome: "REFUSED" as const, error: (e instanceof Error ? e.message : String(e)).split(/\r?\n/)[0].slice(0, 300) };
   }
 }
