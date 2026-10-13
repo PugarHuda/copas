@@ -38,7 +38,8 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: SP
         <WalletSearch />
       </PageHead>
 
-      <Suspense fallback={<Skeleton h={88} />}>
+      {/* the stat grid wraps to 2 or 3 rows on narrow screens: reserve its real height (measured) so the page below does not jump */}
+      <Suspense fallback={<div className="h-[397px] animate-pulse rounded bg-surface-2/60 sm:h-[303px] lg:h-[197px]" aria-hidden />}>
         <Headline L={L} />
       </Suspense>
 
