@@ -17,7 +17,7 @@ import { copasChain, explorerTx } from "@/lib/chains";
 
 type Fills = { rows: LiveVault["fills"]; src: "indexer" | "rpc" };
 
-export function MeView({ live, chain, leader, fills, query }: { live: LiveVault | null; chain: VaultState | null; leader: Leader | null; fills: Fills; query?: string }) {
+export function MeView({ live, chain, leader, fills, query, badQuery }: { live: LiveVault | null; chain: VaultState | null; leader: Leader | null; fills: Fills; query?: string; badQuery?: boolean }) {
   const L = useL();
   const { t } = useT();
   const router = useRouter();
@@ -40,7 +40,9 @@ export function MeView({ live, chain, leader, fills, query }: { live: LiveVault 
         {head}
         <Panel>
           <Empty>
-            {query
+            {badQuery
+              ? L("Itu bukan alamat 0x (40 karakter hex). ", "That is not a 0x address (40 hex characters). ")
+              : query
               ? L(`Belum ada vault untuk ${short(query)}. `, `No vault for ${short(query)} yet. `)
               : status === "signed-in"
                 ? L("Membaca vault kamu…", "Reading your vault…")
