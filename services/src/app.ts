@@ -4,6 +4,7 @@ import { attest } from "./attest.js";
 import { type FollowerParams, type MandateParams, backtest } from "./backtest.js";
 import { computeFeatures } from "./features.js";
 import { analyzeLeader } from "./kimi.js";
+import { handleMcp } from "./mcp.js";
 import { type LeaderData, fetchEnvioAccounts, fetchLeaderboard, getLeaderData } from "./leaderData.js";
 import { NansenUnavailable, alignmentScore, compositeScore, discoverLeaders, exposureByMarket, fetchMonadNetflow, nansenClient } from "./nansen.js";
 import { simulate } from "./simulate.js";
@@ -76,7 +77,7 @@ export function createApp(deps: { fetch?: Fetch; now?: () => number } = {}) {
     });
   }
 
-  app.get("/", (c) => c.json({ service: "@copas/services", routes: ["/leader/:addr/stats", "POST /leader/:addr/backtest", "/leader/:addr/analysis", "/leader/:addr/alignment", "/discover", "POST /simulate", "/attest/:addr", ...(seller ? ["GET /x402/report/:addr (x402, Monad testnet USDC)"] : [])] }));
+  app.get("/", (c) => c.json({ service: "@copas/services", routes: ["/leader/:addr/stats", "POST /leader/:addr/backtest", "/leader/:addr/analysis", "/leader/:addr/alignment", "/discover", "POST /simulate", "/attest/:addr", "POST /mcp (MCP Streamable HTTP, read-only tools)", ...(seller ? ["GET /x402/report/:addr (x402, Monad testnet USDC)"] : [])] }));
 
   app.get("/leader/:addr/stats", async (c) => {
     const d = await leader(c.req.param("addr"), Number(c.req.query("days") ?? 30));
@@ -176,6 +177,14 @@ export function createApp(deps: { fetch?: Fetch; now?: () => number } = {}) {
   });
 
   app.get("/attest/:addr", async (c) => c.json(await attest(addr(c.req.param("addr")), { fetch: f, now: now() })));
+
+  // MCP for AI agents: tools call the routes above in-process (app.request) and read Copas onchain; never CDN-cached
+  app.all("/mcp", async (c) => {
+    const r = await handleMcp(c.req.raw, (p, init) => app.request(p, init), f);
+    const out = new Response(r.body, r);
+    out.headers.set("Cache-Control", "no-store");
+    return out;
+  });
 
   return app;
 }

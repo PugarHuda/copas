@@ -31,6 +31,7 @@ route handlers (server only, because the module reads env keys).
 | `GET /discover?limit=10` | nansen (D2, D4) | same | candidate leaders with composite scores, cost ledger |
 | `POST /simulate` body `{from,to,data,value?,chainId?}` | simulate (C4) | Tenderly optional | balance changes and decoded events |
 | `GET /attest/:addr` | attest (A7) | `ATTESTER_PRIVATE_KEY` | record, canonical JSON, keccak hash, EIP-191 signature, attester |
+| `POST /mcp` | mcp | none | Model Context Protocol (Streamable HTTP, stateless): 12 read-only tools, see section 8 |
 | `GET /x402/report/:addr` | x402seller (D4) | `X402_PAY_TO` | 402 until paid 0.01 testnet USDC on Monad (`eip155:10143`, USDC `0x534b…43A3`), settled by the Monad facilitator `x402-facilitator.molandak.org`; then `{attestation, analysis, paidWith}` |
 
 When a key is missing, the route returns `503 {error, missing}`. `/analysis` also returns the deterministic
@@ -118,8 +119,33 @@ Live, 12 Oct: a real payment settled against production, tx `0x5d9c18d9819552d79
 `0x7f6a…Db86` (0.01 USDC from the deployer to the attester). Testnet USDC for the payer came from selling 0.8 MON on
 Kuru's testnet MON/USDC book `0x1f57a841540fe23c2989387c18f2cb1335cbae92` (`placeAndExecuteMarketSell`, native MON).
 
+### 8. MCP server for AI agents (`mcp.ts`)
+`https://copas-services.vercel.app/mcp` is a Model Context Protocol endpoint (`@modelcontextprotocol/sdk`
+`WebStandardStreamableHTTPServerTransport`, stateless, JSON responses, `Cache-Control: no-store`), so any MCP client
+(Claude, Cursor, a MetaMask agent running next to the `mm copas` plugin) can research a leader and read Copas state
+before it acts. Every tool is read-only (`readOnlyHint`); none takes or holds a key. Writes stay in the plugin's
+`walletExecutor` with its risk limits.
+
+| Tool | Source |
+|---|---|
+| `copas_protocol` | CopasRegistry on Monad testnet: factories, leader count, markets, bond ratio, deposit cap, fee splits |
+| `copas_list_leaders` | every LeaderBook from `registry.leaderBooks(i)` with status, epoch, mandate, bond, protection, equity, unit price, capacity |
+| `copas_get_leader` | one LeaderBook (refused unless `registry.isLeaderBook`): owner/operator, current + pending mandate, bond vs min bond, fee escrow, pool |
+| `copas_get_vault` | one FollowerVault (refused unless `registry.isVault`): followed leader, copy params, accepted mandate + `consentOk`, equity, HWM |
+| `copas_get_owner` | `registry.vaultsOf` / `leadersOf` for a wallet |
+| `perpl_leader_stats`, `perpl_backtest`, `perpl_leader_analysis`, `perpl_leader_alignment`, `perpl_discover_leaders`, `perpl_attest_track_record`, `monad_simulate_tx` | the HTTP routes above, run in-process (`app.request`), so answers and errors match the API exactly |
+
+Onchain reads are one Multicall3 call per object through viem (`MONAD_TESTNET_RPC_URL` or the public RPC). Only the
+registry address is fixed (`contracts/deployments/10143.json`); factories, leader books and vaults are read from it.
+
+```
+npx @modelcontextprotocol/inspector --cli https://copas-services.vercel.app/mcp --method tools/list
+npx @modelcontextprotocol/inspector --cli https://copas-services.vercel.app/mcp --method tools/call --tool-name copas_list_leaders
+claude mcp add --transport http copas https://copas-services.vercel.app/mcp
+```
+
 ## Tests
-`test/services.test.ts` (35 tests) runs against `test/fixtures`. One test calls the live facilitator's `/supported`
+`test/services.test.ts` (41 tests) runs against `test/fixtures`. One test calls the live facilitator's `/supported`
 (x402 seller 402 shape); everything else is offline:
 - Real recordings: Perpl leaderboard, plumb fills of leader `0xedcd…409b`, plumb wallet, live Nansen 402.
 - Synthetic files, marked `_note`, shaped from the official schemas: Nansen 200s, Kimi completion, Tenderly.
@@ -130,6 +156,7 @@ Kuru's testnet MON/USDC book `0x1f57a841540fe23c2989387c18f2cb1335cbae92` (`plac
 - Envio GraphQL source.
 - 503s, and LLM guard overrides.
 - EIP-191 analysis receipt verifies against its signer.
+- MCP: tool list (all read-only, `no-store`), data tools equal the HTTP routes, `copas_get_leader` decoded from a stubbed Multicall3.
 
 Not covered by tests: the `eth_simulateV1` fallback (checked live only) and real Kimi/Nansen responses (no keys
 yet). Run `pnpm fixtures` after adding keys to extend the recordings.

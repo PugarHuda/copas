@@ -13,6 +13,7 @@ import { type Fill, PERPL_ABI, closedTrades, getLeaderData, normalizePlumbRow } 
 import { alignmentScore, clearNetflowCache, compositeScore, discoverLeaders, exposureByMarket, fetchMonadNetflow, monadPriceUsd, nansenClient } from "../src/nansen.js";
 import { simulate } from "../src/simulate.js";
 import { createApp } from "../src/app.js";
+import { COPAS_ABI } from "../src/mcp.js";
 import { LEADER, NOW, calls, nansen, nansen402, stubFetch, trades } from "./stub.js";
 
 // The Kimi-path tests must not pick up a developer machine's global OpenRouter key.
@@ -561,5 +562,68 @@ describe("D1 receipt + D4 x402 seller", () => {
       delete process.env.X402_PAY_TO;
       delete process.env.X402_FACILITATOR_URL;
     }
+  });
+});
+
+describe("MCP /mcp (Streamable HTTP, stateless)", () => {
+  const app = createApp({ fetch: stubFetch, now: () => NOW });
+  const mcp = async (method: string, params: object = {}) => {
+    const r = await app.request("/mcp", { method: "POST", headers: { "content-type": "application/json", accept: "application/json, text/event-stream" }, body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }) });
+    return { status: r.status, cache: r.headers.get("cache-control"), body: (await r.json()) as any };
+  };
+  const tool = async (name: string, args: object) => (await mcp("tools/call", { name, arguments: args })).body.result;
+
+  it("lists read-only tools and is never cached", async () => {
+    const r = await mcp("tools/list");
+    expect(r.status).toBe(200);
+    expect(r.cache).toBe("no-store");
+    const tools = r.body.result.tools as any[];
+    expect(tools.map((t) => t.name).sort()).toEqual(["copas_get_leader", "copas_get_owner", "copas_get_vault", "copas_list_leaders", "copas_protocol", "monad_simulate_tx", "perpl_attest_track_record", "perpl_backtest", "perpl_discover_leaders", "perpl_leader_alignment", "perpl_leader_analysis", "perpl_leader_stats"]);
+    expect(tools.every((t) => t.annotations.readOnlyHint && !t.annotations.destructiveHint)).toBe(true);
+  });
+
+  it("data tools answer exactly what the HTTP routes answer; errors become tool errors", async () => {
+    const http = await (await app.request(`/leader/${LEADER}/stats?days=90`)).json();
+    expect(JSON.parse((await tool("perpl_leader_stats", { address: LEADER, days: 90 })).content[0].text)).toEqual(http);
+    const bt = JSON.parse((await tool("perpl_backtest", { address: LEADER, days: 90, mandate: { maxDDbps: 300 } })).content[0].text);
+    expect(bt).toEqual(await (await app.request(`/leader/${LEADER}/backtest`, { method: "POST", body: JSON.stringify({ days: 90, mandate: { maxDDbps: 300 } }) })).json());
+    const a = await tool("perpl_attest_track_record", { address: LEADER });
+    expect(a.isError).toBe(true); // no ATTESTER_PRIVATE_KEY in tests: the route's 503 comes through
+    expect(JSON.parse(a.content[0].text)).toMatchObject({ status: 503, missing: "ATTESTER_PRIVATE_KEY" });
+    const bad = await tool("perpl_leader_stats", { address: "0x123" });
+    expect(bad.isError).toBe(true);
+  });
+
+  it("copas_get_leader decodes LeaderBook state from one multicall; non-leaders are refused", async () => {
+    const LB = "0xbC277432C927996E5F91a2D356289895e1415958";
+    const m = { maxDDbps: 1500, maxLeverageHdths: 500, feeBps: 1500, epochLen: 3600n, maxNotionalCNS: 1000_000000n, marketsMask: 1n };
+    const state: Record<string, unknown> = {
+      isLeaderBook: true, owner: "0x2358787CEA19eC46202612a8949Cc185407fB8F1", operator: "0x32E6C5D4Bf1EDC86576769f794da3Dd41c140D52", accountId: 1126n, status: 0, epoch: 13n, epochStart: 1791856712n, epochEnd: 1791860312n,
+      units: 100_000000n, bond: 50_000000n, feeEscrow: 0n, capTotalNext: 50_000000n, peakUnitPrice: 998210790000000000n, hasPendingMandate: false, mandate: m, pendingMandate: m,
+      equity: [99_829839n, true], unitPrice: [998298390000000000n, true], minBond: 25_000000n, capacity: 299_489517n, protection: 50_000000n, pool: "0x9d0fe81122D08112b589CD1E99070729Fe45D21a",
+    };
+    let isLB = true;
+    const f: typeof fetch = async (u, init) => {
+      if (!String(u).includes("testnet-rpc.monad.xyz")) return stubFetch(u, init);
+      const body = JSON.parse(String(init?.body));
+      const { args } = decodeFunctionData({ abi: multicall3Abi, data: body.params[0].data });
+      const results = (args![0] as { callData: Hex }[]).map(({ callData }) => {
+        const c = decodeFunctionData({ abi: COPAS_ABI, data: callData });
+        const v = c.functionName === "isLeaderBook" ? isLB : state[c.functionName];
+        return { success: true, returnData: encodeFunctionResult({ abi: COPAS_ABI, functionName: c.functionName, result: v } as any) };
+      });
+      return new Response(JSON.stringify({ jsonrpc: "2.0", id: body.id, result: encodeFunctionResult({ abi: multicall3Abi, functionName: "aggregate3", result: results }) }), { headers: { "content-type": "application/json" } });
+    };
+    const chain = createApp({ fetch: f, now: () => NOW });
+    const call = async (args: object) => {
+      const r = await chain.request("/mcp", { method: "POST", headers: { "content-type": "application/json", accept: "application/json, text/event-stream" }, body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "copas_get_leader", arguments: args } }) });
+      return ((await r.json()) as any).result;
+    };
+    const l = JSON.parse((await call({ leaderBook: LB })).content[0].text);
+    expect(l).toMatchObject({ status: "Active", epoch: 13, bondAUSD: 50, minBondAUSD: 25, protectionAUSD: 50, equityAUSD: 99.829839, unitPrice: 0.99829839, perplAccountId: "1126", pendingMandate: null, mandate: { maxDrawdownPct: 15, maxLeverage: 5, performanceFeePct: 15, epochLenSec: 3600, maxNotionalAUSD: 1000, allowedMarketIndexes: [0] } });
+    isLB = false;
+    const no = await call({ leaderBook: LB });
+    expect(no.isError).toBe(true);
+    expect(no.content[0].text).toMatch(/is not a Copas LeaderBook/);
   });
 });
