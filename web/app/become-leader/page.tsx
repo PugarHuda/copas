@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { type Abi } from "viem";
 import { Panel, PageHead, Source, btn } from "@/components/ui";
 import { Seal } from "@/components/Seal";
@@ -28,6 +28,17 @@ export default function BecomeLeader() {
   const [bond, setBond] = useState(25);
   const [book, setBook] = useState<`0x${string}`>();
   const [operator, setOperator] = useState("");
+
+  // /trade hands over the mandate the trader kept: ?dd=&lev=&markets=&capital=
+  useEffect(() => {
+    const q = new URLSearchParams(location.search);
+    const n = (k: string) => (q.get(k) && Number.isFinite(Number(q.get(k))) ? Number(q.get(k)) : undefined);
+    const ms = q.get("markets")?.split(",").filter((x) => (["BTC", "ETH", "SOL", "MON"] as string[]).includes(x));
+    if (n("dd")) setDd(n("dd")!);
+    if (n("lev")) setLev(n("lev")!);
+    if (n("capital")) setCapital(n("capital")!);
+    if (ms?.length) setMarkets(ms);
+  }, []);
 
   const minBond = 25; // minBondAbs on mainnet demo; grows with follower AUM × 10%
   const pick = (k: Tier) => {

@@ -17,6 +17,11 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
   const lang = await getLang();
   return (
     <html lang={lang} className={`${plex.variable} ${display.variable}`}>
+      {/* in <head> on every page: Next streams dynamic pages' metadata into <body>, where Chrome ignores the manifest */}
+      <head>
+        <link rel="manifest" href="/manifest.webmanifest" />
+        <meta name="theme-color" content="#0e0f11" />
+      </head>
       <body className="min-h-screen antialiased">
         <Providers lang={lang}>
           <Header />

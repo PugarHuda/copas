@@ -7,6 +7,7 @@ import { MeraProvider } from "@/lib/mera/MeraProvider";
 import { I18nProvider } from "@/lib/i18n/client";
 import { ReferralCapture } from "@/lib/copas/referral";
 import type { Lang } from "@/lib/i18n/dict";
+import { PwaRegister } from "./PwaRegister";
 
 export function Providers({ lang, children }: { lang: Lang; children: React.ReactNode }) {
   const [qc] = useState(() => new QueryClient({ defaultOptions: { queries: { staleTime: 10_000, refetchOnWindowFocus: false } } }));
@@ -18,6 +19,7 @@ export function Providers({ lang, children }: { lang: Lang; children: React.Reac
             <Suspense fallback={null}>
               <ReferralCapture />
             </Suspense>
+            <PwaRegister />
             {children}
           </MeraProvider>
         </I18nProvider>
