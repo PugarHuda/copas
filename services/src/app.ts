@@ -56,6 +56,7 @@ export function createApp(deps: { fetch?: Fetch; now?: () => number } = {}) {
   app.onError((e, c) => {
     if (e instanceof ServiceUnavailable) return c.json({ error: e.message, missing: e.missing }, 503);
     if (e instanceof BadRequest || e instanceof SyntaxError) return c.json({ error: e.message }, 400);
+    console.error(`502 ${c.req.method} ${c.req.path}: ${e.message}`); // upstream failures show in Vercel logs
     return c.json({ error: e.message }, 502);
   });
 
