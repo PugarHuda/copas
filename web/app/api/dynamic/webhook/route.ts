@@ -18,7 +18,8 @@ type Body = {
 export async function POST(req: Request) {
   const raw = await req.text();
   const sig = verifyWebhook(raw, req.headers.get("x-dynamic-signature-256"));
-  if (sig === false) return NextResponse.json({ error: "bad signature" }, { status: 401 });
+  if (sig === "unset") return NextResponse.json({ error: "webhook secret not configured" }, { status: 503 });
+  if (sig !== true) return NextResponse.json({ error: "bad signature" }, { status: 401 });
   let body: Body;
   try {
     body = JSON.parse(raw);
@@ -27,10 +28,9 @@ export async function POST(req: Request) {
   }
   const d = body.data;
   if (body.eventName === "wallet.delegation.created" && d?.walletId && d.publicKey && d.encryptedDelegatedShare && d.encryptedWalletApiKey) {
-    // Without a webhook secret, Dynamic's admin API must confirm the wallet id <-> address pair; a forged body also
-    // cannot decrypt (it would need our private key's public half and a real share).
+    // Signed by Dynamic, and still cross-checked: the wallet id must belong to that address in our environment.
     const w = await dynamicWallet(d.walletId);
-    if (sig === null && (!w?.address || w.address.toLowerCase() !== d.publicKey.toLowerCase())) return NextResponse.json({ error: "unknown wallet" }, { status: 401 });
+    if (!w?.address || w.address.toLowerCase() !== d.publicKey.toLowerCase()) return NextResponse.json({ error: "unknown wallet" }, { status: 401 });
     const { decryptDelegatedWebhookData } = await import("@dynamic-labs-wallet/node");
     const pem = Buffer.from(process.env.DYNAMIC_DELEGATION_PRIVATE_KEY!, "base64").toString("utf8");
     const { decryptedDelegatedShare, decryptedWalletApiKey } = decryptDelegatedWebhookData({
@@ -50,8 +50,10 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: true, stored: d.walletId });
   }
   if (body.eventName === "wallet.delegation.revoked" && d?.walletId) {
+    // Only forget the share once Dynamic's API agrees the wallet no longer has a delegated share.
     const w = await dynamicWallet(d.walletId);
-    if (w?.address) await dropDelegation(w.address);
+    if (!w?.address || w.delegated !== false) return NextResponse.json({ error: "revocation not confirmed" }, { status: 409 });
+    await dropDelegation(w.address);
     return NextResponse.json({ ok: true, dropped: d.walletId });
   }
   return NextResponse.json({ ok: true, ignored: body.eventName ?? null });

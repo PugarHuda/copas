@@ -2,7 +2,7 @@ import "server-only";
 // Dynamic delegated access, server side: the follower's embedded wallet delegates an MPC share to Copas
 // (webhook wallet.delegation.created). Copas uses it for one thing only: `unfollow()` on that follower's own
 // vault when a protective rule holds. Dynamic's delegated-signer policy (seeded by the client) refuses anything else.
-import { createCipheriv, createDecipheriv, createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypto";
+import { createCipheriv, createDecipheriv, createHash, randomBytes } from "node:crypto";
 import { del, get, put } from "@vercel/blob";
 import { createPublicClient, encodeFunctionData, type Abi } from "viem";
 import { copasChain, rpcTransport } from "../chains";
@@ -16,26 +16,19 @@ const pem = () => {
 };
 const pub = createPublicClient({ chain: copasChain, transport: rpcTransport(copasChain) });
 
-/** HMAC-SHA256 of the raw body with the webhook secret, as Dynamic signs it (`x-dynamic-signature-256: sha256=<hex>`). */
-export function verifyWebhook(raw: string, header: string | null) {
-  const secret = process.env.DYNAMIC_WEBHOOK_SECRET;
-  if (!secret) return null; // not configured: caller falls back to the API cross-check
-  if (!header) return false;
-  const want = Buffer.from(`sha256=${createHmac("sha256", secret).update(raw).digest("hex")}`);
-  const got = Buffer.from(header);
-  return want.length === got.length && timingSafeEqual(want, got);
-}
+export { verifyWebhook } from "./webhookSig";
 
-/** Wallet record from Dynamic's admin API: proves a walletId really belongs to an address in our environment. */
-export async function dynamicWallet(walletId: string): Promise<{ address?: string } | null> {
+type WalletInfo = { address?: string; delegated: boolean | null };
+/** Wallet record from Dynamic's admin API: who owns a walletId, and whether a delegated share still exists for it. */
+export async function dynamicWallet(walletId: string): Promise<WalletInfo | null> {
+  if (!/^[0-9a-f-]{36}$/i.test(walletId)) return null;
   const r = await fetch(`https://app.dynamicauth.com/api/v0/environments/${DYN_ENV}/waas/${walletId}`, {
     headers: { authorization: `Bearer ${process.env.DYNAMIC_API_TOKEN}` },
     cache: "no-store",
   });
   if (!r.ok) return null;
-  const j = (await r.json()) as Record<string, unknown>;
-  const w = (j.wallet ?? j) as Record<string, unknown>;
-  return { address: (w.accountAddress ?? w.address ?? w.publicKey) as string | undefined };
+  const w = ((await r.json()) as { wallet?: { accountAddress?: string; keyShares?: { backupLocation: string }[] } }).wallet;
+  return { address: w?.accountAddress, delegated: w?.keyShares ? w.keyShares.some((k) => k.backupLocation === "delegated") : null };
 }
 
 // ---------------------------------------------------------------- storage (private Blob, AES-256-GCM at rest)

@@ -10,7 +10,7 @@
     "start": "next start",
     "lint": "eslint",
     "e2e": "playwright test",
-    "check": "node --experimental-strip-types lib/format.check.ts && node --experimental-strip-types lib/perpl/stats.check.ts && node --experimental-strip-types lib/mera/feed.check.ts && node --experimental-strip-types lib/hyperliquid.check.ts"
+    "check": "node --experimental-strip-types lib/format.check.ts && node --experimental-strip-types lib/perpl/stats.check.ts && node --experimental-strip-types lib/mera/feed.check.ts && node --experimental-strip-types lib/hyperliquid.check.ts && node --experimental-strip-types lib/dynamic/webhookSig.check.ts"
   },
   "dependencies": {
     "@category-labs/mera": "^0.2.0",
