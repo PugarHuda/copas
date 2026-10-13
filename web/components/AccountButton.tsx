@@ -23,12 +23,15 @@ const FAUCET_ERR: Record<string, string> = {
   network: "Network error. Try again.",
 };
 
-/** Telegram's in-app webview / Mini App (no WebAuthn there): its JS bridge, the Mini App launch hash, or a flag from earlier in this tab. */
-function useInTelegram() {
+/**
+ * Telegram's in-app webview / Mini App (WebAuthn is missing or blocked there on most clients): its JS bridge, the Mini App
+ * launch hash, the bot's ?source=tg menu-button link, or a flag from earlier in this tab.
+ */
+export function useInTelegram() {
   const [tg, setTg] = useState(false);
   useEffect(() => {
     try {
-      const hit = "TelegramWebviewProxy" in window || location.hash.includes("tgWebApp") || sessionStorage.getItem("copas:tg") === "1";
+      const hit = "TelegramWebviewProxy" in window || location.hash.includes("tgWebApp") || new URLSearchParams(location.search).get("source") === "tg" || sessionStorage.getItem("copas:tg") === "1";
       if (hit) sessionStorage.setItem("copas:tg", "1");
       setTg(hit);
     } catch {
@@ -36,6 +39,26 @@ function useInTelegram() {
     }
   }, []);
   return tg;
+}
+
+/**
+ * Opens `url` outside the Mini App webview (system browser / Safari View Controller / Custom Tab, where passkeys work), through
+ * Telegram's raw Mini App method web_app_open_link: the native bridge on mobile/desktop, postMessage to the parent on Telegram Web.
+ */
+/** This page's URL for the system browser: no Mini App launch hash, no ?source=tg (so the browser tab is not flagged as Telegram). */
+export function browserUrl() {
+  const u = new URL(location.href);
+  u.hash = "";
+  u.searchParams.delete("source");
+  return u.toString();
+}
+
+export function openOutsideTelegram(url: string) {
+  const ev = { eventType: "web_app_open_link", eventData: { url } };
+  const w = window as unknown as { TelegramWebviewProxy?: { postEvent: (t: string, d: string) => void } };
+  if (w.TelegramWebviewProxy) w.TelegramWebviewProxy.postEvent(ev.eventType, JSON.stringify(ev.eventData));
+  else if (window.parent !== window) window.parent.postMessage(JSON.stringify(ev), "https://web.telegram.org");
+  else window.open(url, "_blank", "noopener");
 }
 
 export function AccountButton() {
@@ -113,9 +136,9 @@ export function AccountButton() {
           {inTelegram ? (
             <div className="mt-3 grid gap-2">
               <p className="text-xs text-warn">Passkeys don&apos;t work inside Telegram. Open Copas in your browser to sign in; everything else works here.</p>
-              <a className={btn.primary + " text-center"} href={typeof window === "undefined" ? "/" : location.href.split("#")[0]} target="_blank" rel="noreferrer">
+              <button className={btn.primary} onClick={() => openOutsideTelegram(browserUrl())}>
                 Open in browser to sign in
-              </a>
+              </button>
             </div>
           ) : (
             <div className="mt-3 grid gap-2">

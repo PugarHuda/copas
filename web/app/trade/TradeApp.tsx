@@ -15,6 +15,7 @@ import {
   type Ledger, type Mandate, type TMarket,
 } from "@/lib/perpl/trade";
 import { perplExchangeAbi } from "@/lib/perpl/abi";
+import { browserUrl, openOutsideTelegram, useInTelegram } from "@/components/AccountButton";
 import { AusdFacts } from "./AusdFacts";
 
 const net = PERPL[copasChain.id as keyof typeof PERPL];
@@ -113,9 +114,10 @@ async function readAccount(address: `0x${string}`, markets: TMarket[], perpId: n
 export function TradeApp({ initial }: { initial?: string }) {
   const L = useL();
   const qc = useQueryClient();
-  const { status, address, signIn, create, authorize, supported } = useMeraSession();
+  const { status, address, signIn, create, authorize, supported, error: authErr } = useMeraSession();
   const { write, pending, error } = useCopasWrite();
   const signedIn = status === "signed-in" && !!address;
+  const inTelegram = useInTelegram();
 
   const ctx = useQuery({ queryKey: ["pt-ctx"], queryFn: () => api<Parameters<typeof toTMarkets>[0]>("v1/pub/context").then(toTMarkets), staleTime: 300_000 });
   const markets = useMemo(() => ctx.data ?? [], [ctx.data]);
@@ -375,7 +377,7 @@ export function TradeApp({ initial }: { initial?: string }) {
                 </div>
               ))}
               {a.orders.map((o) => (
-                <div key={String(o.orderId)} className="flex items-center justify-between gap-2 rounded-md border border-line p-3 text-sm">
+                <div key={String(o.orderId)} className="flex items-center justify-between gap-2 rounded-md border border-line p-3 text-sm" data-testid={`order-${o.orderId}`}>
                   <span className="num">
                     #{String(o.orderId)} {o.buy ? "BUY" : "SELL"} {num(o.size, Math.min(m?.sd ?? 2, 5))} {m?.sym} @ {fmtPrice(o.price)} · {usd(o.locked)} {L("terkunci", "locked")}
                   </span>
@@ -412,14 +414,36 @@ export function TradeApp({ initial }: { initial?: string }) {
                 "A Mera account: your passkey is the key. No seed phrase, no extension. Orders go straight to Perpl from your own account.",
               )}
             </p>
+            {inTelegram && (
+              <div className="mt-3 rounded-md border border-warn/40 p-3" data-testid="tg-passkey">
+                <p className="text-xs text-warn">
+                  {L(
+                    "Anda di dalam Telegram. Webview Telegram di kebanyakan aplikasi tidak bisa memakai passkey. Buka /trade di browser untuk tanda tangan; harga, book, dan data AUSD tetap jalan di sini.",
+                    "You're inside Telegram. Its webview can't use passkeys on most clients. Open /trade in your browser to sign; prices, book and AUSD data keep working here.",
+                  )}
+                </p>
+                <button className={btn.primary + " mt-2 w-full py-3"} onClick={() => openOutsideTelegram(browserUrl())}>
+                  {L("Buka di browser", "Open in browser")}
+                </button>
+              </div>
+            )}
+            {supported === false && !inTelegram && (
+              <p className="mt-3 text-xs text-warn">{L("Browser ini tidak mendukung passkey (WebAuthn). Buka di Chrome atau Safari terbaru.", "This browser has no passkey (WebAuthn) support. Open it in a current Chrome or Safari.")}</p>
+            )}
             <div className="mt-3 flex flex-col gap-2">
-              <button className={btn.primary + " py-3"} onClick={() => signIn()} disabled={status === "working" || supported === false}>
-                Sign in with passkey
+              <button className={btn.primary + " py-3"} onClick={() => signIn().catch(() => undefined)} disabled={status === "working" || supported === false}>
+                {inTelegram ? L("Coba passkey di sini", "Try passkey here") : "Sign in with passkey"}
               </button>
-              <button className={btn.ghost + " py-3"} onClick={() => create()} disabled={status === "working" || supported === false}>
+              <button className={btn.ghost + " py-3"} onClick={() => create().catch(() => undefined)} disabled={status === "working" || supported === false}>
                 Create passkey account
               </button>
             </div>
+            {authErr && (
+              <p role="alert" className="mt-2 text-xs text-down">
+                {L(authErr.message.id, authErr.message.en)}
+                {inTelegram && ` ${L("Di Telegram: pakai Buka di browser di atas.", "In Telegram: use Open in browser above.")}`}
+              </p>
+            )}
           </Panel>
         ) : (
           <Panel title={L("Dana", "Funds")} aside={<Source kind="rpc">AUSD · Perpl</Source>}>

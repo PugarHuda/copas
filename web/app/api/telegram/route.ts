@@ -22,6 +22,8 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 const APP = "https://copas-mocha.vercel.app";
+/** The Mini App: also the bot's menu button (setChatMenuButton), so /trade knows it runs inside Telegram. */
+const TRADE = `${APP}/trade?source=tg`;
 type Btn = { text: string; url?: string; callback_data?: string; web_app?: { url: string } };
 type Chat = { id: number; type: string };
 type Msg = { message_id: number; chat: Chat; text?: string; photo?: unknown[] };
@@ -133,6 +135,7 @@ const say = (chat: Chat, text: string, keyboard?: Btn[][]) =>
 const HELP = [
   "<b>Copas</b>: copy traders who post a bond. Break the mandate and the bond pays the followers.",
   "",
+  "/trade: open the Copas trading app (Perpl perps with AUSD, passkey-signed, inside your mandate)",
   "/leaders: bonded leaders ranked, with live drawdown",
   "/leader &lt;0xaddr | #n | name&gt;: live leader card with a ↻ button that updates it in place",
   "/odds &lt;leader&gt;: the Kuru market's odds this leader breaks the mandate",
@@ -155,7 +158,13 @@ async function command(chat: Chat, text: string) {
   const priv = chat.type === "private";
   switch (cmd) {
     case "/start":
-      return say(chat, HELP, [[open("Open Copas", APP, priv)], [{ text: "Leaders", callback_data: "LS" }, { text: "Latest breach", callback_data: "PF" }]]);
+      return say(chat, HELP, [[open("📈 Trade", TRADE, priv), open("Open Copas", APP, priv)], [{ text: "Leaders", callback_data: "LS" }, { text: "Latest breach", callback_data: "PF" }]]);
+    case "/trade":
+      return say(
+        chat,
+        "<b>Copas Trade</b>: Perpl perps from your Mera passkey account, AUSD as margin, every order checked against your mandate before it is signed. Passkeys need your browser on most Telegram clients; the app shows an Open in browser button when they are blocked.",
+        [[open("📈 Open Trade", TRADE, priv)], [{ text: "Open in browser", url: `${APP}/trade` }]],
+      );
     case "/help":
       return say(chat, HELP);
     case "/leaders":
