@@ -17,7 +17,7 @@ export function useMinutesLeft(expiresAt?: number) {
 }
 
 const FAUCET_ERR: Record<string, string> = {
-  cooldown: "Already sent in the last hour. Try again later.",
+  cooldown: "This address or network already got test funds in the last 24 hours.",
   "faucet-off": "The testnet faucet is not configured on this deployment.",
   "bad-address": "Sign in again; no valid address to fund.",
   network: "Network error. Try again.",
