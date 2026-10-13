@@ -9,8 +9,8 @@ test("follow form rejects huge, tiny and out-of-range values without crashing", 
     ["#f-notional", "1e30", /too large/i],
     ["#f-notional", "0.0000001", /at least 1 AUSD/i],
     ["#f-ratio", "0.0000001", /at least 0\.01%/i],
-    ["#f-chase", "1e30", /0 to 10,000 bps/i],
-    ["#f-band", "99999999999", /1 to 10,000 bps/i],
+    ["#f-chase", "1e30", /0 to 2,000 bps/i],
+    ["#f-band", "99999999999", /1 to 500 bps/i],
   ];
   for (const [id, v, msg] of cases) {
     await page.locator(id).fill(v);

@@ -10,7 +10,7 @@ import { getReferrer } from "@/lib/copas/referral";
 import { num, pct, toAusd, usd } from "@/lib/format";
 import { Panel, btn } from "@/components/ui";
 import { AnalysisPanel, BacktestPanel, SimulatePreview, type FollowerSettings } from "@/components/services";
-import { copasChain } from "@/lib/chains";
+import { copasChain, explorerTx } from "@/lib/chains";
 import { FundPanel } from "@/components/FundPanel";
 
 const input = "num mt-1 w-full rounded-md border border-line-strong bg-bg px-3 py-2 text-sm focus:border-gold focus:outline-none aria-[invalid=true]:border-down";
@@ -30,6 +30,10 @@ function Field({ id, label, hint, error, ...p }: { id: string; label: string; hi
   );
 }
 
+const ZERO = /^0x0{40}$/i;
+type StepId = "create" | "approve" | "deposit" | "referrer" | "follow";
+type Step = { id: StepId; state: "todo" | "run" | "done" | "fail"; hash?: `0x${string}`; note?: string };
+
 type Form = { deposit: string; ratio: string; maxNotional: string; maxLev: string; chase: string; band: string; stop: string };
 
 export function FollowTicket({ leader: l, maxDeposit, minDeposit }: { leader: Leader; maxDeposit: number | null; minDeposit: number | null }) {
@@ -45,6 +49,7 @@ export function FollowTicket({ leader: l, maxDeposit, minDeposit }: { leader: Le
   const [mkts, setMkts] = useState<string[]>(l.markets);
   const [ack, setAck] = useState(false);
   const [done, setDone] = useState<string>();
+  const [steps, setSteps] = useState<Step[]>();
 
   // empty reads as NaN so every check below fails closed
   const n = Object.fromEntries(Object.entries(f).map(([k, v]) => [k, v.trim() === "" ? NaN : Number(v)])) as Record<keyof Form, number>;
@@ -58,8 +63,9 @@ export function FollowTicket({ leader: l, maxDeposit, minDeposit }: { leader: Le
   if (!(n.maxLev >= 1)) err.maxLev = L("Minimal 1x.", "Use at least 1x.");
   else if (n.maxLev > l.maxLeverage) err.maxLev = L(`Mandat leader maksimal ${l.maxLeverage}x.`, `The leader's mandate allows at most ${l.maxLeverage}x.`);
   // bps fields are uint32 onchain; past 100% they mean nothing anyway
-  if (!(n.chase >= 0 && n.chase <= 10_000)) err.chase = L("Gunakan 0 sampai 10.000 bps.", "Use 0 to 10,000 bps.");
-  if (!(n.band >= 1 && n.band <= 10_000)) err.band = L("Gunakan 1 sampai 10.000 bps.", "Use 1 to 10,000 bps.");
+  // FollowerVault.follow reverts outside these (maxChaseBps <= 2,000, 0 < priceBandBps <= 500)
+  if (!(n.chase >= 0 && n.chase <= 2_000)) err.chase = L("Gunakan 0 sampai 2.000 bps.", "Use 0 to 2,000 bps.");
+  if (!(n.band >= 1 && n.band <= 500)) err.band = L("Gunakan 1 sampai 500 bps.", "Use 1 to 500 bps.");
   if (!(n.stop >= 0 && n.stop <= 90)) err.stop = L("Gunakan 0 sampai 90%.", "Use 0 to 90%.");
   const invalid = Object.keys(err).length > 0 || !mkts.length;
   const ok = (k: keyof Form) => (err[k] ? null : n[k]);
@@ -92,23 +98,84 @@ export function FollowTicket({ leader: l, maxDeposit, minDeposit }: { leader: Le
         marketsMask: marketsMask(mkts),
       };
 
+  /**
+   * createVault -> approve -> deposit -> (setReferrer) -> follow are separate txs: the passkey account is a plain EOA
+   * (no EIP-5792 / 4337 batching) and the contracts have no multicall. The first tx asks for the passkey, the rest sign
+   * inside that session. Every run re-reads the chain first, so a retry (or a reload) resumes at the first unfinished step
+   * on the same vault instead of creating another one.
+   */
   async function submit() {
     if (!params) return;
     if (!isDeployed || !deployment?.registry || !deployment.ausd) return write("risky", {} as never);
     const reg = { address: deployment.registry, abi: copasAbi.CopasRegistry as Abi };
-    // risky: one fresh passkey prompt; the follow-up calls sign inside the renewed session
-    if (!(await write("risky", { ...reg, functionName: "createVault" }))) return;
-    const vaults = (await copasPublic.readContract({ ...reg, functionName: "vaultsOf", args: [address] })) as `0x${string}`[];
-    const vault = vaults[vaults.length - 1];
-    const v = { address: vault, abi: copasAbi.FollowerVault as Abi };
+    const ausd = { address: deployment.ausd, abi: erc20Abi as Abi };
     const amt = toAusd(n.deposit);
-    // stop at the first failed step: a failed approve made the deposit and follow revert too, burning gas and hiding the cause
-    if (!(await write("small", { address: deployment.ausd, abi: erc20Abi as Abi, functionName: "approve", args: [vault, amt] }))) return;
-    if (!(await write("small", { ...v, functionName: "deposit", args: [amt] }))) return;
+    const vaultRead = (vault: `0x${string}`, functionName: string) => copasPublic.readContract({ address: vault, abi: copasAbi.FollowerVault as Abi, functionName });
+    const unfinishedVault = async () => {
+      const vs = (await copasPublic.readContract({ ...reg, functionName: "vaultsOf", args: [address] })) as `0x${string}`[];
+      const last = vs[vs.length - 1];
+      if (!last) return undefined;
+      const [following, leader] = (await Promise.all([vaultRead(last, "following"), vaultRead(last, "leader")])) as [boolean, string];
+      // a vault that never followed anyone is an earlier attempt that stopped part-way: finish it
+      return !following && ZERO.test(leader) ? last : undefined;
+    };
+
     const ref = getReferrer();
-    if (ref && ref.toLowerCase() !== address?.toLowerCase()) await write("small", { ...v, functionName: "setReferrer", args: [ref] });
-    if (await write("small", { ...v, functionName: "follow", args: [l.book, params] })) setDone(vault);
+    const plan: Step[] = (["create", "approve", "deposit", ...(ref && ref.toLowerCase() !== address?.toLowerCase() ? ["referrer" as const] : []), "follow"] as StepId[]).map((id) => ({ id, state: "todo" }));
+    let vault: `0x${string}` | undefined;
+    try {
+      vault = await unfinishedVault();
+      if (vault) {
+        const [accountId, referrer] = (await Promise.all([vaultRead(vault, "accountId"), vaultRead(vault, "referrer")])) as [bigint, string];
+        for (const x of plan) {
+          if (x.id === "create") Object.assign(x, { state: "done", note: L("vault yang belum selesai dipakai lagi", "reusing your unfinished vault") });
+          // the first deposit opens the vault's Perpl account
+          if ((x.id === "approve" || x.id === "deposit") && accountId > 0n) Object.assign(x, { state: "done", note: L("sudah disetor", "already funded") });
+          if (x.id === "referrer" && !ZERO.test(referrer)) Object.assign(x, { state: "done", note: L("sudah diset", "already set") });
+        }
+      }
+    } catch {
+      // RPC hiccup: plan from scratch; createVault is the only step that can duplicate, and a retry reads again
+    }
+    setSteps(plan);
+    const mark = (id: StepId, p: Partial<Step>) => setSteps((cur) => cur?.map((x) => (x.id === id ? { ...x, ...p } : x)));
+    const todo = (id: StepId) => plan.some((x) => x.id === id && x.state === "todo");
+
+    let risky = true; // the first tx actually sent asks for the passkey; the rest sign inside the renewed session
+    const send = async (id: StepId, call: Parameters<typeof write>[1]) => {
+      mark(id, { state: "run", note: undefined });
+      const h = await write(risky ? "risky" : "small", call);
+      risky = false;
+      mark(id, h ? { state: "done", hash: h } : { state: "fail" });
+      return !!h;
+    };
+
+    if (todo("create")) {
+      if (!(await send("create", { ...reg, functionName: "createVault" }))) return;
+      vault = await unfinishedVault().catch(() => undefined);
+      if (!vault) return mark("create", { state: "fail", note: L("vault baru belum terbaca, coba lagi", "the new vault is not readable yet, try again") });
+    }
+    const v = { address: vault!, abi: copasAbi.FollowerVault as Abi };
+    if (todo("approve")) {
+      const allowance = (await copasPublic.readContract({ ...ausd, functionName: "allowance", args: [address, vault] }).catch(() => 0n)) as bigint;
+      if (allowance >= amt) mark("approve", { state: "done", note: L("izin sudah cukup", "allowance already set") });
+      else if (!(await send("approve", { ...ausd, functionName: "approve", args: [vault, amt] }))) return;
+    }
+    // stop at the first failed step: a failed approve made the deposit and follow revert too, burning gas and hiding the cause
+    if (todo("deposit") && !(await send("deposit", { ...v, functionName: "deposit", args: [amt] }))) return;
+    if (todo("referrer")) await send("referrer", { ...v, functionName: "setReferrer", args: [ref] }); // optional: a failed referral tag never blocks following
+    if (await send("follow", { ...v, functionName: "follow", args: [l.book, params] })) setDone(vault);
   }
+
+  const stepLabel: Record<StepId, string> = {
+    create: L("Buat vault", "Create vault"),
+    approve: L("Izinkan AUSD", "Approve AUSD"),
+    deposit: L("Setor AUSD ke vault", "Deposit AUSD into the vault"),
+    referrer: L("Tandai referral", "Tag referrer"),
+    follow: L(`Ikuti ${l.name}`, `Follow ${l.name}`),
+  };
+  const current = steps?.findIndex((x) => x.state === "run") ?? -1;
+  const failed = steps?.some((x) => x.state === "fail");
 
   return (
     <div className="grid gap-6 lg:grid-cols-[1fr_380px]">
@@ -206,10 +273,40 @@ export function FollowTicket({ leader: l, maxDeposit, minDeposit }: { leader: Le
           <p className="rounded-lg border border-line bg-surface p-4 text-sm text-ink-2">{L("Masuk dengan passkey untuk membuat vault dan mengikuti.", "Sign in with your passkey to create a vault and follow.")}</p>
         ) : (
           <button className={btn.primary + " w-full py-3"} disabled={!ack || invalid || pending || l.status !== "active"} onClick={submit}>
-            {pending ? L("Menunggu passkey…", "Waiting for passkey…") : invalid ? L("Perbaiki setelan di atas", "Fix the settings above") : L(`Ikuti ${l.name} dengan ${n.deposit} AUSD`, `Follow ${l.name} with ${n.deposit} AUSD`)}
+            {pending && steps && current >= 0
+              ? L(`Langkah ${current + 1} dari ${steps.length}: ${stepLabel[steps[current].id]}…`, `Step ${current + 1} of ${steps.length}: ${stepLabel[steps[current].id]}…`)
+              : pending
+                ? L("Menunggu passkey…", "Waiting for passkey…")
+                : failed
+                  ? L("Lanjutkan dari langkah yang gagal", "Resume from the failed step")
+                  : invalid ? L("Perbaiki setelan di atas", "Fix the settings above") : L(`Ikuti ${l.name} dengan ${n.deposit} AUSD`, `Follow ${l.name} with ${n.deposit} AUSD`)}
           </button>
         )}
         <p className="text-xs text-ink-3">{L("Mengikuti leader baru selalu meminta passkey lagi.", "Following a new leader always asks for your passkey again.")}</p>
+        {steps && (
+          <ol aria-label={L("Progres transaksi", "Transaction progress")} aria-live="polite" className="space-y-1.5 rounded-lg border border-line bg-surface p-4 text-sm">
+            {steps.map((x, i) => (
+              <li key={x.id} className="flex items-baseline gap-2">
+                <span aria-hidden className={`num w-4 shrink-0 ${x.state === "done" ? "text-up" : x.state === "fail" ? "text-down" : x.state === "run" ? "text-gold-2" : "text-ink-3"}`}>
+                  {x.state === "done" ? "✓" : x.state === "fail" ? "✕" : x.state === "run" ? "…" : i + 1}
+                </span>
+                <span className={x.state === "todo" ? "text-ink-3" : "text-ink"}>
+                  {stepLabel[x.id]}
+                  <span className="sr-only">
+                    {": "}
+                    {x.state === "done" ? L("selesai", "done") : x.state === "fail" ? L("gagal", "failed") : x.state === "run" ? L("berjalan", "in progress") : L("menunggu", "waiting")}
+                  </span>
+                  {x.note && <span className="text-ink-3"> · {x.note}</span>}
+                </span>
+                {x.hash && (
+                  <a href={explorerTx(x.hash, copasChain.id)} target="_blank" rel="noreferrer" className="num ml-auto py-0.5 text-xs text-ink-3 underline hover:text-ink-2">
+                    {x.hash.slice(0, 8)}…<span className="sr-only"> {L("di explorer", "on the explorer")}</span>
+                  </a>
+                )}
+              </li>
+            ))}
+          </ol>
+        )}
         <Panel title={L("Pratinjau transaksi", "Transaction preview")}>
           <SimulatePreview
             tx={
