@@ -180,7 +180,11 @@ export function createApp(deps: { fetch?: Fetch; now?: () => number } = {}) {
 
   // MCP for AI agents: tools call the routes above in-process (app.request) and read Copas onchain; never CDN-cached
   app.all("/mcp", async (c) => {
-    const r = await handleMcp(c.req.raw, (p, init) => app.request(p, init), f);
+    // analysis goes through the public URL when deployed, so agents share the day-long CDN cache (each miss is one
+    // of the 50 free LLM calls a day) instead of spending quota per instance
+    const origin = new URL(c.req.url).origin;
+    const call = (p: string, init?: RequestInit) => (origin.startsWith("https:") && /\/analysis(\?|$)/.test(p) ? fetch(origin + p, init) : app.request(p, init));
+    const r = await handleMcp(c.req.raw, call, f);
     const out = new Response(r.body, r);
     out.headers.set("Cache-Control", "no-store");
     return out;
