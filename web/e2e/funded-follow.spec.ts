@@ -4,7 +4,7 @@ import { test, expect } from "./fixtures";
 
 /**
  * The money path for real, on Monad testnet: a fresh passkey account (CDP virtual authenticator with PRF) gets
- * gas + AUSD, then follows a bonded leader through the UI: createVault, approve, deposit, follow, four passkey-signed txs.
+ * gas + AUSD, then follows a bonded leader through the UI: createVault, approve, deposit, follow, four txs (one passkey prompt).
  * Spends ~0.1 MON from FUNDER_KEY, so it only runs when that is set (never in CI). Never logs the key.
  */
 const LEADER = "0x989427C70fb5ED71aCe9c6c9966bd9FB2C3912C6";
@@ -52,6 +52,10 @@ test("fresh passkey account follows a bonded leader onchain", async ({ page, con
   await page.getByLabel("I understand these limits on protection.").check();
   await page.getByRole("button", { name: /Follow .* with 100 AUSD/ }).click();
   await expect(page.getByText("Vault active.")).toBeVisible({ timeout: 240_000 });
+  // step progress: every tx of the flow is listed as done with its explorer link (no referral cookie: 4 steps)
+  const progress = page.getByRole("list", { name: "Transaction progress" });
+  await expect(progress.getByRole("listitem")).toHaveCount(4);
+  await expect(progress.getByRole("link", { name: /on the explorer/ })).toHaveCount(4);
 
   const vaults = await pub.readContract({ address: REGISTRY, abi, functionName: "vaultsOf", args: [me] });
   expect(vaults).toHaveLength(1);

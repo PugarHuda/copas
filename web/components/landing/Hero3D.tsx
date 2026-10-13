@@ -97,7 +97,9 @@ function start(THREE: Three, el: HTMLDivElement, ov: HTMLCanvasElement) {
   scene.add(group);
   const geo = lite ? new THREE.SphereGeometry(1, 32, 24) : new THREE.SphereGeometry(1, 64, 48);
   const balls = LABELS.map((label, i) => {
-    const mat = new THREE.MeshPhysicalMaterial({ map: sphereTexture(THREE, label, RED.has(label), lite), roughness: 0.42, metalness: 0.1, clearcoat: 0.6, clearcoatRoughness: 0.35 });
+    const map = sphereTexture(THREE, label, RED.has(label), lite);
+    // the clearcoat shader is the slowest part of the first frame; phones get the standard one
+    const mat = lite ? new THREE.MeshStandardMaterial({ map, roughness: 0.42, metalness: 0.1 }) : new THREE.MeshPhysicalMaterial({ map, roughness: 0.42, metalness: 0.1, clearcoat: 0.6, clearcoatRoughness: 0.35 });
     const m = new THREE.Mesh(geo, mat);
     const a = (i / LABELS.length) * Math.PI * 2;
     const r = 2.2 + (i % 3) * 0.9;
@@ -202,7 +204,7 @@ function start(THREE: Three, el: HTMLDivElement, ov: HTMLCanvasElement) {
     io.disconnect();
     el.removeEventListener("pointermove", onMove);
     balls.forEach((b) => {
-      const mat = b.material as InstanceType<Three["MeshPhysicalMaterial"]>;
+      const mat = b.material as InstanceType<Three["MeshStandardMaterial"]>;
       mat.map?.dispose();
       mat.dispose();
     });
