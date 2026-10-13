@@ -19,6 +19,10 @@ contract UnderwriterPool {
     IERC20Min public immutable ausd;
     address public immutable leaderBook;
 
+    /// @dev Virtual shares/assets (OpenZeppelin ERC-4626 style offset): a donation can't round a depositor
+    /// down to zero, and shares left worthless by a full slash can't dilute the next deposit. 1:1 at start.
+    uint256 internal constant V = 1e3;
+
     uint256 public totalShares;
     mapping(address => uint256) public sharesOf;
     mapping(address => uint256) public pendingShares;
@@ -40,12 +44,12 @@ contract UnderwriterPool {
     }
 
     function valueOf(address who) external view returns (uint256) {
-        return totalShares == 0 ? 0 : sharesOf[who] * assets() / totalShares;
+        return _value(sharesOf[who]);
     }
 
     function deposit(uint256 amount) external returns (uint256 shares) {
         uint256 a = assets();
-        shares = totalShares == 0 || a == 0 ? amount : amount * totalShares / a;
+        shares = amount * (totalShares + V) / (a + V);
         if (shares == 0) revert CopasErrors.BadParams();
         ausd.transferFrom(msg.sender, address(this), amount);
         totalShares += shares;
@@ -65,14 +69,21 @@ contract UnderwriterPool {
     function withdraw() external returns (uint256 amount) {
         uint256 shares = pendingShares[msg.sender];
         if (shares == 0) revert CopasErrors.NothingToClaim();
-        if (ILeaderEpoch(leaderBook).epoch() < unlockEpoch[msg.sender]) revert CopasErrors.TooEarly();
+        // only in the unlock epoch itself: an open-ended unlock would be a free option to exit right before a breach
+        if (ILeaderEpoch(leaderBook).epoch() != unlockEpoch[msg.sender]) revert CopasErrors.TooEarly();
         if (shares > sharesOf[msg.sender]) shares = sharesOf[msg.sender];
-        amount = shares * assets() / totalShares;
+        amount = _value(shares);
         pendingShares[msg.sender] = 0;
         sharesOf[msg.sender] -= shares;
         totalShares -= shares;
         ausd.transfer(msg.sender, amount);
         emit Withdrawn(msg.sender, amount, shares);
+    }
+
+    function _value(uint256 shares) internal view returns (uint256 v) {
+        uint256 a = assets();
+        v = shares * (a + V) / (totalShares + V);
+        if (v > a) v = a; // the virtual assets are not real
     }
 
     /// @notice Called by the leader book on breach. Takes up to `amount`.

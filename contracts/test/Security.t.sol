@@ -10,20 +10,12 @@ import {BreachMarket, BreachToken} from "../src/BreachMarket.sol";
 import {MockAUSD} from "./mocks/MockPerpl.sol";
 import {CopasErrors, Mandate} from "../src/CopasTypes.sol";
 
-/// @dev Findings in contracts/SECURITY.md. `test_KNOWN_*` tests pin the behaviour of the DEPLOYED source
-/// (the bug reproduces); the fix is in contracts/security-fixes.patch and flips each of them.
+/// @dev Findings in contracts/SECURITY.md (fixed source).
 contract SecurityTest is CopasBase {
     /// S-1: a withdrawal after unfollow was not booked as a flow, so lossIn() counted it as a trading loss.
-    /// Collusion: a leader's own (sybil) vault recovers the slashed pot, underwriter money included.
-    function test_KNOWN_S1_withdrawAfterUnfollowInflatesLoss() public {
-        UnderwriterPool pool;
+    function test_withdrawAfterUnfollowDoesNotInflateLoss() public {
         LeaderBook lb = _leader(1_000e6, 100e6);
-        pool = lb.pool();
-        vm.startPrank(uw);
-        ausd.approve(address(pool), type(uint256).max);
-        pool.deposit(200e6);
-        vm.stopPrank();
-        FollowerVault v = _vault(bob, lb, 500e6, 1_000e6); // bob = the leader's sybil, the only follower
+        FollowerVault v = _vault(bob, lb, 500e6, 1_000e6);
         _roll(lb);
         v.touch();
         _leaderLong(lb, 1_000);
@@ -31,24 +23,23 @@ contract SecurityTest is CopasBase {
         perpl.setMark(BTC, BTC_MARK * 85 / 100);
         lb.checkpoint();
         v.sync(BTC); // unwound
-        uint256 real = v.lossIn(2); // 63.75 AUSD
+        uint256 real = v.lossIn(2);
 
         vm.startPrank(bob);
         v.unfollow();
         (uint256 eq,) = v.equity();
         v.withdraw(eq);
         vm.stopPrank();
-        assertEq(v.lossIn(2), 500e6, "withdrawal counted as loss");
+        assertEq(v.lossIn(2), real, "withdrawal is not a loss");
 
         uint256 b0 = ausd.balanceOf(bob);
         v.claim(lb, 2);
-        assertEq(ausd.balanceOf(bob) - b0, 300e6, "whole pot (bond + underwriters) instead of the real loss");
-        assertGt(300e6, real);
+        assertEq(ausd.balanceOf(bob) - b0, real, "claim capped by the real loss");
     }
 
     /// S-2: per-epoch flow data is keyed by epoch number only, so a new leader's epoch e inherited the
     /// previous leader's netFlow[e].
-    function test_KNOWN_S2_staleFlowFromPreviousLeader() public {
+    function test_staleFlowFromPreviousLeaderIgnored() public {
         LeaderBook a = _leader(1_000e6, 100e6);
         FollowerVault v = _vault(bob, a, 500e6, 1_000e6);
         _roll(a);
@@ -61,11 +52,11 @@ contract SecurityTest is CopasBase {
         vm.stopPrank();
         _roll(b);
         v.touch(); // epoch 2 under B, nothing traded
-        assertEq(v.lossIn(2), 300e6, "A's deposit shows up as a loss under B");
+        assertEq(v.lossIn(2), 0, "no loss under B");
     }
 
     /// S-3: after a breach drains the pool, old (worthless) shares diluted the next depositor.
-    function test_KNOWN_S3_poolDepositAfterWipeIsDiluted() public {
+    function test_poolDepositAfterWipeKeepsValue() public {
         LeaderBook lb = _leader(1_000e6, 100e6);
         UnderwriterPool pool = lb.pool();
         vm.startPrank(uw);
@@ -84,12 +75,12 @@ contract SecurityTest is CopasBase {
         ausd.approve(address(pool), type(uint256).max);
         pool.deposit(100e6);
         vm.stopPrank();
-        assertEq(pool.valueOf(carol), 33_333_333, "2/3 of new money goes to wiped shares");
-        assertEq(pool.valueOf(uw), 66_666_666);
+        assertApproxEqAbs(pool.valueOf(carol), 100e6, 2e3, "new money is not shared with wiped shares");
+        assertLe(pool.valueOf(uw), 1e3);
     }
 
     /// S-3b: first-depositor donation attack. Attacker must not profit from a victim's rounding.
-    function test_KNOWN_S3b_poolDonationAttack() public {
+    function test_poolDonationAttackUnprofitable() public {
         LeaderBook lb = _leader(1_000e6, 100e6);
         UnderwriterPool pool = lb.pool();
         address attacker = makeAddr("attacker");
@@ -104,12 +95,12 @@ contract SecurityTest is CopasBase {
         ausd.approve(address(pool), type(uint256).max);
         pool.deposit(150e6);
         vm.stopPrank();
-        assertEq(pool.valueOf(attacker), 125_000_000, "attacker takes 25 AUSD of the victim's deposit");
+        assertLe(pool.valueOf(attacker), 100e6 + 1, "attacker gains nothing from the victim");
     }
 
     /// S-4: an unlocked underwriter request stayed valid forever, i.e. a free option to exit just
-    /// before a breach while still earning fees.
-    function test_KNOWN_S4_poolUnlockStaysOpen() public {
+    /// before a breach while still earning fees. Withdrawal is now only possible in the unlock epoch.
+    function test_poolUnlockIsOneEpochWindow() public {
         LeaderBook lb = _leader(1_000e6, 100e6);
         UnderwriterPool pool = lb.pool();
         vm.startPrank(uw);
@@ -121,8 +112,8 @@ contract SecurityTest is CopasBase {
         _roll(lb);
         _roll(lb); // epoch 4: window missed
         vm.prank(uw);
-        pool.withdraw(); // still possible any time later
-        assertEq(pool.totalShares(), 0);
+        vm.expectRevert(CopasErrors.TooEarly.selector);
+        pool.withdraw();
     }
 
     // ------------------------------------------------------------ fuzz: money paths

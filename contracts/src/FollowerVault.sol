@@ -28,6 +28,8 @@ contract FollowerVault {
     mapping(uint256 => uint256) public startEquity; // vault equity when epoch e was first seen
     mapping(uint256 => int256) public netFlow; // deposits - withdrawals during epoch e
     mapping(uint256 => uint256) public endEquity; // equity when the vault moved past epoch e
+    /// @notice Leader whose epoch e the per-epoch data above belongs to (epoch numbers repeat across leaders).
+    mapping(uint256 => address) public epochLeader;
     uint256 public highWaterMark; // for performance fees
     address public referrer; // earns part of the protocol's fee cut
     /// @notice Leader terms the owner agreed to. A live mandate looser than this stops copying (target 0)
@@ -80,6 +82,7 @@ contract FollowerVault {
 
     /// @notice Loss in epoch e measured from its start, net of deposits/withdrawals.
     function lossIn(uint256 e) public view returns (uint256) {
+        if (epochLeader[e] != address(leader)) return 0;
         uint256 base;
         int256 b = int256(startEquity[e]) + netFlow[e];
         if (b <= 0) return 0;
@@ -106,10 +109,9 @@ contract FollowerVault {
         } else {
             exchange.depositCollateral(amount);
         }
-        if (following) {
-            _touchEpoch();
-            netFlow[epochSeen] += int256(amount);
-        }
+        // flows are booked even after unfollow: lossIn(epochSeen) keeps measuring against live equity
+        if (following) _touchEpoch();
+        if (epochSeen != 0) netFlow[epochSeen] += int256(amount);
         highWaterMark += amount;
         emit Deposited(msg.sender, amount);
     }
@@ -117,10 +119,8 @@ contract FollowerVault {
     function withdraw(uint256 amount) external onlyOwner {
         exchange.withdrawCollateral(amount);
         ausd.transfer(owner, amount);
-        if (following) {
-            _touchEpoch();
-            netFlow[epochSeen] -= int256(amount);
-        }
+        if (following) _touchEpoch();
+        if (epochSeen != 0) netFlow[epochSeen] -= int256(amount);
         highWaterMark = highWaterMark > amount ? highWaterMark - amount : 0;
         emit Withdrawn(amount);
     }
@@ -311,7 +311,9 @@ contract FollowerVault {
         if (eq > highWaterMark) highWaterMark = eq;
 
         epochSeen = e;
+        epochLeader[e] = address(leader);
         startEquity[e] = eq;
+        netFlow[e] = 0;
         paused = false;
     }
 
