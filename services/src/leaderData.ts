@@ -494,13 +494,21 @@ export interface FillsResult extends FillPage {
  */
 export async function fetchFills(address: string, from: number, to: number, f: Fetch = fetch): Promise<FillsResult> {
   const url = env("ENVIO_GRAPHQL_URL");
-  const acc = url ? await fetchEnvioAccount(url, address, f).catch(() => null) : null;
+  let envioErr: Error | undefined;
+  const acc = url ? await fetchEnvioAccount(url, address, f).catch((e: Error) => ((envioErr = e), null)) : null;
   if (url && acc?.chainId === TESTNET) return { ...(await fetchEnvioFills(url, acc, from, to, f)), source: "envio", chainId: TESTNET, envioAccount: acc };
   if (url && (!acc || acc.fills <= ENVIO_MAX_ROWS) && (await envioFresh(url, to, f))) {
     const page = acc ? await fetchEnvioFills(url, acc, from, to, f) : { fills: [], complete: true };
     return { ...page, source: "envio", chainId: MAINNET, envioAccount: acc };
   }
-  return { ...(await fetchPlumbFills(address, from, to, f)), source: "plumb", chainId: MAINNET, envioAccount: acc };
+  // plumb indexes mainnet only: an unknown wallet has no mainnet history, unless the Envio lookup failed and it may be
+  // a testnet LeaderBook (then surface Envio's error rather than an empty track record that would be cached for a day)
+  const page = await fetchPlumbFills(address, from, to, f).catch((e: Error) => {
+    if (!/ACCOUNT_NOT_FOUND/.test(e.message)) throw e;
+    if (envioErr) throw envioErr;
+    return { fills: [], complete: true };
+  });
+  return { ...page, source: "plumb", chainId: MAINNET, envioAccount: acc };
 }
 
 export async function getLeaderData(address: string, opts: LeaderDataOpts = {}): Promise<LeaderData> {
