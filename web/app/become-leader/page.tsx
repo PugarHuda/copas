@@ -1,10 +1,10 @@
 "use client";
 import { useEffect, useState } from "react";
-import { type Abi } from "viem";
+import { erc20Abi, type Abi } from "viem";
 import { Panel, PageHead, Source, btn } from "@/components/ui";
 import { Seal } from "@/components/Seal";
 import { useL, useT } from "@/lib/i18n/client";
-import { useMeraSession } from "@/lib/mera/MeraProvider";
+import { useMeraSession, type ActionRisk } from "@/lib/mera/MeraProvider";
 import { copasPublic, useCopasWrite } from "@/lib/copas/useCopasWrite";
 import { TIERS, copasAbi, deployment, isDeployed, marketsMask, type Tier } from "@/lib/copas/contracts";
 import { copasChain } from "@/lib/chains";
@@ -66,6 +66,16 @@ export default function BecomeLeader() {
     { k: "moderat", name: L("Moderat", "Moderate"), body: L("DD 15%, lev. 5x, + SOL", "15% DD, 5x lev., + SOL") },
     { k: "agresif", name: L("Agresif", "Aggressive"), body: L("DD 30%, lev. 10x, + MON", "30% DD, 10x lev., + MON") },
   ];
+
+  const ausd = deployment?.ausd ? { address: deployment.ausd, abi: erc20Abi as Abi } : undefined;
+  /** deposit/postBond pull AUSD with transferFrom: approve the LeaderBook first when the allowance is short. */
+  const pull = async (risk: ActionRisk, functionName: "deposit" | "postBond", amount: number) => {
+    if (!lb || !ausd) return;
+    const amt = toAusd(amount);
+    const allowance = (await copasPublic.readContract({ ...ausd, functionName: "allowance", args: [address, lb.address] }).catch(() => 0n)) as bigint;
+    if (allowance < amt && !(await write("small", { ...ausd, functionName: "approve", args: [lb.address, amt] }))) return;
+    await write(risk, { ...lb, functionName, args: [amt] });
+  };
 
   const open = async () => {
     if (!reg) return write("risky", {} as never);
@@ -143,7 +153,7 @@ export default function BecomeLeader() {
                 {err.capital && <span role="alert" className="mt-1 block text-xs text-down">{err.capital}</span>}
             </label>
             <p className="mt-2 text-xs text-ink-3">{L(`Minimum buka akun Perpl: ${copasChain.id === 143 ? 10 : 100} AUSD. Setoran mencetak unit pada harga unit saat ini.`, `Perpl account minimum: ${copasChain.id === 143 ? 10 : 100} AUSD. Deposits mint units at the current unit price.`)}</p>
-            <button className={btn.ghost + " mt-3"} disabled={!lb || pending || !!err.capital} onClick={() => lb && write("small", { ...lb, functionName: "deposit", args: [toAusd(capital)] })}>
+            <button className={btn.ghost + " mt-3"} disabled={!lb || pending || !!err.capital} onClick={() => pull("small", "deposit", capital)}>
               {L("Setor", "Deposit")}
             </button>
           </Panel>
@@ -155,8 +165,15 @@ export default function BecomeLeader() {
                 {err.bond && <span role="alert" className="mt-1 block text-xs text-down">{err.bond}</span>}
             </label>
             <p className="mt-2 text-xs text-ink-3">{L("Jaminan minimum = maks(25 AUSD, 10% × AUM follower). Di bawah itu status jadi Unbonded dan follower baru ditolak. Penarikan jaminan butuh satu epoch penuh dan tetap bisa dipotong selama menunggu.", "Minimum bond = max(25 AUSD, 10% × follower AUM). Below it you become Unbonded and new followers are refused. Unbonding takes a full epoch and stays slashable while pending.")}</p>
-            <button className={btn.primary + " mt-3"} disabled={!lb || pending || !!err.bond} onClick={() => lb && write("risky", { ...lb, functionName: "postBond", args: [toAusd(bond)] })}>
+            <button className={btn.primary + " mt-3"} disabled={!lb || pending || !!err.bond} onClick={() => pull("risky", "postBond", bond)}>
               {L("Taruh jaminan", "Post bond")}
+            </button>
+          </Panel>
+
+          <Panel title={L("5. Mulai epoch 1", "5. Start epoch 1")}>
+            <p className="text-sm text-ink-2">{L("Setelah modal dan jaminan masuk. Follower hanya bisa ikut leader yang aktif.", "Once capital and bond are in. Followers can only follow an active leader.")}</p>
+            <button className={btn.primary + " mt-3"} disabled={!lb || pending} onClick={() => lb && write("small", { ...lb, functionName: "start" })}>
+              {L("Mulai", "Start")}
             </button>
           </Panel>
 
