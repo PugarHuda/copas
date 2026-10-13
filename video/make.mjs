@@ -39,10 +39,11 @@ const needRec = spec.scenes.filter((s) => !s.frames && (s.run || s.prep) && (!on
 if (needRec.length && !argv.includes("--norecord")) {
   const m = spec.mobile;
   // screencast frames come at DIP size unless the browser itself is forced to the scale factor
-  const browser = await chromium.launch({ args: ["--enable-unsafe-swiftshader", "--use-angle=swiftshader", "--hide-scrollbars", `--force-device-scale-factor=${m ? 2 : 1.2}`] });
+  const browser = await chromium.launch({ args: ["--enable-unsafe-swiftshader", "--use-angle=swiftshader", "--hide-scrollbars", "--disable-blink-features=AutomationControlled", `--force-device-scale-factor=${m ? 2 : 1.2}`] });
   const context = await browser.newContext(m
     ? { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true, userAgent: "Mozilla/5.0 (Linux; Android 14; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Mobile Safari/537.36", baseURL: BASE() }
-    : { viewport: { width: 1600, height: 900 }, deviceScaleFactor: 1.2, baseURL: BASE() });
+    : { viewport: { width: 1600, height: 900 }, deviceScaleFactor: 1.2, baseURL: BASE(), // explorers sit behind Cloudflare, which turns away "HeadlessChrome"
+      userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36" });
   await context.addInitScript(CURSOR, !!m);
   const page = await context.newPage();
   const cdp = await context.newCDPSession(page);
@@ -164,6 +165,12 @@ function makeCtx(page, cdp, context) {
       if (waitFor) await page.getByText(waitFor).first().waitFor({ timeout: 60_000 }).catch(() => console.log(`  (no "${waitFor}")`));
       await sleep(800);
     },
+    /** explorer tx page, waited until the details render (monadscan; needs the non-headless user agent set on the context) */
+    async tx(hash) {
+      await page.goto(`https://testnet.monadscan.com/tx/${hash}`, { waitUntil: "load", timeout: 90_000 });
+      await page.getByText(/Success/).first().waitFor({ timeout: 30_000 }).catch(() => console.log(`  (tx ${hash} not rendered)`));
+      await sleep(1500);
+    },
     pos: { x: 800, y: 450 },
     async move(target, ms = 700) {
       let x, y;
@@ -173,7 +180,7 @@ function makeCtx(page, cdp, context) {
         await loc.scrollIntoViewIfNeeded({ timeout: 10_000 }).catch(() => {});
         const b = await loc.boundingBox().catch(() => null);
         if (!b) { console.log(`  (cannot find ${target})`); return; }
-        x = b.x + Math.min(b.width / 2, 60); y = b.y + b.height / 2;
+        x = b.x + b.width / 2; y = b.y + b.height / 2;
       }
       const steps = Math.max(8, Math.round(ms / 16));
       const { x: x0, y: y0 } = ctx.pos;
@@ -184,7 +191,12 @@ function makeCtx(page, cdp, context) {
       }
       ctx.pos = { x, y };
     },
-    async click(target) { await ctx.move(target); await page.mouse.down(); await sleep(80); await page.mouse.up(); await sleep(300); },
+    async click(target) {
+      await ctx.move(target);
+      if (Array.isArray(target)) { await page.mouse.down(); await sleep(80); await page.mouse.up(); }
+      else await (typeof target === "string" ? page.getByText(target).first() : target).click().catch((e) => console.log(`  click failed: ${e.message.slice(0, 120)}`));
+      await sleep(300);
+    },
     /** gentle scroll by px over ms */
     async scroll(px, ms = 1500) {
       const steps = Math.max(10, Math.round(ms / 25));
@@ -199,6 +211,35 @@ function makeCtx(page, cdp, context) {
     },
     /** wait until t seconds into the scene */
     async at(t) { const l = ctx.t0 + t * 1000 - Date.now(); if (l > 0) await sleep(l); },
+    /** terminal page: types each `cmd`, then prints its real captured `out` line by line; resolves when done */
+    async term(blocks, title = "bash") {
+      await page.goto("about:blank");
+      await page.setContent(`<!doctype html><html><head><style>
+        html,body{margin:0;height:100%;background:#0d1117}
+        .w{position:absolute;inset:28px 40px 130px;border:1px solid #30363d;border-radius:10px;background:#010409;display:flex;flex-direction:column;overflow:hidden}
+        .bar{height:34px;background:#161b22;display:flex;align-items:center;padding:0 14px;gap:8px;color:#8b949e;font:15px "Segoe UI",sans-serif}
+        .d{width:12px;height:12px;border-radius:50%}
+        pre{margin:0;padding:18px 22px;flex:1;overflow:hidden;color:#e6edf3;font:19px/1.42 "Cascadia Mono",Consolas,monospace;white-space:pre-wrap;word-break:break-all}
+        .p{color:#3fb950}.c{color:#f0b429}.e{color:#ff7b72}.t{color:#79c0ff}</style></head>
+        <body><div class="w"><div class="bar"><span class="d" style="background:#ff5f56"></span><span class="d" style="background:#ffbd2e"></span><span class="d" style="background:#27c93f"></span>&nbsp;${title}</div><pre id="o"></pre></div></body></html>`);
+      await page.evaluate(async (blocks) => {
+        const o = document.getElementById("o");
+        const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+        const span = (cls, txt) => { const s = document.createElement("span"); s.className = cls; s.textContent = txt; o.appendChild(s); o.scrollTop = o.scrollHeight; return s; };
+        for (const b of blocks) {
+          span("p", "$ ");
+          const c = span("c", "");
+          for (const ch of b.cmd) { c.textContent += ch; await wait(28); }
+          span("", "\n");
+          await wait(b.pause ?? 500);
+          const lines = b.out.replace(/\s+$/, "").split("\n");
+          const per = Math.max(4, Math.min(60, (b.outMs ?? 1500) / lines.length));
+          for (const l of lines) { span(/"ok": false|"code"|error/i.test(l) ? "e" : /^\[tx\]/.test(l) ? "t" : "", l + "\n"); await wait(per); }
+          span("", "\n");
+          await wait(b.after ?? 600);
+        }
+      }, blocks);
+    },
     async card(html) {
       await page.goto("about:blank");
       await page.setContent(`<!doctype html><html><head><style>

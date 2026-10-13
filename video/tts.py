@@ -1,5 +1,5 @@
 """VO for one scene: tts.py <text-file> <out.mp3> <out.json>. Writes the mp3 and {"words": [[start_s, end_s, word], ...]}."""
-import asyncio, json, sys
+import asyncio, json, sys, time
 import edge_tts
 
 VOICE = "en-US-AndrewNeural"
@@ -19,4 +19,12 @@ async def main(txt, mp3, out):
     json.dump({"words": words}, open(out, "w", encoding="utf-8"))
 
 
-asyncio.run(main(*sys.argv[1:4]))
+for attempt in range(10):  # the edge endpoint drops requests now and then
+    try:
+        asyncio.run(main(*sys.argv[1:4]))
+        break
+    except Exception as e:
+        if attempt == 9:
+            raise
+        print(f"tts retry: {e}", file=sys.stderr)
+        time.sleep(4 + 3 * attempt)
