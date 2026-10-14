@@ -185,3 +185,8 @@ h2.font-cond {
     transition: none !important;
   }
 }
+
+/* sr-only spans in table headers are position:absolute; without a positioned scroll wrapper they escape it and widen the page on mobile */
+.overflow-x-auto {
+  position: relative;
+}
