@@ -169,7 +169,7 @@ export function createApp(deps: { fetch?: Fetch; now?: () => number } = {}) {
     const board = await fetchLeaderboard("month", "pnl", f);
     const envio = env("ENVIO_GRAPHQL_URL");
     const accounts = envio ? (xs: string[]) => fetchEnvioAccounts(envio, xs, f) : undefined;
-    return c.json(await discoverLeaders(nc, board, { limit: Math.min(25, Number(c.req.query("limit") ?? 10)), now: now(), accounts }));
+    return c.json(await discoverLeaders(nc, board, { limit: Math.min(10, Number(c.req.query("limit") ?? 10)), now: now(), accounts }));
   });
 
   app.post("/simulate", async (c) => {
