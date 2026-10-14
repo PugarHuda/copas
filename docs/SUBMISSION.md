@@ -12,7 +12,7 @@ On Perpl, 71% of traders lose money within 30 days, and copy-trading leaders ris
 - Repo: https://github.com/PugarHuda/copas
 - Live app: https://copas-mocha.vercel.app — testnet 10143. Judges: create a passkey account, then use **Get testnet MON + AUSD** in the account menu.
 - Telegram bot: https://t.me/copas_monad_bot — `/leaders`, live leader cards, `/watch #1` (or the 🔔 Watch button) to get breach, epoch, unbond and claim alerts in your DM from the hosted keeper
-- Demo video (≤3 min): _(link)_ · Pitch (≤2 min): _(link)_
+- Demo video (≤3 min): https://youtu.be/9AINu2cNK_U · Pitch (≤2 min): https://youtu.be/qoZFOktrv0s · One clip per bounty: https://drive.google.com/drive/folders/1LtR9Z6OfxjYJTCVjmjWksxV-_wH3sNAa
 - Services API: https://copas-services.vercel.app · Indexer: https://indexer.dev.hyperindex.xyz/042db7d/v1/graphql
 - MCP server for AI agents: https://copas-services.vercel.app/mcp (Streamable HTTP, 12 read-only tools: live Copas leaders, mandates, bonds and vaults read onchain from the testnet registry, plus Perpl track record, backtest, LLM risk analysis, signed attestation and tx simulation). An agent researches with MCP, then acts through the `mm copas` MetaMask plugin and its risk limits. `claude mcp add --transport http copas https://copas-services.vercel.app/mcp`; tools in `services/README.md` section 8
 - Keeper (copy-sync bot, Privy sponsored): https://github.com/PugarHuda/copas/actions/workflows/keeper.yml · E2E tests (Playwright, 186 tests vs production on desktop + mobile, including a crawl of every route): https://github.com/PugarHuda/copas/actions/workflows/e2e.yml
