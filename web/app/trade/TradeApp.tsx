@@ -561,7 +561,7 @@ export function TradeApp({ initial }: { initial?: string }) {
                 : `${side === "long" ? "Long" : "Short"} ${size || 0} ${m?.sym ?? ""} · ${lev}x`}
           </button>
           {signedIn && a && !a.id && <p className="mt-1 text-xs text-ink-3">{L("Buka akun Perpl di panel Dana dulu.", "Open your Perpl account in Funds first.")}</p>}
-          {signedIn && a?.id && problem && size !== "" && <p className="mt-1 text-xs text-ink-3">{problem}</p>}
+          {signedIn && !!a?.id && problem && size !== "" && <p className="mt-1 text-xs text-ink-3">{problem}</p>}
           {msg && (
             <p role="status" className={`mt-2 text-sm ${msg.tone === "up" ? "text-up" : "text-warn"}`} data-testid="trade-status">
               {msg.text}{" "}
