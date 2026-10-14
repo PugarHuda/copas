@@ -47,9 +47,11 @@ test.describe("/seasons", () => {
       expect(t[9]).toMatch(/^\$\d[\d,]*$/);
       sum += net;
     }
-    // ranked by followers' net, descending
+    // leaders with copying vaults first, each group ranked by followers' net, descending
     const nets = (await rows.locator("td:nth-child(3)").allInnerTexts()).map(cell);
-    expect([...nets].sort((a, b) => b - a)).toEqual(nets);
+    const vaults = (await rows.locator("td:nth-child(7)").allInnerTexts()).map((s) => parseInt(s, 10)); // "vaults · fills"
+    const ranked = nets.map((n, i) => ({ n, copied: vaults[i] > 0 }));
+    expect([...ranked].sort((a, b) => Number(b.copied) - Number(a.copied) || b.n - a.n)).toEqual(ranked);
     const total = cell(await page.getByText("Followers' net result", { exact: true }).locator("..").locator(".num").innerText());
     expect(Math.abs(total - sum)).toBeLessThan(0.0003 * nets.length);
     expect(cell(await page.locator("main").getByText("Leaders", { exact: true }).locator("..").locator(".num").innerText())).toBe(nets.length);

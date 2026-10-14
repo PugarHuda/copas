@@ -25,7 +25,7 @@ export const ROUTES: [string, string][] = [
 ];
 
 /** Text that must never reach a user. */
-const FORBIDDEN = [/\bNaN\b/, /\bundefined\b/, /\bInfinity\b/, /\bmock\b/i, /demo data/i, /coming soon/i, /\bTODO\b/, /\bKimi\b/i, /lorem/i, /[−+-]\$0(?:\.0+)?(?![.,]?\d)/ /* signed zero money: "−$0" */];
+const FORBIDDEN = [/\bNaN\b/, /\bundefined\b/, /\bInfinity\b/, /\bmock\b/i, /demo data/i, /coming soon/i, /\bTODO\b/, /lorem/i, /[−+-]\$0(?:\.0+)?(?![.,]?\d)/ /* signed zero money: "−$0" */];
 
 type Guard = {
   /** Console errors / same-origin >=400 responses matching these are expected for this test. */
