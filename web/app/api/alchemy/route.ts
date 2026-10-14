@@ -18,7 +18,7 @@ type Activity = { fromAddress?: string; toAddress?: string; hash?: string; value
 type Payload = { type?: string; event?: { network?: string; activity?: Activity[] } };
 
 export async function POST(req: Request) {
-  const key = process.env.ALCHEMY_WEBHOOK_SIGNING_KEY;
+  const key = process.env.ALCHEMY_WEBHOOK_SIGNING_KEY?.trim(); // env values piped in from a shell can carry a trailing newline
   if (!key) return NextResponse.json({ error: "ALCHEMY_WEBHOOK_SIGNING_KEY not set" }, { status: 503 });
   const body = await req.text();
   if (!verify(body, req.headers.get("x-alchemy-signature"), key)) return NextResponse.json({ error: "bad signature" }, { status: 401 });

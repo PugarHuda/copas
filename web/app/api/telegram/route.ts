@@ -329,8 +329,8 @@ async function resolveTarget(arg: string): Promise<{ addr: string; label: string
  * /api/alchemy (and the watchers) within seconds instead of the next keeper tick. Unwatched addresses stay listed.
  */
 async function alchemyAdd(addr: string) {
-  const token = process.env.ALCHEMY_AUTH_TOKEN;
-  const id = process.env.ALCHEMY_WEBHOOK_ID;
+  const token = process.env.ALCHEMY_AUTH_TOKEN?.trim();
+  const id = process.env.ALCHEMY_WEBHOOK_ID?.trim();
   if (!token || !id) return;
   await fetch("https://dashboard.alchemy.com/api/update-webhook-addresses", {
     method: "PATCH",
