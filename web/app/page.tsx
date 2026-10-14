@@ -94,7 +94,7 @@ function Bonded({ leaders, L, t }: { leaders: Leader[] | null; L: Lx; t: Tx }) {
                     {l.name}
                   </Link>
                   <StatusPill status={l.status} label={t(`status.${l.status}`)} />
-                  {l.agent && <span className="text-xs text-ink-3">AI agent{l.agent.erc8004Id ? ` · ERC-8004 #${l.agent.erc8004Id}` : ""}</span>}
+                  {l.agent && <span className="text-xs text-ink-3">{l.agent.erc8004Id ? `AI agent · ERC-8004 #${l.agent.erc8004Id}` : "Operator wallet"}</span>}
                 </div>
                 <div className="mt-1 text-xs text-ink-3">
                   {l.markets.join(", ")} · {L("lev. maks", "max lev.")} {l.maxLeverage}x · fee {l.feePct}% · {L("epoch", "epoch")} {l.epoch}

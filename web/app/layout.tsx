@@ -38,6 +38,9 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
                 <a className="mt-1.5 block py-0.5 text-sm text-ink-2 hover:text-ink" href="/proof">
                   {lang === "id" ? "Breach & potongan" : "Breaches & slashes"}
                 </a>
+                <a className="block py-0.5 text-sm text-ink-2 hover:text-ink" href="/docs">
+                  Docs
+                </a>
                 <a className="block py-0.5 text-sm text-ink-2 hover:text-ink" href="https://github.com/PugarHuda/copas" target="_blank" rel="noreferrer">
                   GitHub
                 </a>

@@ -171,7 +171,7 @@ function Bonded({ l, cps, positions: read, L, statusLabel }: { l: Leader; cps: L
           <div className="flex flex-wrap items-center gap-2">
             <h1 className="break-all font-cond text-3xl font-semibold sm:text-4xl">{l.name}</h1>
             <StatusPill status={l.status} label={statusLabel} />
-            {l.agent && <Pill tone="gold">AI agent{l.agent.erc8004Id ? ` · ERC-8004 #${l.agent.erc8004Id}` : ""}</Pill>}
+            {l.agent && <Pill tone="gold">{l.agent.erc8004Id ? `AI agent · ERC-8004 #${l.agent.erc8004Id}` : "Operator wallet"}</Pill>}
           </div>
           <div className="mt-2 grid gap-1 text-xs text-ink-3">
             <span className="break-all">
