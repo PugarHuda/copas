@@ -59,7 +59,7 @@ export const ABI = {
 export const cfg = {
   ROOT,
   chainId: CHAIN_ID,
-  rpcUrl: env('MONAD_RPC_URL', MAINNET ? 'https://rpc.monad.xyz' : 'https://testnet-rpc.monad.xyz'),
+  rpcUrl: env('MONAD_RPC_URL', MAINNET ? 'https://rpc.monad.xyz' : 'https://testnet-rpc.monad.xyz').trim(),
   wsUrl: env('MONAD_WS_URL', ''),
   startBlock: env('START_BLOCK', ''),
   pollMs: Number(env('POLL_MS', '1500')),

@@ -6,7 +6,7 @@ export const monad = defineChain({
   id: 143,
   name: "Monad",
   nativeCurrency: { name: "Monad", symbol: "MON", decimals: 18 },
-  rpcUrls: { default: { http: [process.env.NEXT_PUBLIC_MONAD_RPC_URL || "https://rpc.monad.xyz"] } },
+  rpcUrls: { default: { http: [process.env.NEXT_PUBLIC_MONAD_RPC_URL?.trim() || "https://rpc.monad.xyz"] } },
   blockExplorers: { default: { name: "MonadScan", url: "https://monadscan.com" } },
   contracts: { multicall3 },
 });
@@ -19,7 +19,7 @@ export const monadTestnet = defineChain({
   rpcUrls: {
     default: {
       http: [
-        process.env.NEXT_PUBLIC_MONAD_TESTNET_RPC_URL || "https://testnet-rpc.monad.xyz",
+        process.env.NEXT_PUBLIC_MONAD_TESTNET_RPC_URL?.trim() || "https://testnet-rpc.monad.xyz",
         "https://rpc.ankr.com/monad_testnet",
         "https://rpc-testnet.monadinfra.com",
         "https://10143.rpc.thirdweb.com",

@@ -73,6 +73,8 @@ jobs:
           PRIVY_APP_SECRET: ${{ secrets.PRIVY_APP_SECRET }}
           PRIVY_AUTHORIZATION_KEY: ${{ secrets.PRIVY_AUTHORIZATION_KEY }}
           PRIVY_WALLET_ID: ${{ secrets.PRIVY_WALLET_ID }}
+          # Alchemy Monad Testnet RPC first; keeper/src/chain.ts falls back to the public RPCs on errors/429s
+          MONAD_RPC_URL: ${{ secrets.MONAD_RPC_URL }}
           # DOWN market maker (keeper/src/mm.ts): plain key holding MON + AUSD. Unset = the tick skips market making.
           MM_PRIVATE_KEY: ${{ secrets.MM_PRIVATE_KEY }}
           # gas throttle, tunable via repo variables without a commit (keeper/src/mm.ts)
