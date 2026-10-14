@@ -6,12 +6,37 @@
 
 Every leader posts an **AUSD bond** and declares a **mandate**: max drawdown, allowed markets, max leverage and size. Followers copy the leader's Perpl perps positions through a vault they own, and that vault can only copy within the follower's own limits. The contracts read the leader's equity **directly from Perpl state, with no oracle**. If the leader breaches the mandate, the bond is **slashed automatically and paid to followers** in proportion to their real losses.
 
+## Links
+
+- Live app: https://copas-mocha.vercel.app (Monad testnet 10143) · Telegram bot: https://t.me/copas_monad_bot · MCP server for agents: https://copas-services.vercel.app/mcp
+- Demo video (2:52): https://youtu.be/9AINu2cNK_U · Pitch (1:19): https://youtu.be/qoZFOktrv0s · One clip per sponsor integration: https://drive.google.com/drive/folders/1LtR9Z6OfxjYJTCVjmjWksxV-_wH3sNAa
+- Evidence for every claim (tx hashes, addresses): [`docs/SUBMISSION.md`](docs/SUBMISSION.md) · Feature tracker: [`docs/STATUS.md`](docs/STATUS.md) · Security review: [`contracts/SECURITY.md`](contracts/SECURITY.md)
+
+## Sponsor integrations (all live)
+
+| Sponsor | What Copas does with it |
+|---|---|
+| Perpl | Contracts hold their own Perpl accounts and trade via `execOrder`; the keeper copies leaders' longs and shorts into follower vaults; risk and analytics dashboard over all Perpl history |
+| Kuru | Per-leader DOWN tokens (a CDS on a trader, paid out if the leader breaches) on Kuru order books, quoted by our market maker, tradable from the passkey wallet |
+| Agora (AUSD) + Mera | Installable mobile app: passkey account, AUSD balance cross-checked three ways, Perpl orders gated by the trader's own mandate |
+| Mera (Many Keys) | A second PRF key encrypts leader strategy notes onchain that only current followers can decrypt |
+| Privy | Keeper server wallet with an ALLOW/DENY policy and gas sponsorship: the automation can sync vaults but provably can't move money |
+| Dynamic | MPC wallets as LeaderBook operators (one traded on Perpl behind a Copas allowlist), email wallets, an unfollow-only delegated guard |
+| Envio | HyperIndex over every Perpl event (72.5M on mainnet) + Copas contracts via dynamic registration; HyperSync for Kuru fills |
+| Chainlink CRE | `copas-risk-guardian` workflow: reads leaders, scores risk, a consumer contract checkpoints risky leaders (simulated with onchain broadcast) |
+| Aurora Intents | Any-chain deposit → USDC on Monad (real Base → Monad run on 14 Oct), feeding deposit-and-follow and the agent wallet that pays Nansen |
+| Nansen | Leader discovery, wallet quality and smart-money alignment, paid per call with x402 in Monad USDC |
+| Kimi | Signed AI risk analyst (see rule 4) |
+| Alchemy | Monad RPC (primary, with fallback) for the web and keeper + Notify webhook → Telegram alerts |
+| MetaMask | `mm copas` Agent Wallet plugin: 13 commands, mandatory risk limits, tighten-only edits, 24 h outflow cap |
+| x402 / ERC-8004 | Pay-per-call risk reports on Monad; AI agent leader #2209 with per-epoch onchain reputation |
+
 ## Design rules
 
 1. **The backend never holds follower funds.** Funds sit in a `FollowerVault` owned by the follower's passkey EOA, and withdrawals only go to that owner.
 2. **Copy-only.** Anyone can call `sync()`, but it can only move the follower toward `ratio × leader position`, within the follower's caps, stop-loss and leverage limit. Bots have no discretion.
 3. **No oracle for money logic.** Equity, drawdown, breach and settlement all come from Perpl views read in the same block.
-4. **AI explains, rules execute.** An LLM (OpenRouter free models) explains the numbers, and the service signs a receipt over the input and output hashes. Every action is deterministic contract logic.
+4. **AI explains, rules execute.** Kimi K3 (official Moonshot API) explains the numbers and gives three reasons *not* to follow; every answer carries Kimi's Request Signature, verified server-side ([`docs/KIMI.md`](docs/KIMI.md)). Every action is deterministic contract logic.
 5. **No silent rule changes.** A leader can change its mandate, but only from the next epoch, and a follower vault only copies under terms its owner accepted. If the live mandate is looser (higher fee, drawdown, leverage, size or more markets), `sync` unwinds the vault to flat until the owner accepts, and the fee is always charged at the accepted rate.
 6. **Honest risk.** The UI always shows *max protection = bond / follower AUM* and the remaining risks. The contracts are unaudited, so mainnet deposits are capped.
 
@@ -46,6 +71,9 @@ Live demo objects:
 | Registry | `0xA8BA57c7Af1d9A28660653E0439A180c86D03e3d` |
 | Active leader (bond 50 AUSD, BTC long copied 50% by a follower vault) | book `0xda695cB060c7e2dF0b5c36EA591eA69399463D90` |
 | Breached leader (bond slashed, follower claimed its loss) | book `0xb1B08F6a0642c51b48c1916136458A769a1c5208`, vault `0x38E8EbBD7Bd291036A0EFe4a6eFa3BCcd27D74ff` |
+| Short copied 1:1 (traded by a Dynamic MPC operator wallet) | book `0xE31302DA2B0dA7898416E630dA75c837139dBE1B`, vault `0xe8eAA63Aba51C6a41e1b7ce31B3E91DC9E1E1119` |
+| AI agent leader (ERC-8004 #2209) | book `0xbC277432C927996E5F91a2D356289895e1415958` |
+| Encrypted strategy feed (Mera second PRF key) | leader book `0x1A6F9D5ccbbCC8561896311AcBa0be8B963E233E`, `CopasFeed` `0x75d52573C684C7799778Da633fDceB80297d7718` |
 
 To reproduce from scratch, run `contracts/deploy-testnet.sh`, then `script/Seed.s.sol` (bonded leader with a follower copying a trade), then `script/Breach.s.sol` (breach, slash, claim; run phase 2 one epoch later).
 
