@@ -12,6 +12,8 @@ Every leader posts an **AUSD bond** and declares a **mandate**: max drawdown, al
 - Demo video (2:52): https://youtu.be/9AINu2cNK_U · Pitch (1:19): https://youtu.be/qoZFOktrv0s · One clip per sponsor integration: https://drive.google.com/drive/folders/1LtR9Z6OfxjYJTCVjmjWksxV-_wH3sNAa
 - Evidence for every claim (tx hashes, addresses): [`docs/SUBMISSION.md`](docs/SUBMISSION.md) · Feature tracker: [`docs/STATUS.md`](docs/STATUS.md) · Security review: [`contracts/SECURITY.md`](contracts/SECURITY.md)
 
+> **Note for judges: indexer endpoint moved on 19 Oct 2026.** Envio's Development tier scheduled the original deployment (`042db7d`) for auto-disable over its event limits, and Envio support told us to create a new deployment to reset it. The new endpoint is https://indexer.dev.hyperindex.xyz/003f7d8/v1/graphql. Its indexer code is unchanged: commit `242ef36` has the same `indexer/` code as the original deployment (`ac9388b`). It is re-syncing all ~75M events from scratch, and until it reaches chain head the analytics pages fall back to RPC. The commit that adds this note only changes the endpoint URL and docs.
+
 ## Sponsor integrations (all live)
 
 | Sponsor | What Copas does with it |

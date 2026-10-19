@@ -6,7 +6,7 @@ const cell = (s: string) => (s.trim() === "–" ? 0 : parseNum(s));
 const day = (t: number) => new Date(t * 1000).toISOString().slice(0, 10);
 const WEEK = 7 * 86_400;
 const monday = (t: number) => Math.floor((t - 4 * 86_400) / WEEK) * WEEK + 4 * 86_400;
-const ENVIO = "https://indexer.dev.hyperindex.xyz/042db7d/v1/graphql";
+const ENVIO = "https://indexer.dev.hyperindex.xyz/003f7d8/v1/graphql";
 /** Claim rows straight from the hosted indexer, which answers 429 (empty body) under load: retry until it answers. */
 async function claims(request: APIRequestContext, where = ""): Promise<{ amountCNS: string }[]> {
   let rows: { amountCNS: string }[] = [];

@@ -13,7 +13,7 @@ AgentLeaderRegistry). Spec: `../docs/SPEC.md` G1.
 | Perpl Exchange | mainnet `0x34B6552d57a35a1D042CcAe1951BD1C370112a6F` (proxy), testnet `0x1964C32f0bE608E7D29302AFF5E61268E72080cc` |
 | Mainnet start block | **54,773,010**, the first Perpl Exchange log (found with HyperSync). |
 | Testnet start block | **70,084,000** (11 Oct 2026, just before the Copas testnet deploy at 70,102,394). Full testnet Perpl history would take ~74 h on the free HyperSync tier, so earlier testnet perps are skipped (see Known limits). |
-| Hosted | Envio Cloud, https://indexer.dev.hyperindex.xyz/042db7d/v1/graphql. On 12 Oct 2026 both chains were at head: 72.5M mainnet events, 5,288 traders, 36.2M fills, 3,661 liquidations. |
+| Hosted | Envio Cloud, https://indexer.dev.hyperindex.xyz/003f7d8/v1/graphql. On 12 Oct 2026 both chains were at head: 72.5M mainnet events, 5,288 traders, 36.2M fills, 3,661 liquidations. |
 
 ## Files
 
